@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -40,6 +41,7 @@ public class Plist {
 	public static final String KEY_CONSENT_TEXT = "ConsentText";
 	
 	private final Dictionary mDict;
+	private final List<PlistPayload> mPayloads;
 	
 	public Plist(File file) throws XmlPullParserException, IOException {
 		this(new FileInputStream(file));
@@ -55,6 +57,16 @@ public class Plist {
 		
 		parser.nextTag();
 		mDict = Dictionary.parse(parser);
+		
+		List<PlistPayload> payloads = new LinkedList<PlistPayload>();
+		Array payloadArr = mDict.getArray(KEY_PAYLOAD_CONTENT);
+		if(payloadArr != null) {
+			for(int i = 0; i < payloadArr.size(); i++) {
+				payloads.add(PlistPayloadFactory.createPayload(payloadArr.getDictionary(i)));
+			}
+		}
+		
+		mPayloads = Collections.unmodifiableList(payloads);
 	}
 	
 	public boolean containsKey(String key) {
@@ -75,6 +87,15 @@ public class Plist {
 	
 	public Array getPayloadContent() {
 		return mDict.getArray(KEY_PAYLOAD_CONTENT);
+	}
+	
+	public List<PlistPayload> getPayloads() {
+		return mPayloads;
+	}
+	
+	@Override
+	public String toString() {
+		return mDict.toString();
 	}
 	
 	public static String getType(Object object) {
@@ -213,6 +234,11 @@ public class Plist {
 			return Plist.getType(get(index));
 		}
 		
+		@Override
+		public String toString() {
+			return mList.toString();
+		}
+		
 		public static Array wrap(List<Object> list) {
 			return new Array(list);
 		}
@@ -300,6 +326,11 @@ public class Plist {
 		
 		public String getType(String key) {
 			return Plist.getType(get(key));
+		}
+		
+		@Override
+		public String toString() {
+			return mMap.toString();
 		}
 		
 		public static Dictionary wrap(Map<String, Object> map) {
