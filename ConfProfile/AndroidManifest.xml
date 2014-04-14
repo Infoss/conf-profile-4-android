@@ -6,6 +6,8 @@
     <uses-sdk
         android:minSdkVersion="14"
         android:targetSdkVersion="15" />
+    
+    <uses-permission android:name="android.permission.INTERNET" />
 
     <application
         android:allowBackup="true"
@@ -14,10 +16,19 @@
         android:theme="@style/AppTheme" >
         
         <activity android:name=".Main">
-            <intent-filter >
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
-                <category android:name="android.intent.category.LAUNCHER" />
+                <data 
+                    android:scheme="file" 
+                    android:host=""
+                    android:pathPattern=".*\\.mobileconfig" 
+                    android:mimeType="*/*" />
                 <data 
                     android:scheme="content" 
                     android:pathPattern=".*\\.mobileconfig" 

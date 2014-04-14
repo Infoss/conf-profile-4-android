@@ -1,9 +1,11 @@
 package no.infoss.confprofile.format;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -12,6 +14,9 @@ import java.util.Map;
 
 import no.infoss.confprofile.util.XmlUtils;
 
+import org.bouncycastle.cms.CMSSignedData;
+import org.bouncycastle.cms.SignerInformation;
+import org.bouncycastle.cms.SignerInformationStore;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -42,6 +47,20 @@ public class Plist {
 	
 	private final Dictionary mDict;
 	private final List<PlistPayload> mPayloads;
+	private boolean mIsSigned = false;
+	private boolean mIsTrusted = false;
+	
+	public Plist(CMSSignedData cmsSignedData) throws XmlPullParserException, IOException {
+		this(new ByteArrayInputStream((byte[]) cmsSignedData.getSignedContent().getContent()));
+		SignerInformationStore signerStore = cmsSignedData.getSignerInfos();
+		@SuppressWarnings("unchecked")
+		Collection<SignerInformation> signers = signerStore.getSigners();
+		for(SignerInformation signer : signers) {
+			//TODO: verify signed data
+		}
+		
+		mIsSigned = true;
+	}
 	
 	public Plist(File file) throws XmlPullParserException, IOException {
 		this(new FileInputStream(file));
@@ -89,13 +108,41 @@ public class Plist {
 		return mDict.getArray(KEY_PAYLOAD_CONTENT);
 	}
 	
+	public String getPayloadDescription() {
+		return mDict.getString(KEY_PAYLOAD_DESCRIPTION);
+	}
+	
+	public String getPayloadDisplayName() {
+		return mDict.getString(KEY_PAYLOAD_DISPLAY_NAME);
+	}
+	
+	public String getPayloadIdentifier() {
+		return mDict.getString(KEY_PAYLOAD_IDENTIFIER);
+	}
+	
+	public String getPayloadOrganization() {
+		return mDict.getString(KEY_PAYLOAD_ORGANIZATION);
+	}
+	
 	public List<PlistPayload> getPayloads() {
 		return mPayloads;
 	}
 	
 	@Override
 	public String toString() {
-		return mDict.toString();
+		StringBuilder builder = new StringBuilder();
+		if(!mIsSigned) {
+			builder.append("not signed, ");
+		} else {
+			builder.append("signed, ");
+			if(mIsTrusted) {
+				builder.append("trusted, ");
+			} else {
+				builder.append("not trusted, ");
+			}
+		}
+		builder.append(mDict.toString());
+		return builder.toString();
 	}
 	
 	public static String getType(Object object) {
