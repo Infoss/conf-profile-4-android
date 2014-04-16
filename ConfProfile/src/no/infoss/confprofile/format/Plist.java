@@ -11,18 +11,26 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import no.infoss.confprofile.util.XmlUtils;
 
+import org.bouncycastle.asn1.util.ASN1Dump;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
 import org.bouncycastle.cms.SignerInformationStore;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
+import org.xmlpull.v1.XmlSerializer;
 
+import android.util.Log;
 import android.util.Xml;
 
 public class Plist {	
+	public static final String TAG = Plist.class.getSimpleName();
+	
+	public static final String DOCDECL = " plist PUBLIC \"-//Apple Inc//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"";
+	
 	public static final String TYPE_BOOLEAN = "boolean";
 	public static final String TYPE_INTEGER = "integer";
 	public static final String TYPE_STRING = "string";
@@ -52,11 +60,12 @@ public class Plist {
 	
 	public Plist(CMSSignedData cmsSignedData) throws XmlPullParserException, IOException {
 		this(new ByteArrayInputStream((byte[]) cmsSignedData.getSignedContent().getContent()));
+		Log.d(TAG, ASN1Dump.dumpAsString(cmsSignedData.toASN1Structure()));
 		SignerInformationStore signerStore = cmsSignedData.getSignerInfos();
 		@SuppressWarnings("unchecked")
 		Collection<SignerInformation> signers = signerStore.getSigners();
 		for(SignerInformation signer : signers) {
-			//TODO: verify signed data
+			//TODO: verify signed data	
 		}
 		
 		mIsSigned = true;
@@ -94,6 +103,14 @@ public class Plist {
 	
 	public Object get(String key) {
 		return mDict.get(key);
+	}
+	
+	public Array getArray(String key) {
+		return mDict.getArray(key);
+	}
+	
+	public Dictionary getDictionary(String key) {
+		return mDict.getDictionary(key);
 	}
 	
 	public boolean hasRemovalPasscode() {
@@ -157,6 +174,8 @@ public class Plist {
 			return TYPE_INTEGER;
 		} else if(String.class.equals(objClass)) {
 			return TYPE_STRING;
+		} else if(Array.class.equals(objClass)) {
+			return TYPE_ARRAY;
 		} else if(Dictionary.class.equals(objClass)) {
 			return TYPE_DICT;
 		}
@@ -208,11 +227,34 @@ public class Plist {
 		return object;
 	}
 	
+	private static void writeXml(XmlSerializer serializer, Object object) 
+			throws IllegalArgumentException, IllegalStateException, IOException {
+		String objectType = getType(object);
+		
+		if(TYPE_BOOLEAN.equalsIgnoreCase(objectType)) {
+			serializer.startTag(null, TYPE_BOOLEAN);
+			serializer.text(object.toString());
+			serializer.endTag(null, TYPE_BOOLEAN);
+		} else if(TYPE_INTEGER.equalsIgnoreCase(objectType)) {
+			serializer.startTag(null, TYPE_INTEGER);
+			serializer.text(object.toString());
+			serializer.endTag(null, TYPE_INTEGER);
+		} else if(TYPE_STRING.equalsIgnoreCase(objectType)) {
+			serializer.startTag(null, TYPE_STRING);
+			serializer.text(object.toString());
+			serializer.endTag(null, TYPE_STRING);
+		} else if(TYPE_ARRAY.equalsIgnoreCase(objectType)) {
+			((Array) object).writeXml(serializer);
+		} else if(TYPE_DICT.equalsIgnoreCase(objectType)) {
+			((Dictionary) object).writeXml(serializer);
+		}
+	}
+	
 	public static final class Array {
 		private final List<Object> mList;
 		
 		private Array(List<Object> list) {
-			mList = list;
+			mList = list; //TODO: wrap nested values
 		}
 		
 		public int size() {
@@ -281,6 +323,15 @@ public class Plist {
 			return Plist.getType(get(index));
 		}
 		
+		public void writeXml(XmlSerializer serializer) 
+				throws IllegalArgumentException, IllegalStateException, IOException {
+			serializer.startTag(null, TYPE_ARRAY);
+			for(Object item : mList) {
+				Plist.writeXml(serializer, item);
+			}
+			serializer.endTag(null, TYPE_ARRAY);
+		}
+		
 		@Override
 		public String toString() {
 			return mList.toString();
@@ -306,7 +357,7 @@ public class Plist {
 		private final Map<String, Object> mMap;
 		
 		private Dictionary(Map<String, Object> map) {
-			mMap = map;
+			mMap = map; //TODO: wrap nested values
 		}
 		
 		public boolean containsKey(String key) {
@@ -373,6 +424,18 @@ public class Plist {
 		
 		public String getType(String key) {
 			return Plist.getType(get(key));
+		}
+		
+		public void writeXml(XmlSerializer serializer) 
+				throws IllegalArgumentException, IllegalStateException, IOException {
+			serializer.startTag(null, TYPE_DICT);
+			for(Entry<String, Object> item : mMap.entrySet()) {
+				serializer.startTag(null, "key");
+				serializer.text(item.getKey());
+				serializer.endTag(null, "key");
+				Plist.writeXml(serializer, item.getValue());
+			}
+			serializer.endTag(null, TYPE_DICT);
 		}
 		
 		@Override

@@ -8,11 +8,14 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.ViewGroup;
+import android.widget.Button;
 import android.widget.TextView;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.format.Plist;
 import no.infoss.confprofile.task.ParsePlistTask;
+import no.infoss.confprofile.task.SecondPhaseTask;
 import no.infoss.confprofile.task.TaskError;
 import no.infoss.confprofile.task.ParsePlistTask.ParsePlistTaskListener;
 import no.infoss.confprofile.util.ParsePlistHandler;
@@ -41,6 +44,8 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 	
 	private int mErrCode;
 	private int mHttpErrCode;
+	
+	private Plist mPlist; //TODO: fix this to avoid extra link here
 	
 	public AddProfileFragment() {
 		super();
@@ -80,14 +85,14 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 	}
 	
 	@Override
-	public View onCreateView (LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
+	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		super.onCreateView(inflater, container, savedInstanceState);
 		
 		return createViewViewForState(inflater);
 	}
 	
 	private View createViewViewForState(LayoutInflater inflater) {
-		View view;
+		View view = null;
 		
 		if(inflater == null) {
 			if(getActivity() == null) {
@@ -137,6 +142,16 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 			desc.setText(mDescription);
 		}
 		
+		Button btnOk = (Button) view.findViewById(R.id.btnOk);
+		if(btnOk != null) {
+			btnOk.setOnClickListener(new OnClickListener() {
+				
+				@Override
+				public void onClick(View v) {
+					new SecondPhaseTask(AddProfileFragment.this.getActivity(), null).execute(mPlist);
+				}
+			});
+		}
 	}
 	
 	@Override
@@ -183,6 +198,8 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 		
 		mErrCode = TaskError.SUCCESS;
 		mHttpErrCode = task.getHttpStatusCode();
+		
+		mPlist = plist;
 		
 		ViewGroup rootView = (ViewGroup) getView();
 		if(rootView == null) {
