@@ -32,31 +32,31 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import no.infoss.confprofile.util.CryptoUtils;
 import android.util.Log;
 
-public class TrustedCertificateManager {
-	private static final String TAG = TrustedCertificateManager.class.getSimpleName();
+/*package*/ class OldAndroidCertificateManager {
+	private static final String TAG = OldAndroidCertificateManager.class.getSimpleName();
+
 	private final ReentrantReadWriteLock mLock = new ReentrantReadWriteLock();
 	private Hashtable<String, X509Certificate> mCACerts = new Hashtable<String, X509Certificate>();
 	private Hashtable<String, String> mFingerMap = new Hashtable<String, String>();
 	private boolean mLoaded;
-
 	/**
 	 * Private constructor to prevent instantiation from other classes.
 	 */
-	private TrustedCertificateManager() {
+	private OldAndroidCertificateManager() {
 	}
 
 	/**
 	 * This is not instantiated until the first call to getInstance()
 	 */
 	private static class Singleton {
-		public static final TrustedCertificateManager mInstance = new TrustedCertificateManager();
+		public static final OldAndroidCertificateManager mInstance = new OldAndroidCertificateManager();
 	}
 
 	/**
 	 * Get the single instance of the CA certificate manager.
 	 * @return CA certificate manager
 	 */
-	public static TrustedCertificateManager getInstance() {
+	public static OldAndroidCertificateManager getInstance() {
 		return Singleton.mInstance;
 	}
 
@@ -65,7 +65,7 @@ public class TrustedCertificateManager {
 	 * As this takes a while it should be called asynchronously.
 	 * @return reference to itself
 	 */
-	public TrustedCertificateManager reload() {
+	public OldAndroidCertificateManager reload() {
 		Log.d(TAG, "Force reload of cached CA certificates");
 		this.mLock.writeLock().lock();
 		loadCertificates();
@@ -79,7 +79,7 @@ public class TrustedCertificateManager {
 	 * be called asynchronously.
 	 * @return reference to itself
 	 */
-	public TrustedCertificateManager load() {
+	public OldAndroidCertificateManager load() {
 		Log.d(TAG, "Ensure cached CA certificates are loaded");
 		this.mLock.writeLock().lock();
 		if (!this.mLoaded) {
@@ -188,8 +188,8 @@ public class TrustedCertificateManager {
 	 * Get only the system-wide CA certificates.
 	 * @return Hashtable mapping aliases to certificates
 	 */
-	public Hashtable<String, X509Certificate> getSystemCACertificates() {
-		Hashtable<String, X509Certificate> certs = new Hashtable<String, X509Certificate>();
+	public Hashtable<String, Certificate> getSystemCACertificates() {
+		Hashtable<String, Certificate> certs = new Hashtable<String, Certificate>();
 		this.mLock.readLock().lock();
 		for (String alias : this.mCACerts.keySet()) {
 			if (alias.startsWith("system:")) {
@@ -204,8 +204,8 @@ public class TrustedCertificateManager {
 	 * Get only the CA certificates installed by the user.
 	 * @return Hashtable mapping aliases to certificates
 	 */
-	public Hashtable<String, X509Certificate> getUserCACertificates() {
-		Hashtable<String, X509Certificate> certs = new Hashtable<String, X509Certificate>();
+	public Hashtable<String, Certificate> getUserCACertificates() {
+		Hashtable<String, Certificate> certs = new Hashtable<String, Certificate>();
 		this.mLock.readLock().lock();
 		for (String alias : this.mCACerts.keySet()) {
 			if (alias.startsWith("user:")) {
