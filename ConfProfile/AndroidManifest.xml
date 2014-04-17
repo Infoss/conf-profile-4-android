@@ -33,6 +33,16 @@
                     android:pathPattern=".*\\.mobileconfig" 
                     android:mimeType="*/*" />
                 <data 
+                    android:scheme="http" 
+                    android:host="*"
+                    android:pathPattern=".*\\.mobileconfig" 
+                    android:mimeType="application/x-apple-aspen-config" />
+                <data 
+                    android:scheme="https" 
+                    android:host="*"
+                    android:pathPattern=".*\\.mobileconfig" 
+                    android:mimeType="application/x-apple-aspen-config" />
+                <data 
                     android:scheme="content" 
                     android:pathPattern=".*\\.mobileconfig" 
                     android:mimeType="application/x-apple-aspen-config" />
