@@ -120,7 +120,7 @@ public class AppCertificateManager extends CertificateManager {
 				   IOException {
 		if(!keyStore.containsAlias(DEFAULT_KEY_ALIAS)) {
 			AsymmetricCipherKeyPair keypair = CryptoUtils.genBCRSAKeypair(2048);
-			TBSCertificate tbs = CryptoUtils.createBCTBSCert(null, "DN=dummy Android cert", keypair.getPublic(), "SHA1WithRSAEncryption");
+			TBSCertificate tbs = CryptoUtils.createBCTBSCert(null, "DN=self-signed OCMS Android cert", keypair.getPublic(), "SHA1WithRSAEncryption");
 			Certificate cert = CryptoUtils.signCert(tbs, keypair.getPrivate());
 			
 			keyStore.setCertificateEntry(DEFAULT_CERT_ALIAS, cert);

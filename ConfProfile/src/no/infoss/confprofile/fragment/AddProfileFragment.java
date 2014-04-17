@@ -13,6 +13,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
 import no.infoss.confprofile.R;
+import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.Plist;
 import no.infoss.confprofile.task.ParsePlistTask;
 import no.infoss.confprofile.task.SecondPhaseTask;
@@ -192,9 +193,9 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 	public void onParsePlistComplete(ParsePlistTask task, Plist plist) {
 		mState = STATE_PARSED;
 		
-		mName = plist.getPayloadDisplayName();
-		mOrganization = plist.getPayloadOrganization();
-		mDescription = plist.getPayloadDescription();
+		mName = plist.getString(ConfigurationProfile.KEY_PAYLOAD_DISPLAY_NAME, null);
+		mOrganization = plist.getString(ConfigurationProfile.KEY_PAYLOAD_ORGANIZATION, null);
+		mDescription = plist.getString(ConfigurationProfile.KEY_PAYLOAD_DESCRIPTION, null);
 		
 		mErrCode = TaskError.SUCCESS;
 		mHttpErrCode = task.getHttpStatusCode();

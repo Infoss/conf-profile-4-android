@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
 import java.net.URI;
+import java.net.URL;
 import java.security.Key;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
@@ -17,9 +18,13 @@ import java.util.Map;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.crypto.AppCertificateManager;
 import no.infoss.confprofile.crypto.CertificateManager;
+import no.infoss.confprofile.format.ConfigurationProfile;
+import no.infoss.confprofile.format.ConfigurationProfile.Payload;
 import no.infoss.confprofile.format.Plist;
 import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
+import no.infoss.confprofile.format.ScepPayload;
+import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.HttpUtils;
 
 import org.apache.http.HttpResponse;
@@ -27,17 +32,31 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.HttpClient;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.bouncycastle.asn1.util.ASN1Dump;
+import org.bouncycastle.asn1.DERPrintableString;
+import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
+import org.bouncycastle.asn1.x500.X500Name;
+import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.TBSCertificate;
 import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.CMSSignedDataGenerator;
 import org.bouncycastle.cms.CMSTypedData;
 import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
+import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.operator.ContentSigner;
+import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder;
+import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
+import org.bouncycastle.operator.bc.BcContentSignerBuilder;
+import org.bouncycastle.operator.bc.BcRSAContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
+import org.bouncycastle.pkcs.PKCS10CertificationRequest;
+import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
+import org.bouncycastle.pkcs.bc.BcPKCS10CertificationRequestBuilder;
 import org.bouncycastle.util.Store;
+import org.jscep.client.Client;
+import org.jscep.client.verification.OptimisticCertificateVerifier;
 import org.xmlpull.v1.XmlSerializer;
 
 import android.content.Context;
@@ -85,7 +104,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		
 		Map<String, Object> response = new HashMap<String, Object>();
 		
-		Dictionary content = plist.getDictionary(Plist.KEY_PAYLOAD_CONTENT);
+		Dictionary content = plist.getDictionary(ConfigurationProfile.KEY_PAYLOAD_CONTENT);
 		
 		String url = content.getString("URL");
 		//NOTE: Server-side accepts Challenge key (not value!) in uppercase only.
@@ -167,9 +186,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		    		.build(sha1Signer, (X509Certificate)signCert));
 
 		    gen.addCertificates(certs);
-		    sigData = gen.generate(msg, true);
-		    Log.d(TAG, ASN1Dump.dumpAsString(sigData.toASN1Structure()));
-		    
+		    sigData = gen.generate(msg, true);    
 		} catch(Exception e) {
 			Log.e(TAG, "Error while serializing xml", e);
 			return TaskError.INTERNAL;
@@ -201,10 +218,6 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			mHttpStatusCode = resp.getStatusLine().getStatusCode();
 			if(mHttpStatusCode != HttpStatus.SC_OK) {
 				stream = resp.getEntity().getContent();
-				byte buff[] = new byte[1024];
-				while(stream.read(buff) != -1) {
-					//just empty a stream
-				}
 				stream.close();
 				return TaskError.HTTP_FAILED;
 			}
@@ -213,6 +226,42 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			sigData = new CMSSignedData(stream);
 			mPlist = new Plist(sigData);
 			Log.d(TAG, mPlist.toString());
+			ConfigurationProfile confProfile = ConfigurationProfile.wrap(mPlist);
+			
+			List<Payload> payloads = confProfile.getPayloads();
+			for(Payload payload : payloads) {
+				if(payload instanceof ScepPayload) {
+					//perform scep
+					ScepPayload scepPayload = (ScepPayload) payload;
+					AsymmetricCipherKeyPair keypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
+					TBSCertificate tbs = CryptoUtils.createBCTBSCert(null, scepPayload.getSubject(), keypair.getPublic(), "SHA1WithRSAEncryption");
+					Certificate cert = CryptoUtils.signCert(tbs, keypair.getPrivate());
+					
+					AlgorithmIdentifier algOID = tbs.getSignature();
+					AlgorithmIdentifier sigAlgId = new DefaultSignatureAlgorithmIdentifierFinder().find("SHA1withRSA");
+				    AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
+
+					
+					BcContentSignerBuilder csb = new BcRSAContentSignerBuilder(sigAlgId, digAlgId);
+					ContentSigner cs = csb.build(keypair.getPrivate());
+
+					PKCS10CertificationRequestBuilder crb = 
+							new BcPKCS10CertificationRequestBuilder(
+									new X500Name(scepPayload.getSubject()), 
+									keypair.getPrivate());
+
+					String challenge = scepPayload.getChallenge();
+					if(challenge != null) {
+						DERPrintableString password = new DERPrintableString(challenge);
+						crb.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_challengePassword, password);
+					}
+					
+					PKCS10CertificationRequest csr = crb.build(cs);
+					
+					Client scepClient = new Client(new URL(scepPayload.getURL()), new OptimisticCertificateVerifier());
+					scepClient.enrol((X509Certificate)cert, CryptoUtils.getRSAPrivateKey(keypair), csr);
+				}
+			}			
 		} catch(Exception e) {
 			Log.e(TAG, "", e);
 			return TaskError.INTERNAL;

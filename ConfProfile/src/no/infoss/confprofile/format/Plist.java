@@ -6,7 +6,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -37,30 +36,13 @@ public class Plist {
 	public static final String TYPE_ARRAY = "array";
 	public static final String TYPE_DICT = "dict";
 	
-	public static final String KEY_HAS_REMOVAL_PASSCODE = "HasRemovalPasscode";
-	public static final String KEY_IS_ENCRYPTED = "IsEncrypted";
-	public static final String KEY_PAYLOAD_CONTENT = "PayloadContent";
-	public static final String KEY_PAYLOAD_DESCRIPTION = "PayloadDescription";
-	public static final String KEY_PAYLOAD_DISPLAY_NAME = "PayloadDisplayName";
-	public static final String KEY_PAYLOAD_IDENTIFIER = "PayloadIdentifier";
-	public static final String KEY_PAYLOAD_ORGANIZATION = "PayloadOrganization";
-	public static final String KEY_PAYLOAD_UUID = "PayloadUUID";
-	public static final String KEY_PAYLOAD_REMOVAL_DISALLOWED = "PayloadRemovalDisallowed";
-	public static final String KEY_PAYLOAD_TYPE = "PayloadType";
-	public static final String KEY_PAYLOAD_VERSION = "PayloadVersion";
-	public static final String KEY_PAYLOAD_SCOPE = "PayloadScope";
-	public static final String KEY_REMOVAL_DATE = "RemovalDate";
-	public static final String KEY_DURATION_UNTIL_REMOVAL = "DurationUntilRemoval";
-	public static final String KEY_CONSENT_TEXT = "ConsentText";
-	
 	private final Dictionary mDict;
-	private final List<PlistPayload> mPayloads;
+	
 	private boolean mIsSigned = false;
 	private boolean mIsTrusted = false;
 	
 	public Plist(CMSSignedData cmsSignedData) throws XmlPullParserException, IOException {
 		this(new ByteArrayInputStream((byte[]) cmsSignedData.getSignedContent().getContent()));
-		Log.d(TAG, ASN1Dump.dumpAsString(cmsSignedData.toASN1Structure()));
 		SignerInformationStore signerStore = cmsSignedData.getSignerInfos();
 		@SuppressWarnings("unchecked")
 		Collection<SignerInformation> signers = signerStore.getSigners();
@@ -85,16 +67,6 @@ public class Plist {
 		
 		parser.nextTag();
 		mDict = Dictionary.parse(parser);
-		
-		List<PlistPayload> payloads = new LinkedList<PlistPayload>();
-		Array payloadArr = mDict.getArray(KEY_PAYLOAD_CONTENT);
-		if(payloadArr != null) {
-			for(int i = 0; i < payloadArr.size(); i++) {
-				payloads.add(PlistPayloadFactory.createPayload(payloadArr.getDictionary(i)));
-			}
-		}
-		
-		mPayloads = Collections.unmodifiableList(payloads);
 	}
 	
 	public boolean containsKey(String key) {
@@ -105,44 +77,24 @@ public class Plist {
 		return mDict.get(key);
 	}
 	
+	public boolean getBoolean(String key, boolean defValue) {
+		return mDict.getBoolean(key, defValue);
+	}
+	
+	public int getInteger(String key, int defValue) {
+		return mDict.getInteger(key, defValue);
+	}
+	
+	public String getString(String key, String defValue) {
+		return mDict.getString(key, defValue);
+	}
+	
 	public Array getArray(String key) {
 		return mDict.getArray(key);
 	}
 	
 	public Dictionary getDictionary(String key) {
 		return mDict.getDictionary(key);
-	}
-	
-	public boolean hasRemovalPasscode() {
-		return mDict.getBoolean(KEY_HAS_REMOVAL_PASSCODE, false);
-	}
-	
-	public boolean isEncrypted() {
-		return mDict.getBoolean(KEY_IS_ENCRYPTED, false);
-	}
-	
-	public Array getPayloadContent() {
-		return mDict.getArray(KEY_PAYLOAD_CONTENT);
-	}
-	
-	public String getPayloadDescription() {
-		return mDict.getString(KEY_PAYLOAD_DESCRIPTION);
-	}
-	
-	public String getPayloadDisplayName() {
-		return mDict.getString(KEY_PAYLOAD_DISPLAY_NAME);
-	}
-	
-	public String getPayloadIdentifier() {
-		return mDict.getString(KEY_PAYLOAD_IDENTIFIER);
-	}
-	
-	public String getPayloadOrganization() {
-		return mDict.getString(KEY_PAYLOAD_ORGANIZATION);
-	}
-	
-	public List<PlistPayload> getPayloads() {
-		return mPayloads;
 	}
 	
 	@Override
@@ -471,18 +423,6 @@ public class Plist {
 			}
 			parser.require(XmlPullParser.END_TAG, null, "dict");
 			return Dictionary.wrap(map);
-		}
-	}
-	
-	public static abstract class PlistPayload {
-		protected final Dictionary mDict;
-		
-		public PlistPayload(Dictionary dict) {
-			mDict = dict;
-		}
-		
-		public final Dictionary getDictionary() {
-			return mDict;
 		}
 	}
 
