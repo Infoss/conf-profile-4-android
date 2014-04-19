@@ -187,5 +187,9 @@ public class ConfigurationProfile {
 		public String getPayloadOrganization() {
 			return mDict.getString(KEY_PAYLOAD_ORGANIZATION, null);
 		}
+		
+		public Dictionary getPayloadContent() {
+			return mDict.getDictionary(KEY_PAYLOAD_CONTENT);
+		}
 	}
 }

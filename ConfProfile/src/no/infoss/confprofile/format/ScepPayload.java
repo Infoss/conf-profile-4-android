@@ -3,6 +3,7 @@ package no.infoss.confprofile.format;
 import no.infoss.confprofile.format.ConfigurationProfile.Payload;
 import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
+import no.infoss.confprofile.util.StringUtils;
 
 public class ScepPayload extends Payload {
 	public static final String VALUE_PAYLOAD_TYPE = "com.apple.security.scep";
@@ -24,27 +25,27 @@ public class ScepPayload extends Payload {
 	public ScepPayload(Dictionary dict) throws ConfigurationProfileException {
 		super(dict);
 		
-		if(mDict.getString(KEY_URL, null) == null) {
+		if(getPayloadContent().getString(KEY_URL, null) == null) {
 			throw new ConfigurationProfileException("Can't create payload", KEY_URL);
 		}
 	}
 	
 	public String getURL() {
-		return mDict.getString(KEY_URL);
+		return getPayloadContent().getString(KEY_URL);
 	}
 	
 	public String getName() {
-		return mDict.getString(KEY_NAME);
+		return getPayloadContent().getString(KEY_NAME);
 	}
 	
 	public String getSubject() {
-		Array arr = mDict.getArray(KEY_SUBJECT);
+		Array arr = getPayloadContent().getArray(KEY_SUBJECT);
 		if(arr == null) {
 			return null;
 		}
 		
-		StringBuilder builder = new StringBuilder();
 		int size = arr.size();
+		String[] subjParts = new String[size];
 		for(int i = 0; i < size; i++) {
 			Array subArr = arr.getArray(i);
 			if(subArr == null) {
@@ -58,20 +59,18 @@ public class ScepPayload extends Payload {
 				break;
 			}
 			
-			builder.append("/");
-			builder.append(pieces.getString(0));
-			builder.append("=");
-			builder.append(pieces.getString(1));
+			subjParts[i] = pieces.getString(0).concat("=").concat(pieces.getString(1));
 		}
-		return builder.toString();
+		
+		return StringUtils.join(subjParts, ", ", true);
 	}
 	
 	public String getChallenge() {
-		return mDict.getString(KEY_CHALLENGE);
+		return getPayloadContent().getString(KEY_CHALLENGE);
 	}
 
 	public int getKeysize() {
-		return mDict.getInteger(KEY_KEYSIZE, DEFAULT_KEY_SIZE);
+		return getPayloadContent().getInteger(KEY_KEYSIZE, DEFAULT_KEY_SIZE);
 	}
 	
 }
