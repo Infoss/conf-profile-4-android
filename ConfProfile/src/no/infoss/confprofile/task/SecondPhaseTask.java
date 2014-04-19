@@ -55,6 +55,7 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
 import org.bouncycastle.pkcs.bc.BcPKCS10CertificationRequestBuilder;
 import org.bouncycastle.util.Store;
+import org.bouncycastle.util.Strings;
 import org.jscep.client.Client;
 import org.jscep.client.verification.OptimisticCertificateVerifier;
 import org.xmlpull.v1.XmlSerializer;
@@ -228,6 +229,8 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			Log.d(TAG, mPlist.toString());
 			ConfigurationProfile confProfile = ConfigurationProfile.wrap(mPlist);
 			
+			
+			
 			List<Payload> payloads = confProfile.getPayloads();
 			for(Payload payload : payloads) {
 				if(payload instanceof ScepPayload) {
@@ -259,7 +262,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 					PKCS10CertificationRequest csr = crb.build(cs);
 					
 					Client scepClient = new Client(new URL(scepPayload.getURL()), new OptimisticCertificateVerifier());
-					scepClient.enrol((X509Certificate)cert, CryptoUtils.getRSAPrivateKey(keypair), csr);
+					scepClient.enrol((X509Certificate)cert, CryptoUtils.getRSAPrivateKey(keypair), csr, scepPayload.getName());
 				}
 			}			
 		} catch(Exception e) {
