@@ -37,10 +37,12 @@ public abstract class CertificateManager {
 			result = MANAGERS.get(managerName);
 		
 			if(result == null) {
-				if(MANAGER_ANDROID_SYSTEM.equals(managerName)) {
-					result = OldAndroidCertificateManagerWrapper.SYSTEM;
+				if(MANAGER_ANDROID_RAW.equals(managerName)) {
+					result = new AndroidCertificateManager(context);
+				} else if(MANAGER_ANDROID_SYSTEM.equals(managerName)) {
+					result = new AndroidCertificateManagerWrapper(context, MANAGER_ANDROID_SYSTEM);
 				} else if(MANAGER_ANDROID_USER.equals(managerName)) {
-					result = OldAndroidCertificateManagerWrapper.USER;
+					result = new AndroidCertificateManagerWrapper(context, MANAGER_ANDROID_USER);
 				} else if(MANAGER_INTERNAL.equals(managerName)) {
 					result = new AppCertificateManager(context);
 				}
