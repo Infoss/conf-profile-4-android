@@ -18,10 +18,10 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import no.infoss.confprofile.util.CryptoUtils;
 
-import org.bouncycastle.asn1.x509.TBSCertificate;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
@@ -34,8 +34,9 @@ import android.util.Log;
 //TODO: switch to BouncyCastle as far as we using it
 public class AppCertificateManager extends CertificateManager {
 	public static final String TAG = AppCertificateManager.class.getSimpleName();
-	public static final String DEFAULT_KEY_ALIAS = "defkey:00000000-0000-0000-0000-000000000000";
-	public static final String DEFAULT_CERT_ALIAS = "defcert:00000000-0000-0000-0000-000000000000";
+	public static final String DEFAULT_ALIAS = "00000000-0000-0000-0000-000000000000";
+	public static final String DEFAULT_KEY_ALIAS = CryptoUtils.makeKeyAlias(DEFAULT_ALIAS);
+	public static final String DEFAULT_CERT_ALIAS = CryptoUtils.makeCertAlias(DEFAULT_ALIAS);
 	private static final String PREF_PASSWORD = "AppCertificateManager_password";
 	private static final String STORAGE = "storage.jks";
 	private Context mContext;
@@ -95,6 +96,29 @@ public class AppCertificateManager extends CertificateManager {
 		fetch(keyStore, password);
 	}
 	
+	protected void doSave() 
+			throws KeyStoreException, 
+				   NoSuchProviderException, 
+				   NoSuchAlgorithmException, 
+				   CertificateException, 
+				   OperatorCreationException, 
+				   InvalidKeySpecException, 
+				   IOException {		
+		char[] password = getPassword().toCharArray();
+		KeyStore keyStore = KeyStore.getInstance("BKS", "BC");
+		InputStream is = null;
+		try {
+			is = mContext.openFileInput(STORAGE);
+		} catch(FileNotFoundException e) {
+			Log.d(TAG, "Cert storage doesn't exist", e);
+			createEmpty(keyStore, password);
+		}
+		keyStore.load(is, password);
+		for(Entry<String, Certificate> entry : mCerts.entrySet()) {
+			keyStore.setCertificateEntry(entry.getKey(), entry.getValue());
+		}
+	}
+	
 	private void createEmpty(KeyStore keyStore, char[] password) 
 			throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException, OperatorCreationException, InvalidKeySpecException {
 		keyStore.load(null, password);
@@ -120,8 +144,7 @@ public class AppCertificateManager extends CertificateManager {
 				   IOException {
 		if(!keyStore.containsAlias(DEFAULT_KEY_ALIAS)) {
 			AsymmetricCipherKeyPair keypair = CryptoUtils.genBCRSAKeypair(2048);
-			TBSCertificate tbs = CryptoUtils.createBCTBSCert(null, "DN=self-signed OCMS Android cert", keypair.getPublic(), "SHA1WithRSAEncryption");
-			Certificate cert = CryptoUtils.signCert(tbs, keypair.getPrivate());
+			Certificate cert = CryptoUtils.createCert(null, "DN=self-signed OCMS Android cert", keypair, "SHA1WithRSAEncryption");
 			
 			keyStore.setCertificateEntry(DEFAULT_CERT_ALIAS, cert);
 			keyStore.setKeyEntry(DEFAULT_KEY_ALIAS, CryptoUtils.getRSAPrivateKey(keypair), password, new Certificate[] {cert});
@@ -187,6 +210,14 @@ public class AppCertificateManager extends CertificateManager {
 	@Override
 	public Map<String, Key> getKeys() {
 		return new HashMap<String,Key>(mKeys);
+	}
+	
+	public void putCertificate(String alias, Certificate cert) {
+		mCerts.put(alias, cert);
+	}
+	
+	public void putKey(String alias, Key key) {
+		mKeys.put(alias, key);
 	}
 
 }

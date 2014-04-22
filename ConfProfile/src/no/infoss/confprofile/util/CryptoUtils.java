@@ -1,6 +1,5 @@
 package no.infoss.confprofile.util;
 
-import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.security.KeyFactory;
@@ -8,30 +7,23 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.Random;
 
-import org.bouncycastle.asn1.ASN1EncodableVector;
-import org.bouncycastle.asn1.ASN1Integer;
-import org.bouncycastle.asn1.DERBitString;
-import org.bouncycastle.asn1.DERSequence;
 import org.bouncycastle.asn1.x500.X500Name;
 import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
-import org.bouncycastle.asn1.x509.Certificate;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
-import org.bouncycastle.asn1.x509.TBSCertificate;
-import org.bouncycastle.asn1.x509.Time;
-import org.bouncycastle.asn1.x509.V3TBSCertificateGenerator;
+import org.bouncycastle.cert.X509CertificateHolder;
+import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.generators.RSAKeyPairGenerator;
-import org.bouncycastle.crypto.params.AsymmetricKeyParameter;
 import org.bouncycastle.crypto.params.RSAKeyGenerationParameters;
 import org.bouncycastle.crypto.params.RSAKeyParameters;
 import org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters;
@@ -42,6 +34,7 @@ import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.SignatureAlgorithmIdentifierFinder;
 import org.bouncycastle.operator.bc.BcRSAContentSignerBuilder;
+import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 
 import android.util.Log;
 
@@ -110,53 +103,50 @@ public class CryptoUtils {
         return KeyFactory.getInstance("RSA").generatePrivate(keyspec);
 	}
 	
-	public static TBSCertificate createBCTBSCert(X509Certificate caCert, String subject, AsymmetricKeyParameter pubKey, String sigAlg) 
-			throws CertificateEncodingException, IOException {
+	public static X509Certificate createCert(X509Certificate caCert, String subject, AsymmetricCipherKeyPair keyPair, String sigAlg) 
+			throws IOException, 
+				   OperatorCreationException, 
+				   CertificateException, 
+				   InvalidKeySpecException, 
+				   NoSuchAlgorithmException {
 		Calendar calendar = Calendar.getInstance();
 		X500Name subjectName = new X500Name(subject);
-		X500Name issuerName = (caCert == null) ? subjectName : new X500Name(caCert.getIssuerX500Principal().getName());  
+		X500Name issuerName = (caCert == null) ? subjectName : new X500Name(caCert.getSubjectX500Principal().getName());  
 		
-		SubjectPublicKeyInfo pubkeyInfo = SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(pubKey);
+		SubjectPublicKeyInfo pubkeyInfo = SubjectPublicKeyInfoFactory.createSubjectPublicKeyInfo(keyPair.getPublic());
 		
 		sigAlg = (sigAlg == null) ? "SHA1WithRSAEncryption" : sigAlg;
-		SignatureAlgorithmIdentifierFinder sigAlgFinder = new DefaultSignatureAlgorithmIdentifierFinder();
 		
-		V3TBSCertificateGenerator gen = new V3TBSCertificateGenerator();
-		gen.setSerialNumber(new ASN1Integer(calendar.getTimeInMillis()));
-		gen.setIssuer(issuerName);
-		gen.setSubject(subjectName);
-		
-		gen.setStartDate(new Time(calendar.getTime()));
+		long serial = calendar.getTimeInMillis();
+		Date notBefore = calendar.getTime();
 		calendar.add(Calendar.YEAR, 30); //TODO: fix this or cert will be valid about 30 years
-		gen.setEndDate(new Time(calendar.getTime()));
+		Date notAfter = calendar.getTime();
 		
-		gen.setSubjectPublicKeyInfo(pubkeyInfo);
-		gen.setSignature(sigAlgFinder.find(sigAlg));
+		X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
+				issuerName, 
+				BigInteger.valueOf(serial), 
+				notBefore, 
+				notAfter, 
+				subjectName, 
+				pubkeyInfo);
 		
-		return gen.generateTBSCertificate();
+		//AlgorithmIdentifier sigAlgId = new DefaultSignatureAlgorithmIdentifierFinder().find("SHA1withRSA");
+	    //AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
+	    //Log.d(TAG, sigAlgId.toString());
+	    //Log.d(TAG, digAlgId.toString());
+	    JcaContentSignerBuilder csBuilder = new JcaContentSignerBuilder(sigAlg);
+		//BcRSAContentSignerBuilder csBuilder = new BcRSAContentSignerBuilder(sigAlgId, digAlgId);
+		ContentSigner signer = csBuilder.build(getRSAPrivateKey(keyPair));
+		
+		X509CertificateHolder certHolder = builder.build(signer);
+		return new JcaX509CertificateConverter().setProvider("BC").getCertificate(certHolder);
 	}
 	
-	public static X509Certificate signCert(TBSCertificate tbsCert, AsymmetricKeyParameter privateKey) 
-			throws OperatorCreationException, IOException, CertificateException {
-		AlgorithmIdentifier algOID = tbsCert.getSignature();
-		AlgorithmIdentifier sigAlgId = new DefaultSignatureAlgorithmIdentifierFinder().find("SHA1withRSA");
-	    AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
-	    Log.d(TAG, sigAlgId.toString());
-	    Log.d(TAG, digAlgId.toString());
-		BcRSAContentSignerBuilder builder = new BcRSAContentSignerBuilder(sigAlgId, digAlgId);
-		ContentSigner signer = builder.build(privateKey);
-		byte[] encodedCert = tbsCert.getEncoded("DER");
-		signer.getOutputStream().write(encodedCert);
-		byte[] signature = signer.getSignature();
-		
-		ASN1EncodableVector asn1vec = new ASN1EncodableVector();
-		asn1vec.add(tbsCert);
-		asn1vec.add(algOID);
-		asn1vec.add(new DERBitString(signature));
-		
-		Certificate cert = Certificate.getInstance(new DERSequence(asn1vec));
-		
-		return (X509Certificate) CertificateFactory.getInstance("X.509").generateCertificate(new ByteArrayInputStream(cert.getEncoded("DER")));
+	public static String makeKeyAlias(String uuid) {
+		return "key:".concat(uuid);
 	}
 	
+	public static String makeCertAlias(String uuid) {
+		return "cert:".concat(uuid);
+	}
 }

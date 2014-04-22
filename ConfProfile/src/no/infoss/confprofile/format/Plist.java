@@ -5,6 +5,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -14,7 +15,6 @@ import java.util.Map.Entry;
 
 import no.infoss.confprofile.util.XmlUtils;
 
-import org.bouncycastle.asn1.util.ASN1Dump;
 import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.cms.SignerInformation;
 import org.bouncycastle.cms.SignerInformationStore;
@@ -22,7 +22,6 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
-import android.util.Log;
 import android.util.Xml;
 
 public class Plist {	
@@ -69,6 +68,10 @@ public class Plist {
 		mDict = Dictionary.parse(parser);
 	}
 	
+	public Plist(Dictionary dict) {
+		mDict = dict;
+	}
+	
 	public boolean containsKey(String key) {
 		return mDict.containsKey(key);
 	}
@@ -95,6 +98,22 @@ public class Plist {
 	
 	public Dictionary getDictionary(String key) {
 		return mDict.getDictionary(key);
+	}
+	
+	public void writeXml(OutputStream stream) 
+			throws IllegalArgumentException, 
+				   IllegalStateException, 
+				   IOException {
+		XmlSerializer serializer = Xml.newSerializer();
+		serializer.setOutput(stream, "UTF-8");
+		serializer.startDocument("UTF-8", null);
+		serializer.docdecl(Plist.DOCDECL);
+		serializer.startTag(null, "plist");
+		serializer.attribute(null, "version", "1.0");
+		mDict.writeXml(serializer);
+		serializer.endTag(null, "plist");
+		serializer.endDocument();
+		serializer.flush();
 	}
 	
 	@Override

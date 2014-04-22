@@ -5,7 +5,7 @@ import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
 import no.infoss.confprofile.util.StringUtils;
 
-public class ScepPayload extends Payload {
+public class ScepPayload extends Payload { 
 	public static final String VALUE_PAYLOAD_TYPE = "com.apple.security.scep";
 	
 	public static final String KEY_URL = "URL";
