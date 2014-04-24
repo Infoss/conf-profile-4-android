@@ -16,8 +16,11 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.Random;
 
+import no.infoss.confprofile.format.ScepPayload;
+
 import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
@@ -29,14 +32,8 @@ import org.bouncycastle.crypto.params.RSAKeyParameters;
 import org.bouncycastle.crypto.params.RSAPrivateCrtKeyParameters;
 import org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory;
 import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder;
-import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
 import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.SignatureAlgorithmIdentifierFinder;
-import org.bouncycastle.operator.bc.BcRSAContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
-
-import android.util.Log;
 
 public class CryptoUtils {
 	public static final String TAG = CryptoUtils.class.getSimpleName();
@@ -118,8 +115,9 @@ public class CryptoUtils {
 		sigAlg = (sigAlg == null) ? "SHA1WithRSAEncryption" : sigAlg;
 		
 		long serial = calendar.getTimeInMillis();
+		calendar.add(Calendar.DAY_OF_MONTH, -1);
 		Date notBefore = calendar.getTime();
-		calendar.add(Calendar.YEAR, 30); //TODO: fix this or cert will be valid about 30 years
+		calendar.add(Calendar.DAY_OF_MONTH, +1);
 		Date notAfter = calendar.getTime();
 		
 		X509v3CertificateBuilder builder = new X509v3CertificateBuilder(
@@ -130,12 +128,12 @@ public class CryptoUtils {
 				subjectName, 
 				pubkeyInfo);
 		
-		//AlgorithmIdentifier sigAlgId = new DefaultSignatureAlgorithmIdentifierFinder().find("SHA1withRSA");
-	    //AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
-	    //Log.d(TAG, sigAlgId.toString());
-	    //Log.d(TAG, digAlgId.toString());
+		int bcKeyUsage = 0;
+		bcKeyUsage = KeyUsage.encipherOnly | KeyUsage.keyCertSign;
+		
+		builder.addExtension(Extension.keyUsage, false, new KeyUsage(bcKeyUsage));
+		
 	    JcaContentSignerBuilder csBuilder = new JcaContentSignerBuilder(sigAlg);
-		//BcRSAContentSignerBuilder csBuilder = new BcRSAContentSignerBuilder(sigAlgId, digAlgId);
 		ContentSigner signer = csBuilder.build(getRSAPrivateKey(keyPair));
 		
 		X509CertificateHolder certHolder = builder.build(signer);
@@ -148,5 +146,19 @@ public class CryptoUtils {
 	
 	public static String makeCertAlias(String uuid) {
 		return "cert:".concat(uuid);
+	}
+	
+	public static int appleSCEPKeyUsageToBC(int scepKeyUsage) {
+		int result = 0;
+		
+		if((scepKeyUsage & ScepPayload.KEY_USAGE_CRYPT) != 0) {
+			result |= KeyUsage.dataEncipherment;
+		}
+		
+		if((scepKeyUsage & ScepPayload.KEY_USAGE_SIGN) != 0) {
+			result |= KeyUsage.digitalSignature;
+		}
+		
+		return result;
 	}
 }

@@ -10,6 +10,7 @@ import java.net.URL;
 import java.security.Key;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.PublicKey;
 import java.security.cert.CertSelector;
 import java.security.cert.CertStoreException;
 import java.security.cert.Certificate;
@@ -22,6 +23,8 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import javax.security.auth.x500.X500Principal;
 
 import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.R;
@@ -45,8 +48,9 @@ import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
 import org.bouncycastle.asn1.DERPrintableString;
 import org.bouncycastle.asn1.pkcs.PKCSObjectIdentifiers;
-import org.bouncycastle.asn1.x500.X500Name;
-import org.bouncycastle.asn1.x509.AlgorithmIdentifier;
+import org.bouncycastle.asn1.x509.Extension;
+import org.bouncycastle.asn1.x509.ExtensionsGenerator;
+import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cms.CMSException;
 import org.bouncycastle.cms.CMSProcessableByteArray;
@@ -56,16 +60,12 @@ import org.bouncycastle.cms.CMSTypedData;
 import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.operator.ContentSigner;
-import org.bouncycastle.operator.DefaultDigestAlgorithmIdentifierFinder;
-import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
 import org.bouncycastle.operator.OperatorCreationException;
-import org.bouncycastle.operator.bc.BcContentSignerBuilder;
-import org.bouncycastle.operator.bc.BcRSAContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
 import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.bouncycastle.pkcs.PKCS10CertificationRequestBuilder;
-import org.bouncycastle.pkcs.bc.BcPKCS10CertificationRequestBuilder;
+import org.bouncycastle.pkcs.jcajce.JcaPKCS10CertificationRequestBuilder;
 import org.bouncycastle.util.Store;
 import org.jscep.client.Client;
 import org.jscep.client.ClientException;
@@ -142,15 +142,23 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			}
 			
 			Log.d(TAG, resp.toString());
-			ConfigurationProfile confProfile = ConfigurationProfile.wrap(resp);
+			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
+			confProfiles.add(ConfigurationProfile.wrap(resp));
 			
-			List<Payload> payloads = confProfile.getPayloads();
-			for(Payload payload : payloads) {
-				if(payload instanceof ScepPayload) {
-					String uuid = plist.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
-					doScep((ScepPayload) payload, uuid);
-				}
-			}			
+			while(confProfiles.size() > 0) {
+				ConfigurationProfile confProfile = confProfiles.remove(0);
+				
+				List<Payload> payloads = confProfile.getPayloads();
+				for(Payload payload : payloads) {
+					if(payload instanceof ScepPayload) {
+						String uuid = plist.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
+						doScep((ScepPayload) payload, uuid);
+						confProfiles.add(ConfigurationProfile.wrap(submitDeviceAttrs(plist)));
+					} else {
+						Log.d(TAG, payload.toString());
+					}
+				}			
+			}
 		} catch(Exception e) {
 			Log.e(TAG, "", e);
 			return TaskError.INTERNAL;
@@ -313,40 +321,41 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				   CertStoreException {
 		//perform scep
 		Client scepClient = new Client(new URL(scepPayload.getURL()), new OptimisticCertificateVerifier());
-		scepClient.setTransportFactory(new HttpClientTransportFactory(mUserAgent));
+		scepClient.setTransportFactory(new HttpClientTransportFactory(mCtx, mUserAgent));
 		Capabilities caps = scepClient.getCaCapabilities();
+		String sigAlg = caps.getStrongestSignatureAlgorithm();
 		
-		AsymmetricCipherKeyPair keypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
-		Certificate cert = CryptoUtils.createCert(
+		AsymmetricCipherKeyPair requesterKeypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
+		X509Certificate requesterCert = CryptoUtils.createCert(
 				null, 
 				scepPayload.getSubject(), 
-				keypair, 
-				caps.getStrongestSignatureAlgorithm());
+				requesterKeypair, 
+				sigAlg);
 		
-		AlgorithmIdentifier sigAlgId = new DefaultSignatureAlgorithmIdentifierFinder().find("SHA1withRSA");
-	    AlgorithmIdentifier digAlgId = new DefaultDigestAlgorithmIdentifierFinder().find(sigAlgId);
+		//enrollment
+		AsymmetricCipherKeyPair entityKeypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
+		PublicKey entityPubKey = CryptoUtils.getRSAPublicKey(entityKeypair);
+		PrivateKey entityPrivKey = CryptoUtils.getRSAPrivateKey(entityKeypair);
+		
+		X500Principal entitySubject = requesterCert.getSubjectX500Principal(); // use the same subject as the self-signed certificate
+		PKCS10CertificationRequestBuilder csrBuilder = new JcaPKCS10CertificationRequestBuilder(entitySubject, entityPubKey); 
+		
+		DERPrintableString password = new DERPrintableString(scepPayload.getChallenge());
+		csrBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_challengePassword, password);
+		
+		ExtensionsGenerator extGen = new ExtensionsGenerator();
+		int keyUsage = CryptoUtils.appleSCEPKeyUsageToBC(scepPayload.getKeyUsage());
+		extGen.addExtension(Extension.keyUsage, false, new KeyUsage(keyUsage));
+		csrBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, extGen.generate());
+		
+		
+		JcaContentSignerBuilder csrSignerBuilder = new JcaContentSignerBuilder("SHA1withRSA");
+		ContentSigner csrSigner = csrSignerBuilder.build(entityPrivKey);
+		PKCS10CertificationRequest csr = csrBuilder.build(csrSigner);
 
-		
-		BcContentSignerBuilder csb = new BcRSAContentSignerBuilder(sigAlgId, digAlgId);
-		ContentSigner cs = csb.build(keypair.getPrivate());
-
-		X500Name x500Subject = new X500Name(scepPayload.getSubject());
-		PKCS10CertificationRequestBuilder crb = 
-				new BcPKCS10CertificationRequestBuilder(
-						x500Subject, 
-						keypair.getPrivate());
-
-		String challenge = scepPayload.getChallenge();
-		if(challenge != null) {
-			DERPrintableString password = new DERPrintableString(challenge);
-			crb.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_challengePassword, password);
-		}
-		
-		PKCS10CertificationRequest csr = crb.build(cs);
-		
 		EnrollmentResponse enrollment = scepClient.enrol(
-				(X509Certificate)cert, 
-				CryptoUtils.getRSAPrivateKey(keypair), 
+				(X509Certificate)requesterCert, 
+				CryptoUtils.getRSAPrivateKey(requesterKeypair), 
 				csr, 
 				scepPayload.getName());
 		
@@ -359,9 +368,9 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			}
 			
 			enrollment = scepClient.poll(
-					(X509Certificate) cert, 
-					CryptoUtils.getRSAPrivateKey(keypair), 
-					((X509Certificate) cert).getSubjectX500Principal(), 
+					(X509Certificate)requesterCert, 
+					CryptoUtils.getRSAPrivateKey(requesterKeypair), 
+					entitySubject, 
 					enrollment.getTransactionId(), 
 					scepPayload.getName());
 		}
@@ -375,14 +384,16 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			
 			@Override
 			public boolean match(Certificate cert) {
-				Log.d(TAG, "SCEP response cert is ".concat(cert.toString()));
-				
 				return true;
 			}
 			
 			@Override
 			public CertSelector clone() {
-				return clone();
+				try {
+					return (CertSelector) super.clone();
+				} catch(Exception e) {
+					return null;
+				}
 			}
 		});
 		
