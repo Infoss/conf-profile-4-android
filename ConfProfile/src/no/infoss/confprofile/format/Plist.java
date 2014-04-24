@@ -1,3 +1,22 @@
+/*
+ * This file is part of Profile provisioning for Android
+ * Copyright (C) 2014  Infoss AS, https://infoss.no, info@infoss.no
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
 package no.infoss.confprofile.format;
 
 import java.io.ByteArrayInputStream;
@@ -24,6 +43,13 @@ import org.xmlpull.v1.XmlSerializer;
 
 import android.util.Xml;
 
+/**
+ * Plist representation class.
+ * Plist does not perform just structure integrity check. Data integrity isn't checked.
+ * This class is useful on the first and second phases of device registration process.
+ * @author Dmitry Vorobiev
+ *
+ */
 public class Plist {	
 	public static final String TAG = Plist.class.getSimpleName();
 	
@@ -68,6 +94,10 @@ public class Plist {
 		mDict = Dictionary.parse(parser);
 	}
 	
+	/**
+	 * Wraps a dictionary
+	 * @param dict
+	 */
 	public Plist(Dictionary dict) {
 		mDict = dict;
 	}

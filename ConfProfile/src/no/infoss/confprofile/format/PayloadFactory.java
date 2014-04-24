@@ -1,3 +1,22 @@
+/*
+ * This file is part of Profile provisioning for Android
+ * Copyright (C) 2014  Infoss AS, https://infoss.no, info@infoss.no
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License along
+ * with this program; if not, write to the Free Software Foundation, Inc.,
+ * 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+ */
+
 package no.infoss.confprofile.format;
 
 import java.io.IOException;
@@ -13,6 +32,11 @@ import org.xmlpull.v1.XmlPullParserException;
 
 import android.util.Log;
 
+/**
+ * Factory for creating payload instances.
+ * @author Dmitry Vorobiev
+ *
+ */
 public class PayloadFactory {
 	public static final String TAG = PayloadFactory.class.getSimpleName();
 	private static final Map<String, Class<? extends Payload>> REGISTERED_PAYLOADS;
@@ -29,7 +53,7 @@ public class PayloadFactory {
 		
 		Class<? extends Payload> clazz = REGISTERED_PAYLOADS.get(type);
 		if(clazz == null) {
-			throw new ConfigurationProfileException("Unknown payload type ".concat(String.valueOf(type)));
+			clazz = UnknownPayload.class;
 		}
 		
 		Payload result = null;
@@ -58,5 +82,13 @@ public class PayloadFactory {
 		} catch(Exception e) {
 			Log.d(TAG, "Can't register payload class ".concat(String.valueOf(clazz)), e);
 		}
+	}
+	
+	public static final class UnknownPayload extends Payload {
+
+		public UnknownPayload(Dictionary dict) throws ConfigurationProfileException {
+			super(dict);
+		}
+
 	}
 }
