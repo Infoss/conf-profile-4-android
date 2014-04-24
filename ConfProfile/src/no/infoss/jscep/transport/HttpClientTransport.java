@@ -28,16 +28,19 @@ import org.jscep.transport.request.Operation;
 import org.jscep.transport.request.Request;
 import org.jscep.transport.response.ScepResponseHandler;
 
+import android.content.Context;
 import android.util.Log;
 
 public class HttpClientTransport extends AbstractTransport {
 	public static final String TAG = HttpClientTransport.class.getSimpleName();
 	
+	private Context mCtx;
 	private final Method mMethod;
 	private final String mUserAgent;
 	
-	protected HttpClientTransport(URL url, Method method, String userAgent) {
+	protected HttpClientTransport(Context ctx, URL url, Method method, String userAgent) {
 		super(url);
+		mCtx = ctx;
 		mMethod = method;
 		mUserAgent = userAgent;
 	}
