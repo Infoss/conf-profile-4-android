@@ -7,10 +7,13 @@ import java.lang.ref.WeakReference;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
+import java.security.InvalidKeyException;
 import java.security.Key;
+import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.CertSelector;
 import java.security.cert.CertStoreException;
 import java.security.cert.Certificate;
@@ -24,6 +27,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
 import javax.security.auth.x500.X500Principal;
 
 import no.infoss.confprofile.BuildConfig;
@@ -83,6 +89,7 @@ import android.os.Build;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
+//TODO: rename to InstallConfigurationTask
 public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 	public static final String TAG = SecondPhaseTask.class.getSimpleName();
 	
@@ -133,6 +140,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			Log.d(TAG, "Certificate manager successfully loaded");
 			
 			Plist resp = null;
+			String uuid = plist.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
 			
 			try {
 				resp = submitDeviceAttrs(plist);
@@ -143,7 +151,11 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			
 			Log.d(TAG, resp.toString());
 			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
-			confProfiles.add(ConfigurationProfile.wrap(resp));
+			ConfigurationProfile profile = ConfigurationProfile.wrap(resp); 
+			if(profile.isPayloadContentEncrypted()) {
+				profile.decryptPayloadContent(getKeyForUUID(uuid));
+			}
+			confProfiles.add(profile);
 			
 			while(confProfiles.size() > 0) {
 				ConfigurationProfile confProfile = confProfiles.remove(0);
@@ -151,9 +163,14 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				List<Payload> payloads = confProfile.getPayloads();
 				for(Payload payload : payloads) {
 					if(payload instanceof ScepPayload) {
-						String uuid = plist.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
 						doScep((ScepPayload) payload, uuid);
-						confProfiles.add(ConfigurationProfile.wrap(submitDeviceAttrs(plist)));
+						
+						profile = ConfigurationProfile.wrap(submitDeviceAttrs(plist));
+						if(profile.isPayloadContentEncrypted()) {
+							profile.decryptPayloadContent(getKeyForUUID(uuid));
+						}
+						
+						confProfiles.add(profile);
 					} else {
 						Log.d(TAG, payload.toString());
 					}
@@ -167,30 +184,63 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		return TaskError.SUCCESS;
 	}
 	
+	private PrivateKey getKeyForUUID(String uuid) 
+			throws UnrecoverableKeyException, 
+				   KeyStoreException, 
+				   NoSuchAlgorithmException {
+		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
+		
+	    if(uuid == null) {
+	    	uuid = AppCertificateManager.DEFAULT_ALIAS;
+	    }
+	    
+	    String keyAlias = CryptoUtils.makeKeyAlias(uuid);
+	    Key privKey = mgr.getKey(keyAlias);
+	    
+	    return (PrivateKey) privKey;
+	}
+	
+	private Certificate[] getCertChainForUUID(String uuid) throws KeyStoreException {
+		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
+		
+	    if(uuid == null) {
+	    	uuid = AppCertificateManager.DEFAULT_ALIAS;
+	    }
+	    
+	    String keyAlias = CryptoUtils.makeKeyAlias(uuid);
+	    Certificate[] signChain = mgr.getCertificateChain(keyAlias);
+	    
+	    return signChain;
+	}
+
 	private Plist submitDeviceAttrs(Plist request) 
 			throws IOException, 
 				   CertificateEncodingException, 
 				   OperatorCreationException, 
 				   CMSException, 
 				   XmlPullParserException, 
-				   URISyntaxException {
+				   URISyntaxException, 
+				   KeyStoreException, 
+				   UnrecoverableKeyException, 
+				   NoSuchAlgorithmException, 
+				   NoSuchPaddingException, 
+				   InvalidKeyException, 
+				   IllegalBlockSizeException, 
+				   BadPaddingException {
 		Plist result = null;
 		
 		//obtain certificates
-		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
 		String uuid = request.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
-		
-	    if(uuid == null) {
-	    	uuid = AppCertificateManager.DEFAULT_ALIAS;
+	    
+	    Key privKey = getKeyForUUID(uuid);
+	    Certificate[] signChain = getCertChainForUUID(uuid);
+	    
+	    if(privKey == null || signChain == null || signChain.length == 0) {
+	    	privKey = getKeyForUUID(AppCertificateManager.DEFAULT_ALIAS);
+		    signChain = getCertChainForUUID(AppCertificateManager.DEFAULT_ALIAS);
 	    }
 	    
-	    Certificate signCert = mgr.getCertificates().get(CryptoUtils.makeCertAlias(uuid));
-	    Key privKey = mgr.getKeys().get(CryptoUtils.makeKeyAlias(uuid));
-	    
-	    if((signCert == null || privKey == null) && !AppCertificateManager.DEFAULT_ALIAS.equals(uuid)) {
-	    	signCert = mgr.getCertificates().get(AppCertificateManager.DEFAULT_CERT_ALIAS);
-		    privKey = mgr.getKeys().get(AppCertificateManager.DEFAULT_KEY_ALIAS);
-	    }
+	    Certificate signCert = (signChain == null || signChain.length == 0) ? null : signChain[0];
 	    
 	    if(signCert == null || privKey == null) {
 	    	throw new IOException("Can't load certificate or key for uuid=".concat(uuid));
@@ -226,7 +276,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			}
 			
 			stream = resp.getEntity().getContent();
-			sigData = new CMSSignedData(stream);
+			sigData = new CMSSignedData(stream);			
 			result = new Plist(sigData);
 		} finally {
 			if(stream != null) {
@@ -318,13 +368,15 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				   InvalidKeySpecException, 
 				   ClientException, 
 				   TransactionException, 
-				   CertStoreException {
-		//perform scep
+				   CertStoreException, 
+				   KeyStoreException {
+		//prepare SCEP
 		Client scepClient = new Client(new URL(scepPayload.getURL()), new OptimisticCertificateVerifier());
 		scepClient.setTransportFactory(new HttpClientTransportFactory(mCtx, mUserAgent));
 		Capabilities caps = scepClient.getCaCapabilities();
 		String sigAlg = caps.getStrongestSignatureAlgorithm();
 		
+		//create base certificate for SCEP
 		AsymmetricCipherKeyPair requesterKeypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
 		X509Certificate requesterCert = CryptoUtils.createCert(
 				null, 
@@ -332,7 +384,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				requesterKeypair, 
 				sigAlg);
 		
-		//enrollment
+		//create CSR
 		AsymmetricCipherKeyPair entityKeypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
 		PublicKey entityPubKey = CryptoUtils.getRSAPublicKey(entityKeypair);
 		PrivateKey entityPrivKey = CryptoUtils.getRSAPrivateKey(entityKeypair);
@@ -348,11 +400,11 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		extGen.addExtension(Extension.keyUsage, false, new KeyUsage(keyUsage));
 		csrBuilder.addAttribute(PKCSObjectIdentifiers.pkcs_9_at_extensionRequest, extGen.generate());
 		
-		
 		JcaContentSignerBuilder csrSignerBuilder = new JcaContentSignerBuilder("SHA1withRSA");
 		ContentSigner csrSigner = csrSignerBuilder.build(entityPrivKey);
 		PKCS10CertificationRequest csr = csrBuilder.build(csrSigner);
 
+		//Enroll certificate via SCEP 
 		EnrollmentResponse enrollment = scepClient.enrol(
 				(X509Certificate)requesterCert, 
 				CryptoUtils.getRSAPrivateKey(requesterKeypair), 
@@ -397,7 +449,13 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			}
 		});
 		
-		Log.d(TAG, certs.toString());
+		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
+		((AppCertificateManager)mgr).putKey(
+				CryptoUtils.makeKeyAlias(uuid), 
+				entityPrivKey, 
+				null, 
+				certs.toArray(new Certificate[certs.size()]));
+		mgr.store();
 	}
 	
 	public interface SecondPhaseTaskListener {
