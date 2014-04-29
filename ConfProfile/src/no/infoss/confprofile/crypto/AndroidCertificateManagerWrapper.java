@@ -29,6 +29,8 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -46,6 +48,7 @@ public class AndroidCertificateManagerWrapper extends CertificateManager {
 	private CertificateManager mWrapped;
 	
 	protected AndroidCertificateManagerWrapper(Context ctx, String type) {
+		super(ctx);
 		mType = type;
 		mWrapped = getManager(ctx, MANAGER_ANDROID_RAW);
 	}
@@ -93,7 +96,7 @@ public class AndroidCertificateManagerWrapper extends CertificateManager {
 
 	@Override
 	public Map<String, Certificate> getCertificates() {
-		Map<String, Certificate> result = mWrapped.getCertificates();
+		Map<String, Certificate> result = new HashMap<String, Certificate>(mWrapped.getCertificates());
 		List<String> keylistToRemove = new ArrayList<String>(result.keySet());
 		if(MANAGER_ANDROID_SYSTEM.equals(mType)) {
 			for(String key : result.keySet()) {
@@ -113,31 +116,25 @@ public class AndroidCertificateManagerWrapper extends CertificateManager {
 			result.remove(key);
 		}
 		
-		return result;
+		return Collections.unmodifiableMap(result);
+	}
+	
+	@Override
+	public Certificate[] getCertificateChain(String alias) throws KeyStoreException {
+		return mWrapped.getCertificateChain(alias);
 	}
 
 	@Override
-	public Map<String, Key> getKeys() {
-		Map<String, Key> result = mWrapped.getKeys();
-		List<String> keylistToRemove = new ArrayList<String>(result.keySet());
-		if(MANAGER_ANDROID_SYSTEM.equals(mType)) {
-			for(String key : result.keySet()) {
-				if(key.startsWith("system:")) {
-					keylistToRemove.remove(key);
-				}
-			}
-		} else if(MANAGER_ANDROID_USER.equals(mType)) {
-			for(String key : result.keySet()) {
-				if(key.startsWith("user:")) {
-					keylistToRemove.remove(key);
-				}
-			}
-		}
-		
-		for(String key : keylistToRemove) {
-			result.remove(key);
-		}
-		
-		return result;
+	public Key getKey(String alias) throws UnrecoverableKeyException,
+			KeyStoreException, NoSuchAlgorithmException {
+		return mWrapped.getKey(alias);
 	}
+
+	@Override
+	protected void doStore() throws KeyStoreException, NoSuchProviderException,
+			NoSuchAlgorithmException, CertificateException,
+			OperatorCreationException, InvalidKeySpecException, IOException {
+		mWrapped.doStore();
+	}
+
 }

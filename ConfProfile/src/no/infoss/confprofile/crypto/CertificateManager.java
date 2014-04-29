@@ -39,6 +39,8 @@ import android.os.AsyncTask;
 import android.util.Log;
 
 public abstract class CertificateManager {
+	public static final String TAG = CertificateManager.class.getSimpleName();
+	
 	public static final String MANAGER_ANDROID_RAW = "android.raw";
 	public static final String MANAGER_ANDROID_SYSTEM = "android.system";
 	public static final String MANAGER_ANDROID_USER = "android.user";
@@ -56,14 +58,20 @@ public abstract class CertificateManager {
 			result = MANAGERS.get(managerName);
 		
 			if(result == null) {
-				if(MANAGER_ANDROID_RAW.equals(managerName)) {
-					result = new AndroidCertificateManager(context);
-				} else if(MANAGER_ANDROID_SYSTEM.equals(managerName)) {
-					result = new AndroidCertificateManagerWrapper(context, MANAGER_ANDROID_SYSTEM);
-				} else if(MANAGER_ANDROID_USER.equals(managerName)) {
-					result = new AndroidCertificateManagerWrapper(context, MANAGER_ANDROID_USER);
-				} else if(MANAGER_INTERNAL.equals(managerName)) {
-					result = new AppCertificateManager(context);
+				try {
+					if(MANAGER_ANDROID_RAW.equals(managerName)) {
+						result = new AndroidCertificateManager(context);
+					} else if(MANAGER_ANDROID_SYSTEM.equals(managerName)) {
+						result = new AndroidCertificateManagerWrapper(context, MANAGER_ANDROID_SYSTEM);
+					} else if(MANAGER_ANDROID_USER.equals(managerName)) {
+						result = new AndroidCertificateManagerWrapper(context, MANAGER_ANDROID_USER);
+					} else if(MANAGER_INTERNAL.equals(managerName)) {
+							result = new AppCertificateManager(context);
+					}
+				} catch(NoSuchProviderException e) {
+					Log.w(TAG, "Can't find keystore provider", e);
+				}  catch(KeyStoreException e) {
+					Log.w(TAG, "KeyStore exception ocurred", e);
 				}
 				
 				if(result != null) {
@@ -76,18 +84,26 @@ public abstract class CertificateManager {
 		return result;
 	}
 	
+	protected final Context mContext;
 	protected boolean mIsLoaded;
 	private long mUpdateRequestedTime;
 	private long mUpdateProcessedTime;
 	
-	protected CertificateManager() {
+	protected CertificateManager(Context ctx) {
+		mContext = ctx;
 		mIsLoaded = false;
 		mUpdateRequestedTime = 0;
 		mUpdateProcessedTime = 0;
 	}
 
 	public abstract Map<String, Certificate> getCertificates();
-	public abstract Map<String, Key> getKeys();
+	
+	public abstract Certificate[] getCertificateChain(String alias) throws KeyStoreException;
+	
+	public abstract Key getKey(String alias) 
+			throws UnrecoverableKeyException, 
+				   KeyStoreException, 
+				   NoSuchAlgorithmException;
 	
 	protected abstract void doLoad() 
 			throws KeyStoreException, 
@@ -109,6 +125,15 @@ public abstract class CertificateManager {
 				   UnrecoverableKeyException, 
 				   IOException;
 	
+	protected abstract void doStore() 
+			throws KeyStoreException, 
+				   NoSuchProviderException, 
+				   NoSuchAlgorithmException, 
+				   CertificateException, 
+				   OperatorCreationException, 
+				   InvalidKeySpecException, 
+				   IOException;
+	
 	/**
 	 * Asynchronously performs loading certificates and keys.
 	 * If CertificateManager instance was obtained via CertificateManager.getManager(),
@@ -128,6 +153,16 @@ public abstract class CertificateManager {
 	 */
 	public final CertificateManager reload(OnCertificateManagerUpdatedListener listener) {
 		new LoadCertsTask(true, listener).execute(this);
+		return this;
+	}
+	
+	public final CertificateManager store() {
+		//TODO: fix this
+		try {
+			storeSync();
+		} catch(Exception e) {
+			Log.e(TAG, "Error while storing keystore", e);
+		}
 		return this;
 	}
 	
@@ -187,6 +222,17 @@ public abstract class CertificateManager {
 			doReload();
 		}
 		mUpdateProcessedTime = System.currentTimeMillis();
+	}
+	
+	protected final void storeSync() 
+			throws KeyStoreException, 
+				   NoSuchProviderException, 
+				   NoSuchAlgorithmException, 
+				   CertificateException, 
+				   OperatorCreationException, 
+				   InvalidKeySpecException, 
+				   IOException {
+		doStore();
 	}
 	
 	public boolean isLoaded() {

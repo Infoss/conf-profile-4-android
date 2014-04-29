@@ -25,9 +25,11 @@ import java.security.KeyStore;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.NoSuchProviderException;
+import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
@@ -35,6 +37,7 @@ import java.util.Map;
 import org.bouncycastle.operator.OperatorCreationException;
 
 import android.content.Context;
+import android.util.Log;
 
 /**
  * Common class for accessing a copy of built-in Android KeyStore
@@ -42,24 +45,36 @@ import android.content.Context;
  *
  */
 public class AndroidCertificateManager extends CertificateManager {
-	private Context mContext;
-	private HashMap<String, Certificate> mCerts;
-	private HashMap<String, Key> mKeys;
+	private final KeyStore mKeyStore;
 	
-	protected AndroidCertificateManager(Context context) {
-		mContext = context.getApplicationContext();
-		mCerts = new HashMap<String, Certificate>();
-		mKeys  = new HashMap<String, Key>();
+	protected AndroidCertificateManager(Context context) 
+			throws KeyStoreException {
+		super(context);
+		mKeyStore = KeyStore.getInstance("AndroidCAStore");
 	}
 
 	@Override
 	public Map<String, Certificate> getCertificates() {
-		return new HashMap<String, Certificate>(mCerts);
+		Map<String, Certificate> certs = new HashMap<String, Certificate>();
+		
+		try {
+			Enumeration<String> aliases = mKeyStore.aliases(); 
+			while(aliases.hasMoreElements()) {
+				String alias = aliases.nextElement();
+				if(mKeyStore.isCertificateEntry(alias)) {
+					certs.put(alias, mKeyStore.getCertificate(alias));
+				}
+			}
+		} catch (KeyStoreException e) {
+			Log.e(TAG, "Error while fetching certs", e);
+		}
+		
+		return Collections.unmodifiableMap(certs);
 	}
-
+	
 	@Override
-	public Map<String, Key> getKeys() {
-		return new HashMap<String, Key>(mKeys);
+	public Certificate[] getCertificateChain(String alias) throws KeyStoreException {
+		return mKeyStore.getCertificateChain(alias);
 	}
 
 	@Override
@@ -71,11 +86,7 @@ public class AndroidCertificateManager extends CertificateManager {
 				   OperatorCreationException, 
 				   InvalidKeySpecException, 
 				   IOException {
-		KeyStore store = KeyStore.getInstance("AndroidCAStore");
-		store.load(null, null);
-		
-		//TODO: thread safety
-		fetch(store);
+		mKeyStore.load(null, null);
 	}
 
 	@Override
@@ -90,30 +101,17 @@ public class AndroidCertificateManager extends CertificateManager {
 		doLoad();
 	}
 	
-	private void fetch(KeyStore store) throws KeyStoreException {
-		HashMap<String, Certificate> certs = new HashMap<String, Certificate>();
-		HashMap<String, Key> keys = new HashMap<String, Key>();
+	@Override
+	protected void doStore() throws KeyStoreException, NoSuchProviderException,
+			NoSuchAlgorithmException, CertificateException,
+			OperatorCreationException, InvalidKeySpecException, IOException {
+		throw new UnsupportedOperationException("Can't store this type of keystore");
+	}
 
-		Enumeration<String> aliases = store.aliases();
-		while(aliases.hasMoreElements()) {
-			String alias = aliases.nextElement();
-			if(store.isCertificateEntry(alias)) {
-				certs.put(alias, store.getCertificate(alias));
-			}
-			
-			if(store.isKeyEntry(alias)) {
-				//TODO: make something with per-key passwords
-				//keys.put(alias, store.getKey(alias, password));
-			}
-		}
-		
-		HashMap<String, Certificate> oldCerts = mCerts;
-		mCerts = certs;
-		oldCerts.clear();
-		
-		HashMap<String, Key> oldKeys = mKeys;
-		mKeys = keys;
-		oldKeys.clear();
+	@Override
+	public Key getKey(String alias) throws UnrecoverableKeyException,
+			KeyStoreException, NoSuchAlgorithmException {
+		throw new UnsupportedOperationException("Can't get a key from this type of keystore");
 	}
 
 }

@@ -34,10 +34,10 @@ import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
+import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Map.Entry;
 
 import no.infoss.confprofile.util.CryptoUtils;
 
@@ -50,12 +50,11 @@ import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
 import android.util.Log;
 
-//TODO: switch to BouncyCastle as far as we using it
 /**
- * CertificateManager used as a KeyStore for this application.
- * @author Dmitry Vorobiev
- *
- */
+* CertificateManager used as a KeyStore for this application.
+* @author Dmitry Vorobiev
+*
+*/
 public class AppCertificateManager extends CertificateManager {
 	public static final String TAG = AppCertificateManager.class.getSimpleName();
 	public static final String DEFAULT_ALIAS = "00000000-0000-0000-0000-000000000000";
@@ -63,18 +62,17 @@ public class AppCertificateManager extends CertificateManager {
 	public static final String DEFAULT_CERT_ALIAS = CryptoUtils.makeCertAlias(DEFAULT_ALIAS);
 	private static final String PREF_PASSWORD = "AppCertificateManager_password";
 	private static final String STORAGE = "storage.jks";
-	private Context mContext;
-	private HashMap<String, Certificate> mCerts;
-	private HashMap<String, Key> mKeys;
+	
+	private final KeyStore mKeyStore;
 
-	protected AppCertificateManager(Context context) {
-		mContext = context.getApplicationContext();
-		mCerts = new HashMap<String, Certificate>();
-		mKeys  = new HashMap<String, Key>();
+	protected AppCertificateManager(Context context) throws KeyStoreException, NoSuchProviderException {
+		super(context.getApplicationContext());
 		
 		if(Security.getProvider("BC") == null) {
 			Security.addProvider(new BouncyCastleProvider());
 		}
+		
+		mKeyStore = KeyStore.getInstance("BKS", "BC");
 	}
 	
 	@Override
@@ -87,20 +85,16 @@ public class AppCertificateManager extends CertificateManager {
 				   InvalidKeySpecException, 
 				   UnrecoverableKeyException,
 				   IOException {		
-		char[] password = getPassword().toCharArray();
-		KeyStore keyStore = KeyStore.getInstance("BKS", "BC");
+		char[] password = getPassword();
 		InputStream is = null;
 		try {
 			is = mContext.openFileInput(STORAGE);
 		} catch(FileNotFoundException e) {
 			Log.d(TAG, "Cert storage doesn't exist", e);
-			createEmpty(keyStore, password);
+			createEmpty(password);
 		}
-		keyStore.load(is, password);
-		genDummyCertIfNotExist(keyStore, password);
-		
-		//TODO: thread safety
-		fetch(keyStore, password);
+		mKeyStore.load(is, password);
+		genDummyCertIfNotExist(password);
 	}
 	
 	@Override
@@ -111,16 +105,12 @@ public class AppCertificateManager extends CertificateManager {
 				   NoSuchAlgorithmException, 
 				   CertificateException, 
 				   IOException {
-		char[] password = getPassword().toCharArray();
-		KeyStore keyStore = KeyStore.getInstance("BKS", "BC");
+		char[] password = getPassword();
 		InputStream is = mContext.openFileInput(STORAGE);
-		keyStore.load(is, password);
-		
-		//TODO: thread safety
-		fetch(keyStore, password);
+		mKeyStore.load(is, password);
 	}
 	
-	protected void doSave() 
+	protected void doStore() 
 			throws KeyStoreException, 
 				   NoSuchProviderException, 
 				   NoSuchAlgorithmException, 
@@ -128,28 +118,38 @@ public class AppCertificateManager extends CertificateManager {
 				   OperatorCreationException, 
 				   InvalidKeySpecException, 
 				   IOException {		
-		char[] password = getPassword().toCharArray();
-		KeyStore keyStore = KeyStore.getInstance("BKS", "BC");
+		char[] password = getPassword();
+		
+		OutputStream os = null;
+		try {
+			os = mContext.openFileOutput(STORAGE, Context.MODE_PRIVATE);
+			mKeyStore.store(os, password);
+		} finally {
+			if(os != null) {
+				os.flush();
+				os.close();
+			}
+		}
+		
 		InputStream is = null;
 		try {
 			is = mContext.openFileInput(STORAGE);
-		} catch(FileNotFoundException e) {
-			Log.d(TAG, "Cert storage doesn't exist", e);
-			createEmpty(keyStore, password);
+			mKeyStore.load(is, password);
+		} finally {
+			if(is != null) {
+				is.close();
+			}
 		}
-		keyStore.load(is, password);
-		for(Entry<String, Certificate> entry : mCerts.entrySet()) {
-			keyStore.setCertificateEntry(entry.getKey(), entry.getValue());
-		}
+		
 	}
 	
-	private void createEmpty(KeyStore keyStore, char[] password) 
+	private void createEmpty(char[] password) 
 			throws NoSuchAlgorithmException, CertificateException, IOException, KeyStoreException, OperatorCreationException, InvalidKeySpecException {
-		keyStore.load(null, password);
+		mKeyStore.load(null, password);
 		
 		OutputStream stream = mContext.openFileOutput(STORAGE, Context.MODE_PRIVATE);
 		try {
-			keyStore.store(stream, password);
+			mKeyStore.store(stream, password);
 		} finally {
 			stream.flush();
 			stream.close();
@@ -157,7 +157,7 @@ public class AppCertificateManager extends CertificateManager {
 		
 	}
 	
-	private void genDummyCertIfNotExist(KeyStore keyStore, char[] password) 
+	private void genDummyCertIfNotExist(char[] password) 
 			throws CertificateEncodingException, 
 				   KeyStoreException, 
 				   NoSuchAlgorithmException, 
@@ -166,16 +166,16 @@ public class AppCertificateManager extends CertificateManager {
 				   InvalidKeySpecException, 
 				   FileNotFoundException, 
 				   IOException {
-		if(!keyStore.containsAlias(DEFAULT_KEY_ALIAS)) {
+		if(!mKeyStore.containsAlias(DEFAULT_KEY_ALIAS)) {
 			AsymmetricCipherKeyPair keypair = CryptoUtils.genBCRSAKeypair(2048);
 			Certificate cert = CryptoUtils.createCert(null, "DN=self-signed OCMS Android cert", keypair, "SHA1WithRSAEncryption");
 			
-			keyStore.setCertificateEntry(DEFAULT_CERT_ALIAS, cert);
-			keyStore.setKeyEntry(DEFAULT_KEY_ALIAS, CryptoUtils.getRSAPrivateKey(keypair), password, new Certificate[] {cert});
+			mKeyStore.setCertificateEntry(DEFAULT_CERT_ALIAS, cert);
+			mKeyStore.setKeyEntry(DEFAULT_KEY_ALIAS, CryptoUtils.getRSAPrivateKey(keypair), password, new Certificate[] {cert});
 			
 			OutputStream stream = mContext.openFileOutput(STORAGE, Context.MODE_PRIVATE);
 			try {
-				keyStore.store(stream, password);
+				mKeyStore.store(stream, password);
 			} finally {
 				stream.flush();
 				stream.close();
@@ -183,7 +183,7 @@ public class AppCertificateManager extends CertificateManager {
 		}
 	}
 	
-	private String getPassword() {
+	private char[] getPassword() {
 		SharedPreferences mgr = mContext.getSharedPreferences("confprofile.pref", Context.MODE_PRIVATE);
 		String password = null;
 		if(mgr.contains(PREF_PASSWORD)) {
@@ -197,51 +197,54 @@ public class AppCertificateManager extends CertificateManager {
 			editor.putString(PREF_PASSWORD, password);
 			editor.commit();
 		}
-		return password;
+		return password.toCharArray();
 	}
 	
-	private void fetch(KeyStore store, char[] password) 
-			throws KeyStoreException, UnrecoverableKeyException, NoSuchAlgorithmException {
-		HashMap<String, Certificate> certs = new HashMap<String, Certificate>();
-		HashMap<String, Key> keys = new HashMap<String, Key>();
-
-		Enumeration<String> aliases = store.aliases();
-		while(aliases.hasMoreElements()) {
-			String alias = aliases.nextElement();
-			if(store.isCertificateEntry(alias)) {
-				certs.put(alias, store.getCertificate(alias));
-			}
-			
-			if(store.isKeyEntry(alias)) {
-				keys.put(alias, store.getKey(alias, password));
-			}
-		}
-		
-		HashMap<String, Certificate> oldCerts = mCerts;
-		mCerts = certs;
-		oldCerts.clear();
-		
-		HashMap<String, Key> oldKeys = mKeys;
-		mKeys = keys;
-		oldKeys.clear();
+	private char[] getPasswordForKey(String alias) {
+		//TODO: improve this
+		return getPassword();
 	}
 
 	@Override
 	public Map<String, Certificate> getCertificates() {
-		return new HashMap<String,Certificate>(mCerts);
+		Map<String, Certificate> certs = new HashMap<String, Certificate>();
+		
+		try {
+			Enumeration<String> aliases = mKeyStore.aliases(); 
+			while(aliases.hasMoreElements()) {
+				String alias = aliases.nextElement();
+				if(mKeyStore.isCertificateEntry(alias)) {
+					certs.put(alias, mKeyStore.getCertificate(alias));
+				}
+			}
+		} catch (KeyStoreException e) {
+			Log.e(TAG, "Error while fetching certs", e);
+		}
+		
+		return Collections.unmodifiableMap(certs);
 	}
 	
 	@Override
-	public Map<String, Key> getKeys() {
-		return new HashMap<String,Key>(mKeys);
+	public Key getKey(String alias) 
+			throws UnrecoverableKeyException, 
+				   KeyStoreException, 
+				   NoSuchAlgorithmException {
+		return mKeyStore.getKey(alias, getPasswordForKey(alias));
 	}
 	
-	public void putCertificate(String alias, Certificate cert) {
-		mCerts.put(alias, cert);
+	@Override
+	public Certificate[] getCertificateChain(String alias) throws KeyStoreException {
+		return mKeyStore.getCertificateChain(alias);
 	}
 	
-	public void putKey(String alias, Key key) {
-		mKeys.put(alias, key);
+	public void putCertificate(String alias, Certificate cert) 
+			throws KeyStoreException {
+		mKeyStore.setCertificateEntry(alias, cert);
+	}
+	
+	public void putKey(String alias, Key key, char[] password, Certificate[] certChain) 
+			throws KeyStoreException {
+		mKeyStore.setKeyEntry(alias, key, getPasswordForKey(alias), certChain);
 	}
 
 }
