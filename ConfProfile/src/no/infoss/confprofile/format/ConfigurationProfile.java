@@ -19,12 +19,29 @@
 
 package no.infoss.confprofile.format;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.security.PrivateKey;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 
 import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
+
+import org.bouncycastle.asn1.ASN1Primitive;
+import org.bouncycastle.asn1.cms.ContentInfo;
+import org.bouncycastle.asn1.util.ASN1Dump;
+import org.bouncycastle.cms.CMSEnvelopedData;
+import org.bouncycastle.cms.CMSTypedStream;
+import org.bouncycastle.cms.RecipientId;
+import org.bouncycastle.cms.RecipientInformation;
+import org.bouncycastle.cms.jcajce.JceKeyTransEnvelopedRecipient;
+
+import android.util.Log;
 
 /**
  * 
@@ -32,9 +49,11 @@ import no.infoss.confprofile.format.Plist.Dictionary;
  *
  */
 public class ConfigurationProfile {
-	private Plist mPlist;
+	public static final String TAG = ConfigurationProfile.class.getSimpleName(); 
 	
 	public static final int INVALID_PAYLOAD_VERSION = 0;
+	
+	public static final String KEY_ENCRYPTED_PAYLOAD_CONTENT = "EncryptedPayloadContent";
 	
 	public static final String KEY_HAS_REMOVAL_PASSCODE = "HasRemovalPasscode";
 	public static final String KEY_IS_ENCRYPTED = "IsEncrypted";
@@ -52,28 +71,97 @@ public class ConfigurationProfile {
 	public static final String KEY_DURATION_UNTIL_REMOVAL = "DurationUntilRemoval";
 	public static final String KEY_CONSENT_TEXT = "ConsentText";
 	
+	private Plist mPlist;
 	private final List<Payload> mPayloads;
+	private boolean mIsPayloadContentEncrypted;
 	
 	private ConfigurationProfile(Plist plist) throws ConfigurationProfileException {
 		mPlist = plist;
 		
-		List<Payload> payloads = new LinkedList<Payload>();
+		mPayloads = new LinkedList<Payload>();
+		parsePayloadContent();
+		
+		if(mPlist.getData(KEY_ENCRYPTED_PAYLOAD_CONTENT) != null) {
+			mIsPayloadContentEncrypted = true;
+		} else {
+			mIsPayloadContentEncrypted = false;
+		}
+	}
+	
+	private void parsePayloadContent() throws ConfigurationProfileException {
 		Array payloadArr = mPlist.getArray(KEY_PAYLOAD_CONTENT);
 		if(payloadArr != null) {
-			for(int i = 0; i < payloadArr.size(); i++) {
-				payloads.add(PayloadFactory.createPayload(payloadArr.getDictionary(i)));
+			for(Object dict : payloadArr) {
+				if(dict instanceof Dictionary) {
+					mPayloads.add(PayloadFactory.createPayload((Dictionary) dict));
+				}
 			}
 		}
-		
-		mPayloads = Collections.unmodifiableList(payloads);
 	}
 	
 	public Plist getPlist() {
 		return mPlist;
 	}
 	
+	public boolean isPayloadContentEncrypted() {
+		return mIsPayloadContentEncrypted;
+	}
+	
+	public synchronized boolean decryptPayloadContent(PrivateKey key) {
+		if(!mIsPayloadContentEncrypted) {
+			return true;
+		}
+		
+		InputStream is = null;
+		try {
+			byte encryptedBuff[] = mPlist.getData(KEY_ENCRYPTED_PAYLOAD_CONTENT);
+			ASN1Primitive asn1p = ASN1Primitive.fromByteArray(encryptedBuff);
+			Log.d(TAG, ASN1Dump.dumpAsString(asn1p));
+			ContentInfo contentInfo = ContentInfo.getInstance(asn1p);
+			CMSEnvelopedData envelopedData = new CMSEnvelopedData(encryptedBuff);
+			Log.d(TAG, ASN1Dump.dumpAsString(contentInfo.toASN1Primitive()));
+			Collection<RecipientInformation> rec = envelopedData.getRecipientInfos().getRecipients();
+			Iterator<RecipientInformation> it = rec.iterator();
+			while(it.hasNext()) {
+				RecipientInformation info = it.next();
+				RecipientId rid = info.getRID();
+				CMSTypedStream recData = info.getContentStream(new JceKeyTransEnvelopedRecipient(key).setProvider("BC"));
+				is = recData.getContentStream();
+				ByteArrayOutputStream bos = new ByteArrayOutputStream(is.available());
+				byte tmpBuff[] = new byte[2048];
+				int read = 0;
+				while((read = is.read(tmpBuff)) != -1) {
+					bos.write(tmpBuff, 0, read);
+				}
+				Log.d(TAG, new String(bos.toByteArray()));
+				Log.d(TAG, new Plist(bos.toByteArray()).toString());
+			}
+			//encrypedData.getContent(arg0);
+			/*
+			 * XmlPullParser parser = Plist.prepareParser(new ByteArrayInputStream(decryptedData));
+			Array payloadContent = Array.parse(parser);
+			mPlist.put(KEY_PAYLOAD_CONTENT, payloadContent);
+			parsePayloadContent();
+			 */
+		} catch(Exception e) {
+			Log.w(TAG, "Can't decrypt payload content", e);
+			return false;
+		} finally {
+			if(is != null) {
+				try {
+					is.close();
+				} catch (IOException e) {
+					Log.d(TAG, "Error while closing ASN1InputStream", e);
+				}
+			}
+		}
+		
+		mIsPayloadContentEncrypted = false;
+		return true;
+	}
+	
 	public List<Payload> getPayloads() {
-		return mPayloads;
+		return Collections.unmodifiableList(mPayloads);
 	}
 	
 	public boolean hasRemovalPasscode() {

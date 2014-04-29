@@ -27,6 +27,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
 
+import android.util.Base64;
 import android.util.Xml;
 
 /**
@@ -58,9 +60,14 @@ public class Plist {
 	public static final String TYPE_BOOLEAN = "boolean";
 	public static final String TYPE_INTEGER = "integer";
 	public static final String TYPE_STRING = "string";
+	public static final String TYPE_DATA = "data";
 	public static final String TYPE_ARRAY = "array";
 	public static final String TYPE_DICT = "dict";
 	
+	public static final String TYPE_BOOLEAN_TRUE = "true"; //handle <true />
+	public static final String TYPE_BOOLEAN_FALSE = "false"; //handle <false />
+	
+	private final Object mWrapped;
 	private final Dictionary mDict;
 	
 	private boolean mIsSigned = false;
@@ -82,6 +89,10 @@ public class Plist {
 		this(new FileInputStream(file));
 	}
 	
+	public Plist(byte[] buff) throws XmlPullParserException, IOException {
+		this(new ByteArrayInputStream(buff));
+	}
+	
 	public Plist(InputStream stream) throws XmlPullParserException, IOException {
 		this(prepareParser(stream));
 	}
@@ -91,19 +102,42 @@ public class Plist {
 		parser.require(XmlPullParser.START_TAG, null, "plist");
 		
 		parser.nextTag();
-		mDict = Dictionary.parse(parser);
+		mWrapped = Dictionary.parse(parser);
+		mDict = (Dictionary) mWrapped;
 	}
 	
 	/**
 	 * Wraps a dictionary
 	 * @param dict
 	 */
+	@Deprecated
 	public Plist(Dictionary dict) {
+		mWrapped = dict;
 		mDict = dict;
+	}
+	
+	/**
+	 * 
+	 * @param objectToWrap
+	 */
+	public Plist(Object objectToWrap) {
+		if(getType(objectToWrap) == null) {
+			throw new IllegalArgumentException("Can't wrap ".concat(String.valueOf(objectToWrap)));
+		}
+		mWrapped = objectToWrap;
+		mDict = null;
 	}
 	
 	public boolean containsKey(String key) {
 		return mDict.containsKey(key);
+	}
+	
+	/**
+	 * Get a wrapped object
+	 * @return
+	 */
+	public Object get() {
+		return mWrapped;
 	}
 	
 	public Object get(String key) {
@@ -122,12 +156,20 @@ public class Plist {
 		return mDict.getString(key, defValue);
 	}
 	
+	public byte[] getData(String key) {
+		return mDict.getData(key);
+	}
+	
 	public Array getArray(String key) {
 		return mDict.getArray(key);
 	}
 	
 	public Dictionary getDictionary(String key) {
 		return mDict.getDictionary(key);
+	}
+	
+	/*package*/ void put(String key, Object object) {
+		mDict.put(key, object);
 	}
 	
 	public void writeXml(OutputStream stream) 
@@ -163,28 +205,37 @@ public class Plist {
 		return builder.toString();
 	}
 	
+	private Array asArray() {
+		return (Array) mWrapped;
+	}
+	
+	private Dictionary asDictionary() {
+		return (Dictionary) mWrapped;
+	}
+	
 	public static String getType(Object object) {
 		if(object == null) {
 			return null;
 		}
 		
-		Class<?> objClass = object.getClass();
-		if(Boolean.class.equals(objClass)) {
+		if(object instanceof Boolean) {
 			return TYPE_BOOLEAN;
-		} else if(Integer.class.equals(objClass)) {
+		} else if(object instanceof Integer) {
 			return TYPE_INTEGER;
-		} else if(String.class.equals(objClass)) {
+		} else if(object instanceof String) {
 			return TYPE_STRING;
-		} else if(Array.class.equals(objClass)) {
+		} else if(object instanceof byte[]) { 
+			return TYPE_DATA;
+		} else if(object instanceof Array) {
 			return TYPE_ARRAY;
-		} else if(Dictionary.class.equals(objClass)) {
+		} else if(object instanceof Dictionary) {
 			return TYPE_DICT;
 		}
 		
 		return null;
 	}
 	
-	private static XmlPullParser prepareParser(InputStream stream) throws XmlPullParserException {
+	/*package*/ static XmlPullParser prepareParser(InputStream stream) throws XmlPullParserException {
 		XmlPullParser parser = Xml.newPullParser();
 		parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false);
 		parser.setInput(stream, null);
@@ -208,10 +259,18 @@ public class Plist {
 					throw new PlistFormatException("Boolean value is ".concat(value));
 				}
 				object = Boolean.valueOf(value);
+			} else if(TYPE_BOOLEAN_TRUE.equalsIgnoreCase(objectType)) {
+				object = Boolean.TRUE;
+				parser.next();
+			} else if(TYPE_BOOLEAN_FALSE.equalsIgnoreCase(objectType)) {
+				object = Boolean.FALSE;
+				parser.next();
 			} else if(TYPE_INTEGER.equalsIgnoreCase(objectType)) {
 				object = Integer.valueOf(XmlUtils.readText(parser));
 			} else if(TYPE_STRING.equalsIgnoreCase(objectType)) {
 				object = XmlUtils.readText(parser);
+			} else if(TYPE_DATA.equalsIgnoreCase(objectType)) {
+				object = Base64.decode(XmlUtils.readText(parser).getBytes(), Base64.DEFAULT);
 			} else if(TYPE_ARRAY.equalsIgnoreCase(objectType)) {
 				object = Array.parse(parser);
 			} else if(TYPE_DICT.equalsIgnoreCase(objectType)) {
@@ -244,6 +303,10 @@ public class Plist {
 			serializer.startTag(null, TYPE_STRING);
 			serializer.text(object.toString());
 			serializer.endTag(null, TYPE_STRING);
+		} else if(TYPE_DATA.equalsIgnoreCase(objectType)) {
+			serializer.startTag(null, TYPE_DATA);
+			serializer.text(Base64.encodeToString((byte[]) object, Base64.DEFAULT));
+			serializer.endTag(null, TYPE_DATA);
 		} else if(TYPE_ARRAY.equalsIgnoreCase(objectType)) {
 			((Array) object).writeXml(serializer);
 		} else if(TYPE_DICT.equalsIgnoreCase(objectType)) {
@@ -251,7 +314,7 @@ public class Plist {
 		}
 	}
 	
-	public static final class Array {
+	public static final class Array implements Iterable<Object>{
 		private final List<Object> mList;
 		
 		private Array(List<Object> list) {
@@ -304,6 +367,14 @@ public class Plist {
 			return (String) object;
 		}
 		
+		public byte[] getData(int index) {
+			Object object = get(index);
+			if(!TYPE_DATA.equalsIgnoreCase(Plist.getType(object))) {
+				return null;
+			}
+			return (byte[]) object;
+		}
+		
 		public Array getArray(int index) {
 			Object object = get(index);
 			if(!TYPE_ARRAY.equalsIgnoreCase(Plist.getType(object))) {
@@ -324,6 +395,14 @@ public class Plist {
 			return Plist.getType(get(index));
 		}
 		
+		/*package*/ void add(Object object) {
+			mList.add(object);
+		}
+		
+		/*package*/ void add(int location, Object object) {
+			mList.add(object);
+		}
+		
 		public void writeXml(XmlSerializer serializer) 
 				throws IllegalArgumentException, IllegalStateException, IOException {
 			serializer.startTag(null, TYPE_ARRAY);
@@ -342,6 +421,10 @@ public class Plist {
 			return new Array(list);
 		}
 		
+		public static Array parse(InputStream stream) throws XmlPullParserException, IOException {
+			return parse(Plist.prepareParser(stream));
+		}
+		
 		public static Array parse(XmlPullParser parser) throws XmlPullParserException, IOException {
 			List<Object> list = new LinkedList<Object>();
 			
@@ -351,6 +434,11 @@ public class Plist {
 			}
 			parser.require(XmlPullParser.END_TAG, null, "array");
 			return Array.wrap(list);
+		}
+
+		@Override
+		public Iterator<Object> iterator() {
+			return mList.iterator();
 		}
 	}
 	
@@ -407,6 +495,14 @@ public class Plist {
 			return (String) object;
 		}
 		
+		public byte[] getData(String key) {
+			Object object = get(key);
+			if(!TYPE_DATA.equalsIgnoreCase(Plist.getType(object))) {
+				return null;
+			}
+			return (byte[]) object;
+		}
+		
 		public Array getArray(String key) {
 			Object object = get(key);
 			if(!TYPE_ARRAY.equalsIgnoreCase(Plist.getType(object))) {
@@ -425,6 +521,10 @@ public class Plist {
 		
 		public String getType(String key) {
 			return Plist.getType(get(key));
+		}
+		
+		/*package*/ void put(String key, Object object) {
+			mMap.put(key, object);
 		}
 		
 		public void writeXml(XmlSerializer serializer) 
@@ -446,6 +546,10 @@ public class Plist {
 		
 		public static Dictionary wrap(Map<String, Object> map) {
 			return new Dictionary(map);
+		}
+		
+		public static Dictionary parse(InputStream stream) throws XmlPullParserException, IOException {
+			return parse(Plist.prepareParser(stream));
 		}
 		
 		public static Dictionary parse(XmlPullParser parser) throws XmlPullParserException, IOException {
