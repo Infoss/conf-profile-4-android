@@ -36,12 +36,14 @@ import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.crypto.AppCertificateManager;
 import no.infoss.confprofile.crypto.CertificateManager;
+import no.infoss.confprofile.crypto.TmpCertificateManager;
 import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.ConfigurationProfile.Payload;
 import no.infoss.confprofile.format.Plist;
 import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
 import no.infoss.confprofile.format.ScepPayload;
+import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.HttpUtils;
 import no.infoss.jscep.transport.HttpClientTransportFactory;
@@ -149,11 +151,10 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				return TaskError.HTTP_FAILED;
 			}
 			
-			Log.d(TAG, resp.toString());
 			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
 			ConfigurationProfile profile = ConfigurationProfile.wrap(resp); 
 			if(profile.isPayloadContentEncrypted()) {
-				profile.decryptPayloadContent(getKeyForUUID(uuid));
+				profile.decryptPayloadContent(getKeyForUUID(mgr, uuid));
 			}
 			confProfiles.add(profile);
 			
@@ -167,10 +168,12 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 						
 						profile = ConfigurationProfile.wrap(submitDeviceAttrs(plist));
 						if(profile.isPayloadContentEncrypted()) {
-							profile.decryptPayloadContent(getKeyForUUID(uuid));
+							profile.decryptPayloadContent(getKeyForUUID(mgr, uuid));
 						}
 						
 						confProfiles.add(profile);
+					} else if(payload instanceof VpnPayload) {
+						Log.d(TAG, payload.toString());
 					} else {
 						Log.d(TAG, payload.toString());
 					}
@@ -184,14 +187,13 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		return TaskError.SUCCESS;
 	}
 	
-	private PrivateKey getKeyForUUID(String uuid) 
+	private PrivateKey getKeyForUUID(CertificateManager mgr, String uuid) 
 			throws UnrecoverableKeyException, 
 				   KeyStoreException, 
 				   NoSuchAlgorithmException {
-		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
-		
-	    if(uuid == null) {
-	    	uuid = AppCertificateManager.DEFAULT_ALIAS;
+		if(uuid == null || mgr == null) {
+	    	mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
+	    	return getKeyForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
 	    }
 	    
 	    String keyAlias = CryptoUtils.makeKeyAlias(uuid);
@@ -200,11 +202,10 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 	    return (PrivateKey) privKey;
 	}
 	
-	private Certificate[] getCertChainForUUID(String uuid) throws KeyStoreException {
-		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
-		
-	    if(uuid == null) {
-	    	uuid = AppCertificateManager.DEFAULT_ALIAS;
+	private Certificate[] getCertChainForUUID(CertificateManager mgr, String uuid) throws KeyStoreException {
+		if(uuid == null || mgr == null) {
+	    	mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
+	    	return getCertChainForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
 	    }
 	    
 	    String keyAlias = CryptoUtils.makeKeyAlias(uuid);
@@ -232,12 +233,14 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		//obtain certificates
 		String uuid = request.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
 	    
-	    Key privKey = getKeyForUUID(uuid);
-	    Certificate[] signChain = getCertChainForUUID(uuid);
+		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
+	    Key privKey = getKeyForUUID(mgr, uuid);
+	    Certificate[] signChain = getCertChainForUUID(mgr, uuid);
 	    
 	    if(privKey == null || signChain == null || signChain.length == 0) {
-	    	privKey = getKeyForUUID(AppCertificateManager.DEFAULT_ALIAS);
-		    signChain = getCertChainForUUID(AppCertificateManager.DEFAULT_ALIAS);
+	    	mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
+	    	privKey = getKeyForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
+		    signChain = getCertChainForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
 	    }
 	    
 	    Certificate signCert = (signChain == null || signChain.length == 0) ? null : signChain[0];
@@ -246,11 +249,16 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 	    	throw new IOException("Can't load certificate or key for uuid=".concat(uuid));
 	    }
 	    
+	    Log.d(TAG, "submit device attrs with cert issuer=" + 
+	    		((X509Certificate)signCert).getIssuerDN().toString() + 
+	    		" for subject=" + 
+	    		((X509Certificate)signCert).getSubjectDN().toString());
+	    
 		//obtain device data, serialize it to xml and sign
 		byte deviceInfoXml[] = obtainDeviceAttrsXml(request);
-		Log.d(TAG, new String(deviceInfoXml, "UTF-8"));
 		
 		CMSSignedData sigData = signData(deviceInfoXml, signCert, privKey);    
+		Log.d(TAG, CryptoUtils.debugCMSSignedData(sigData));
 		
 		Dictionary content = request.getDictionary(ConfigurationProfile.KEY_PAYLOAD_CONTENT);
 		URI uri = new URI(content.getString("URL"));
@@ -272,7 +280,8 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		mHttpStatusCode = resp.getStatusLine().getStatusCode();
 		try {
 			if(mHttpStatusCode != HttpStatus.SC_OK) {
-				throw new HttpResponseException(mHttpStatusCode, "Response status code should be 200");
+				String exMsg = String.format("Response status code should be 200 (received %d)", mHttpStatusCode);
+				throw new HttpResponseException(mHttpStatusCode, exMsg);
 			}
 			
 			stream = resp.getEntity().getContent();
