@@ -43,6 +43,7 @@ public class PayloadFactory {
 	static {
 		REGISTERED_PAYLOADS = new HashMap<String, Class<? extends Payload>>();
 		register(ScepPayload.class);
+		register(VpnPayload.class);
 	}
 	
 	public static Payload createPayload(Dictionary payloadDict) throws ConfigurationProfileException {

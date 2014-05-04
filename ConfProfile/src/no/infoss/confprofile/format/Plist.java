@@ -52,7 +52,7 @@ import android.util.Xml;
  * @author Dmitry Vorobiev
  *
  */
-public class Plist {	
+public class Plist implements XmlSerializable {	
 	public static final String TAG = Plist.class.getSimpleName();
 	
 	public static final String DOCDECL = " plist PUBLIC \"-//Apple Inc//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\"";
@@ -68,7 +68,6 @@ public class Plist {
 	public static final String TYPE_BOOLEAN_FALSE = "false"; //handle <false />
 	
 	private final Object mWrapped;
-	private final Dictionary mDict;
 	
 	private boolean mIsSigned = false;
 	private boolean mIsTrusted = false;
@@ -102,18 +101,7 @@ public class Plist {
 		parser.require(XmlPullParser.START_TAG, null, "plist");
 		
 		parser.nextTag();
-		mWrapped = Dictionary.parse(parser);
-		mDict = (Dictionary) mWrapped;
-	}
-	
-	/**
-	 * Wraps a dictionary
-	 * @param dict
-	 */
-	@Deprecated
-	public Plist(Dictionary dict) {
-		mWrapped = dict;
-		mDict = dict;
+		mWrapped = parseValue(parser);
 	}
 	
 	/**
@@ -125,11 +113,18 @@ public class Plist {
 			throw new IllegalArgumentException("Can't wrap ".concat(String.valueOf(objectToWrap)));
 		}
 		mWrapped = objectToWrap;
-		mDict = null;
 	}
 	
-	public boolean containsKey(String key) {
-		return mDict.containsKey(key);
+	/////////////////////////////////////////////
+	// Common methods
+	/////////////////////////////////////////////
+	
+	/**
+	 * Get type of a wrapped object
+	 * @return
+	 */
+	public String getType() {
+		return getType(mWrapped);
 	}
 	
 	/**
@@ -140,36 +135,98 @@ public class Plist {
 		return mWrapped;
 	}
 	
+	/////////////////////////////////////////////
+	// Array methods
+	/////////////////////////////////////////////
+	public int size() {
+		return asArray().size();
+	}
+	
+	public Object get(int index) {
+		return asArray().get(index);
+	}
+	
+	public Boolean getBoolean(int index) {
+		return asArray().getBoolean(index);
+	}
+	
+	public boolean getBoolean(int index, boolean defValue) {
+		return asArray().getBoolean(index, defValue);
+	}
+	
+	public Integer getInteger(int index) {
+		return asArray().getInteger(index);
+	}
+	
+	public int getInteger(int index, int defValue) {
+		return asArray().getInteger(index, defValue);
+	}
+	
+	public String getString(int index) {
+		return asArray().getString(index);
+	}
+	
+	public String getString(int index, String defValue) {
+		return asArray().getString(index, defValue);
+	}
+	
+	public byte[] getData(int index) {
+		return asArray().getData(index);
+	}
+	
+	public Array getArray(int index) {
+		return asArray().getArray(index);
+	}
+	
+	public Dictionary getDictionary(int index) {
+		return asArray().getDictionary(index);
+	}
+	
+	public String getType(int index) {
+		return Plist.getType(get(index));
+	}
+	
+	/////////////////////////////////////////////
+	// Dictionary methods
+	/////////////////////////////////////////////
+	public boolean containsKey(String key) {
+		return asDictionary().containsKey(key);
+	}
+	
 	public Object get(String key) {
-		return mDict.get(key);
+		return asDictionary().get(key);
 	}
 	
 	public boolean getBoolean(String key, boolean defValue) {
-		return mDict.getBoolean(key, defValue);
+		return asDictionary().getBoolean(key, defValue);
 	}
 	
 	public int getInteger(String key, int defValue) {
-		return mDict.getInteger(key, defValue);
+		return asDictionary().getInteger(key, defValue);
 	}
 	
 	public String getString(String key, String defValue) {
-		return mDict.getString(key, defValue);
+		return asDictionary().getString(key, defValue);
 	}
 	
 	public byte[] getData(String key) {
-		return mDict.getData(key);
+		return asDictionary().getData(key);
 	}
 	
 	public Array getArray(String key) {
-		return mDict.getArray(key);
+		return asDictionary().getArray(key);
 	}
 	
 	public Dictionary getDictionary(String key) {
-		return mDict.getDictionary(key);
+		return asDictionary().getDictionary(key);
 	}
 	
 	/*package*/ void put(String key, Object object) {
-		mDict.put(key, object);
+		asDictionary().put(key, object);
+	}
+	
+	public String getType(String key) {
+		return asDictionary().getType(key);
 	}
 	
 	public void writeXml(OutputStream stream) 
@@ -182,10 +239,26 @@ public class Plist {
 		serializer.docdecl(Plist.DOCDECL);
 		serializer.startTag(null, "plist");
 		serializer.attribute(null, "version", "1.0");
-		mDict.writeXml(serializer);
+		
+		writeXml(serializer);
+		
 		serializer.endTag(null, "plist");
 		serializer.endDocument();
 		serializer.flush();
+	}
+	
+	@Override
+	public void writeXml(XmlSerializer serializer) 
+			throws IllegalArgumentException, 
+				   IllegalStateException, 
+				   IOException {
+		XmlSerializable serializable = null;
+		if(mWrapped instanceof XmlSerializable) {
+			serializable = (XmlSerializable) mWrapped;
+		} else {
+			serializable = new XmlSerializableWrapper(mWrapped);
+		}
+		serializable.writeXml(serializer);
 	}
 	
 	@Override
@@ -201,7 +274,7 @@ public class Plist {
 				builder.append("not trusted, ");
 			}
 		}
-		builder.append(mDict.toString());
+		builder.append(mWrapped.toString());
 		return builder.toString();
 	}
 	
@@ -579,4 +652,30 @@ public class Plist {
 		}
 	}
 
+	private static class XmlSerializableWrapper implements XmlSerializable {
+		private Object mWrappedObject;
+		private String mType;
+		
+		private XmlSerializableWrapper(Object wrappedObject) {
+			mType = Plist.getType(wrappedObject);
+			if(mType == null) {
+				throw new IllegalArgumentException("Can't serialize ".concat(String.valueOf(wrappedObject)));
+			}
+			
+			mWrappedObject = wrappedObject;
+		}
+		
+		@Override
+		public void writeXml(XmlSerializer serializer)
+				throws IllegalArgumentException, 
+				IllegalStateException,
+				IOException {
+			if(mWrappedObject instanceof XmlSerializable) {
+				((XmlSerializable) mWrappedObject).writeXml(serializer);
+			} else {
+				Plist.writeXml(serializer, mWrappedObject);
+			}
+		}
+		
+	}
 }

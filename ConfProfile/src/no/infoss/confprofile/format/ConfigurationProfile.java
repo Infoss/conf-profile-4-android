@@ -19,7 +19,6 @@
 
 package no.infoss.confprofile.format;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.security.PrivateKey;
@@ -32,12 +31,8 @@ import java.util.List;
 import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
 
-import org.bouncycastle.asn1.ASN1Primitive;
-import org.bouncycastle.asn1.cms.ContentInfo;
-import org.bouncycastle.asn1.util.ASN1Dump;
 import org.bouncycastle.cms.CMSEnvelopedData;
 import org.bouncycastle.cms.CMSTypedStream;
-import org.bouncycastle.cms.RecipientId;
 import org.bouncycastle.cms.RecipientInformation;
 import org.bouncycastle.cms.jcajce.JceKeyTransEnvelopedRecipient;
 
@@ -115,34 +110,19 @@ public class ConfigurationProfile {
 		InputStream is = null;
 		try {
 			byte encryptedBuff[] = mPlist.getData(KEY_ENCRYPTED_PAYLOAD_CONTENT);
-			ASN1Primitive asn1p = ASN1Primitive.fromByteArray(encryptedBuff);
-			Log.d(TAG, ASN1Dump.dumpAsString(asn1p));
-			ContentInfo contentInfo = ContentInfo.getInstance(asn1p);
 			CMSEnvelopedData envelopedData = new CMSEnvelopedData(encryptedBuff);
-			Log.d(TAG, ASN1Dump.dumpAsString(contentInfo.toASN1Primitive()));
+			
+			@SuppressWarnings("unchecked")
 			Collection<RecipientInformation> rec = envelopedData.getRecipientInfos().getRecipients();
 			Iterator<RecipientInformation> it = rec.iterator();
 			while(it.hasNext()) {
 				RecipientInformation info = it.next();
-				RecipientId rid = info.getRID();
 				CMSTypedStream recData = info.getContentStream(new JceKeyTransEnvelopedRecipient(key).setProvider("BC"));
 				is = recData.getContentStream();
-				ByteArrayOutputStream bos = new ByteArrayOutputStream(is.available());
-				byte tmpBuff[] = new byte[2048];
-				int read = 0;
-				while((read = is.read(tmpBuff)) != -1) {
-					bos.write(tmpBuff, 0, read);
-				}
-				Log.d(TAG, new String(bos.toByteArray()));
-				Log.d(TAG, new Plist(bos.toByteArray()).toString());
+				Plist encryptedPlist = new Plist(is);
+				mPlist.put(KEY_PAYLOAD_CONTENT, encryptedPlist.get());
+				parsePayloadContent();
 			}
-			//encrypedData.getContent(arg0);
-			/*
-			 * XmlPullParser parser = Plist.prepareParser(new ByteArrayInputStream(decryptedData));
-			Array payloadContent = Array.parse(parser);
-			mPlist.put(KEY_PAYLOAD_CONTENT, payloadContent);
-			parsePayloadContent();
-			 */
 		} catch(Exception e) {
 			Log.w(TAG, "Can't decrypt payload content", e);
 			return false;
