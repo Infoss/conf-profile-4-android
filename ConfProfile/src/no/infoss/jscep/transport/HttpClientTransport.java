@@ -17,9 +17,6 @@ import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.entity.ByteArrayEntity;
-import org.bouncycastle.asn1.util.ASN1Dump;
-import org.bouncycastle.cms.CMSException;
-import org.bouncycastle.cms.CMSSignedData;
 import org.bouncycastle.util.encoders.Base64;
 import org.jscep.transport.AbstractTransport;
 import org.jscep.transport.TransportException;
@@ -83,14 +80,7 @@ public class HttpClientTransport extends AbstractTransport {
 
 	    byte[] message;
 	    try {
-	        message = Base64.decode(msg.getMessage().getBytes(Charsets.US_ASCII.name()));
-	        try {
-				CMSSignedData testData = new CMSSignedData(message);
-				Log.d(TAG, ASN1Dump.dumpAsString(testData.toASN1Structure()));
-			} catch (CMSException e) {
-				Log.e(TAG, "CMSSignedData error", e);
-			}
-	        
+	        message = Base64.decode(msg.getMessage().getBytes(Charsets.US_ASCII.name()));	        
 	    } catch (UnsupportedEncodingException e) {
 	        throw new RuntimeException(e);
 	    }
