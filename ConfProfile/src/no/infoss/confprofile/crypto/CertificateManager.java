@@ -45,6 +45,7 @@ public abstract class CertificateManager {
 	public static final String MANAGER_ANDROID_SYSTEM = "android.system";
 	public static final String MANAGER_ANDROID_USER = "android.user";
 	public static final String MANAGER_INTERNAL = "internal";
+	public static final String MANAGER_TMP = "tmp";
 	
 	private static final HashMap<String, CertificateManager> MANAGERS;
 	static {
@@ -66,7 +67,9 @@ public abstract class CertificateManager {
 					} else if(MANAGER_ANDROID_USER.equals(managerName)) {
 						result = new AndroidCertificateManagerWrapper(context, MANAGER_ANDROID_USER);
 					} else if(MANAGER_INTERNAL.equals(managerName)) {
-							result = new AppCertificateManager(context);
+						result = new AppCertificateManager(context);
+					} else if(MANAGER_TMP.equals(managerName)) {
+						result = new TmpCertificateManager(context);
 					}
 				} catch(NoSuchProviderException e) {
 					Log.w(TAG, "Can't find keystore provider", e);
@@ -157,7 +160,7 @@ public abstract class CertificateManager {
 	}
 	
 	public final CertificateManager store() {
-		//TODO: fix this
+		//TODO: fix this (direct call)
 		try {
 			storeSync();
 		} catch(Exception e) {

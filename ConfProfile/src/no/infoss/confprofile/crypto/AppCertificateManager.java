@@ -31,7 +31,6 @@ import java.security.NoSuchProviderException;
 import java.security.Security;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
-import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Collections;
@@ -41,7 +40,6 @@ import java.util.Map;
 
 import no.infoss.confprofile.util.CryptoUtils;
 
-import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
 
@@ -57,9 +55,6 @@ import android.util.Log;
 */
 public class AppCertificateManager extends CertificateManager {
 	public static final String TAG = AppCertificateManager.class.getSimpleName();
-	public static final String DEFAULT_ALIAS = "00000000-0000-0000-0000-000000000000";
-	public static final String DEFAULT_KEY_ALIAS = CryptoUtils.makeKeyAlias(DEFAULT_ALIAS);
-	public static final String DEFAULT_CERT_ALIAS = CryptoUtils.makeCertAlias(DEFAULT_ALIAS);
 	private static final String PREF_PASSWORD = "AppCertificateManager_password";
 	private static final String STORAGE = "storage.jks";
 	
@@ -94,7 +89,6 @@ public class AppCertificateManager extends CertificateManager {
 			createEmpty(password);
 		}
 		mKeyStore.load(is, password);
-		genDummyCertIfNotExist(password);
 	}
 	
 	@Override
@@ -155,32 +149,6 @@ public class AppCertificateManager extends CertificateManager {
 			stream.close();
 		}
 		
-	}
-	
-	private void genDummyCertIfNotExist(char[] password) 
-			throws CertificateEncodingException, 
-				   KeyStoreException, 
-				   NoSuchAlgorithmException, 
-				   OperatorCreationException, 
-				   CertificateException, 
-				   InvalidKeySpecException, 
-				   FileNotFoundException, 
-				   IOException {
-		if(!mKeyStore.containsAlias(DEFAULT_KEY_ALIAS)) {
-			AsymmetricCipherKeyPair keypair = CryptoUtils.genBCRSAKeypair(2048);
-			Certificate cert = CryptoUtils.createCert(null, "DN=self-signed OCMS Android cert", keypair, "SHA1WithRSAEncryption");
-			
-			mKeyStore.setCertificateEntry(DEFAULT_CERT_ALIAS, cert);
-			mKeyStore.setKeyEntry(DEFAULT_KEY_ALIAS, CryptoUtils.getRSAPrivateKey(keypair), password, new Certificate[] {cert});
-			
-			OutputStream stream = mContext.openFileOutput(STORAGE, Context.MODE_PRIVATE);
-			try {
-				mKeyStore.store(stream, password);
-			} finally {
-				stream.flush();
-				stream.close();
-			}
-		}
 	}
 	
 	private char[] getPassword() {
