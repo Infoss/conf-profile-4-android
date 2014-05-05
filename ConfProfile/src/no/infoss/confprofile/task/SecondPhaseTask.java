@@ -101,12 +101,9 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 	
 	private String mUserAgent;
 	
-	private Plist mPlist;
-	
 	public SecondPhaseTask(Context ctx, SecondPhaseTaskListener listener) {
 		mCtx = ctx;
 		mListener = new WeakReference<SecondPhaseTaskListener>(listener);
-		mPlist = null;
 		
 		mUserAgent = mCtx.getString(R.string.idevice_ua);
 	}
