@@ -8,7 +8,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.security.InvalidKeyException;
-import java.security.Key;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
@@ -34,7 +33,6 @@ import javax.security.auth.x500.X500Principal;
 
 import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.R;
-import no.infoss.confprofile.crypto.AppCertificateManager;
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.crypto.TmpCertificateManager;
 import no.infoss.confprofile.format.ConfigurationProfile;
@@ -79,6 +77,7 @@ import org.jscep.client.Client;
 import org.jscep.client.ClientException;
 import org.jscep.client.EnrollmentResponse;
 import org.jscep.client.verification.OptimisticCertificateVerifier;
+import org.jscep.transaction.FailInfo;
 import org.jscep.transaction.TransactionException;
 import org.jscep.transport.response.Capabilities;
 import org.xmlpull.v1.XmlPullParserException;
@@ -91,19 +90,18 @@ import android.os.Build;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
-//TODO: rename to InstallConfigurationTask
-public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
-	public static final String TAG = SecondPhaseTask.class.getSimpleName();
+public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
+	public static final String TAG = InstallConfigurationTask.class.getSimpleName();
 	
 	private Context mCtx;
-	private WeakReference<SecondPhaseTaskListener> mListener;
+	private WeakReference<InstallConfigurationTaskListener> mListener;
 	private int mHttpStatusCode = HttpStatus.SC_OK;
 	
 	private String mUserAgent;
 	
-	public SecondPhaseTask(Context ctx, SecondPhaseTaskListener listener) {
+	public InstallConfigurationTask(Context ctx, InstallConfigurationTaskListener listener) {
 		mCtx = ctx;
-		mListener = new WeakReference<SecondPhaseTaskListener>(listener);
+		mListener = new WeakReference<InstallConfigurationTaskListener>(listener);
 		
 		mUserAgent = mCtx.getString(R.string.idevice_ua);
 	}
@@ -111,7 +109,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 	@Override
 	protected Integer doInBackground(Plist... params) {
 		Plist plist = params[0];
-		//TODO: make smth with spaghetti
+		
 		if(BuildConfig.DEBUG) {
 			//TODO: remove this
 			System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
@@ -138,44 +136,88 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			}
 			Log.d(TAG, "Certificate manager successfully loaded");
 			
+			Certificate signCert = null;
+			PrivateKey privKey = null;
+			
+			//BEGIN Phase 2
 			Plist resp = null;
-			String uuid = plist.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
 			
 			try {
-				resp = submitDeviceAttrs(plist);
+				CertificateManager tmpMgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
+				Certificate chain[] = tmpMgr.getCertificateChain(TmpCertificateManager.DEFAULT_KEY_ALIAS);
+				signCert = chain[0];
+				privKey = (PrivateKey) tmpMgr.getKey(TmpCertificateManager.DEFAULT_KEY_ALIAS);
+				resp = submitDeviceAttrs(plist, signCert, privKey);
 			} catch(HttpResponseException e) {
 				Log.e(TAG, "Submitting device attrs failed", e);
 				return TaskError.HTTP_FAILED;
 			}
 			
-			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
 			ConfigurationProfile profile = ConfigurationProfile.wrap(resp); 
 			if(profile.isPayloadContentEncrypted()) {
-				profile.decryptPayloadContent(getKeyForUUID(mgr, uuid));
+				profile.decryptPayloadContent(privKey);
 			}
+			
+			boolean certEnrolled = false;
+			for(Payload payload : profile.getPayloads()) {
+				if(payload instanceof ScepPayload) {
+					ScepStruct scep = doScep((ScepPayload) payload);
+					
+					if(scep.isFailed) {
+						return TaskError.INTERNAL; //TODO: change err code
+					} else if(scep.isPending) {
+						return TaskError.INTERNAL; //TODO: change err code
+					}
+					
+					certEnrolled = true;
+					
+					//set data for Phase 3
+					signCert = scep.certs[0];
+					privKey = CryptoUtils.getRSAPrivateKey(scep.keyPair);
+				} else {
+					Log.w(TAG, "Unexpected payload with type=".concat(payload.getPayloadType()));
+				}
+			}
+			
+			if(!certEnrolled) {
+				return TaskError.INTERNAL; //TODO: change err code
+			}
+			// END Phase 2
+			
+			//BEGIN Phase 3
+			try {
+				resp = submitDeviceAttrs(plist, signCert, privKey);
+			} catch(HttpResponseException e) {
+				Log.e(TAG, "Submitting device attrs failed", e);
+				return TaskError.HTTP_FAILED;
+			}
+			
+			profile = ConfigurationProfile.wrap(resp); 
+			if(profile.isPayloadContentEncrypted()) {
+				profile.decryptPayloadContent(privKey);
+			}
+			
+			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
 			confProfiles.add(profile);
 			
 			while(confProfiles.size() > 0) {
+				Log.d(TAG, "confProfiles.size = " + confProfiles.size());
 				ConfigurationProfile confProfile = confProfiles.remove(0);
 				
 				List<Payload> payloads = confProfile.getPayloads();
 				for(Payload payload : payloads) {
 					if(payload instanceof ScepPayload) {
-						doScep((ScepPayload) payload, uuid);
-						
-						profile = ConfigurationProfile.wrap(submitDeviceAttrs(plist));
-						if(profile.isPayloadContentEncrypted()) {
-							profile.decryptPayloadContent(getKeyForUUID(mgr, uuid));
-						}
-						
-						confProfiles.add(profile);
+						ScepStruct scep = doScep((ScepPayload) payload);
+						//TODO: save enrolled certificate
 					} else if(payload instanceof VpnPayload) {
 						Log.d(TAG, payload.toString());
+						//TODO: install vpn payload
 					} else {
 						Log.d(TAG, payload.toString());
 					}
 				}			
 			}
+			//END Phase 3
 		} catch(Exception e) {
 			Log.e(TAG, "", e);
 			return TaskError.INTERNAL;
@@ -184,34 +226,21 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		return TaskError.SUCCESS;
 	}
 	
-	private PrivateKey getKeyForUUID(CertificateManager mgr, String uuid) 
-			throws UnrecoverableKeyException, 
-				   KeyStoreException, 
-				   NoSuchAlgorithmException {
-		if(uuid == null || mgr == null) {
-	    	mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
-	    	return getKeyForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
-	    }
-	    
-	    String keyAlias = CryptoUtils.makeKeyAlias(uuid);
-	    Key privKey = mgr.getKey(keyAlias);
-	    
-	    return (PrivateKey) privKey;
-	}
-	
-	private Certificate[] getCertChainForUUID(CertificateManager mgr, String uuid) throws KeyStoreException {
-		if(uuid == null || mgr == null) {
-	    	mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
-	    	return getCertChainForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
-	    }
-	    
-	    String keyAlias = CryptoUtils.makeKeyAlias(uuid);
-	    Certificate[] signChain = mgr.getCertificateChain(keyAlias);
-	    
-	    return signChain;
+	@Override
+	protected void onPostExecute(Integer result) {
+		InstallConfigurationTaskListener listener = mListener.get();
+		if(listener != null) {
+			if(result == TaskError.SUCCESS) {
+				listener.onInstallConfigurationComplete(this);
+			} else {
+				listener.onInstallConfigurationFailed(this, result);
+			}
+		}
+		
+		mCtx = null;
 	}
 
-	private Plist submitDeviceAttrs(Plist request) 
+	private Plist submitDeviceAttrs(Plist request, Certificate signCert, PrivateKey privKey) 
 			throws IOException, 
 				   CertificateEncodingException, 
 				   OperatorCreationException, 
@@ -226,31 +255,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				   IllegalBlockSizeException, 
 				   BadPaddingException {
 		Plist result = null;
-		
-		//obtain certificates
-		String uuid = request.getString(ConfigurationProfile.KEY_PAYLOAD_UUID, null);
-	    
-		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
-	    Key privKey = getKeyForUUID(mgr, uuid);
-	    Certificate[] signChain = getCertChainForUUID(mgr, uuid);
-	    
-	    if(privKey == null || signChain == null || signChain.length == 0) {
-	    	mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
-	    	privKey = getKeyForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
-		    signChain = getCertChainForUUID(mgr, TmpCertificateManager.DEFAULT_ALIAS);
-	    }
-	    
-	    Certificate signCert = (signChain == null || signChain.length == 0) ? null : signChain[0];
-	    
-	    if(signCert == null || privKey == null) {
-	    	throw new IOException("Can't load certificate or key for uuid=".concat(uuid));
-	    }
-	    
-	    Log.d(TAG, "submit device attrs with cert issuer=" + 
-	    		((X509Certificate)signCert).getIssuerDN().toString() + 
-	    		" for subject=" + 
-	    		((X509Certificate)signCert).getSubjectDN().toString());
-	    
+
 		//obtain device data, serialize it to xml and sign
 		byte deviceInfoXml[] = obtainDeviceAttrsXml(request);
 		
@@ -343,7 +348,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 		return xmlOs.toByteArray();
 	}
 	
-	private CMSSignedData signData(byte[] data, Certificate signCert, Key privKey) 
+	private CMSSignedData signData(byte[] data, Certificate signCert, PrivateKey privKey) 
 			throws CertificateEncodingException, 
 				   OperatorCreationException, 
 				   CMSException {
@@ -355,7 +360,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 	    Store certs = new JcaCertStore(certList);
 
 	    CMSSignedDataGenerator gen = new CMSSignedDataGenerator();
-	    ContentSigner sha1Signer = new JcaContentSignerBuilder("SHA1withRSA").setProvider("BC").build((PrivateKey) privKey);
+	    ContentSigner sha1Signer = new JcaContentSignerBuilder("SHA1withRSA").setProvider("BC").build(privKey);
 
 	    gen.addSignerInfoGenerator(
 	    		new JcaSignerInfoGeneratorBuilder(
@@ -366,7 +371,7 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 	    return gen.generate(msg, true);
 	}
 	
-	private void doScep(ScepPayload scepPayload, String uuid) 
+	private ScepStruct doScep(ScepPayload scepPayload) 
 			throws NoSuchAlgorithmException, 
 				   IOException, 
 				   OperatorCreationException, 
@@ -376,7 +381,9 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				   TransactionException, 
 				   CertStoreException, 
 				   KeyStoreException {
+		ScepStruct result = new ScepStruct();
 		//prepare SCEP
+		//TODO: be less optimistic when verify a certificate
 		Client scepClient = new Client(new URL(scepPayload.getURL()), new OptimisticCertificateVerifier());
 		scepClient.setTransportFactory(new HttpClientTransportFactory(mCtx, mUserAgent));
 		Capabilities caps = scepClient.getCaCapabilities();
@@ -390,10 +397,14 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				requesterKeypair, 
 				sigAlg);
 		
+		result.requesterCert = requesterCert;
+		
 		//create CSR
 		AsymmetricCipherKeyPair entityKeypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
 		PublicKey entityPubKey = CryptoUtils.getRSAPublicKey(entityKeypair);
 		PrivateKey entityPrivKey = CryptoUtils.getRSAPrivateKey(entityKeypair);
+		
+		result.keyPair = entityKeypair;
 		
 		X500Principal entitySubject = requesterCert.getSubjectX500Principal(); // use the same subject as the self-signed certificate
 		PKCS10CertificationRequestBuilder csrBuilder = new JcaPKCS10CertificationRequestBuilder(entitySubject, entityPubKey); 
@@ -417,8 +428,10 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 				csr, 
 				scepPayload.getName());
 		
-		while(enrollment.isPending()) {
-			//TODO: avoid infinite loop if enrollment is permanently pending
+		int retryCycles = 6;
+		while(enrollment.isPending() && retryCycles > 0) {
+			retryCycles--;
+			
 			try {
 				Thread.sleep(5000);
 			} catch(InterruptedException e) {
@@ -433,7 +446,11 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 					scepPayload.getName());
 		}
 		
-		if(enrollment.isFailure()) {
+		result.isFailed = enrollment.isFailure();
+		result.isPending = enrollment.isPending();
+		result.scepFailInfo = enrollment.getFailInfo();
+		
+		if(enrollment.isFailure() || enrollment.isPending()) {
 			//TODO: implement correct way of error reporting
 			throw new IOException("SCEP failed");
 		}
@@ -455,17 +472,23 @@ public class SecondPhaseTask extends AsyncTask<Plist, Void, Integer> {
 			}
 		});
 		
-		CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
-		((AppCertificateManager)mgr).putKey(
-				CryptoUtils.makeKeyAlias(uuid), 
-				entityPrivKey, 
-				null, 
-				certs.toArray(new Certificate[certs.size()]));
-		mgr.store();
+		result.certs = certs.toArray(new Certificate[certs.size()]);
+		
+		return result;
 	}
 	
-	public interface SecondPhaseTaskListener {
-		public void onSecondPhaseFailed(SecondPhaseTask task, int taskErrorCode);
-		public void onSecondPhaseComplete(SecondPhaseTask task);
+	public interface InstallConfigurationTaskListener {
+		public void onInstallConfigurationFailed(InstallConfigurationTask task, int taskErrorCode);
+		public void onInstallConfigurationComplete(InstallConfigurationTask task);
+	}
+	
+	private static class ScepStruct {
+		public boolean isPending;
+		public boolean isFailed;
+		public FailInfo scepFailInfo;
+		
+		public AsymmetricCipherKeyPair keyPair;
+		public X509Certificate requesterCert;
+		public Certificate[] certs;
 	}
 }

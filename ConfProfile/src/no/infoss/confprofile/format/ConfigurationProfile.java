@@ -287,7 +287,11 @@ public class ConfigurationProfile {
 			return mDict.getString(KEY_PAYLOAD_ORGANIZATION, null);
 		}
 		
-		public Dictionary getPayloadContent() {
+		public Object getPayloadContent() {
+			return mDict.get(KEY_PAYLOAD_CONTENT);
+		}
+		
+		public Dictionary getPayloadContentAsDictionary() {
 			return mDict.getDictionary(KEY_PAYLOAD_CONTENT);
 		}
 	}

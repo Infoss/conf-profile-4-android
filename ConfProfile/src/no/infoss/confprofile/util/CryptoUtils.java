@@ -141,9 +141,9 @@ public class CryptoUtils {
 		sigAlg = (sigAlg == null) ? "SHA1WithRSAEncryption" : sigAlg;
 		
 		long serial = calendar.getTimeInMillis();
-		calendar.add(Calendar.DAY_OF_MONTH, -1);
+		calendar.add(Calendar.DAY_OF_MONTH, -1); //calendar matches yesterday for now
 		Date notBefore = calendar.getTime();
-		calendar.add(Calendar.DAY_OF_MONTH, +1);
+		calendar.add(Calendar.DAY_OF_MONTH, +2); //calendar matches tomorrow for now (yesterday + 2 days)
 		Date notAfter = calendar.getTime();
 		
 		X509v3CertificateBuilder builder = new X509v3CertificateBuilder(

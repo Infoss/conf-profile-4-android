@@ -44,21 +44,21 @@ public class ScepPayload extends Payload {
 	public ScepPayload(Dictionary dict) throws ConfigurationProfileException {
 		super(dict);
 		
-		if(getPayloadContent().getString(KEY_URL, null) == null) {
+		if(getPayloadContentAsDictionary().getString(KEY_URL, null) == null) {
 			throw new ConfigurationProfileException("Can't create payload", KEY_URL);
 		}
 	}
 	
 	public String getURL() {
-		return getPayloadContent().getString(KEY_URL);
+		return getPayloadContentAsDictionary().getString(KEY_URL);
 	}
 	
 	public String getName() {
-		return getPayloadContent().getString(KEY_NAME);
+		return getPayloadContentAsDictionary().getString(KEY_NAME);
 	}
 	
 	public String getSubject() {
-		Array arr = getPayloadContent().getArray(KEY_SUBJECT);
+		Array arr = getPayloadContentAsDictionary().getArray(KEY_SUBJECT);
 		if(arr == null) {
 			return null;
 		}
@@ -85,19 +85,19 @@ public class ScepPayload extends Payload {
 	}
 	
 	public String getChallenge() {
-		return getPayloadContent().getString(KEY_CHALLENGE);
+		return getPayloadContentAsDictionary().getString(KEY_CHALLENGE);
 	}
 
 	public int getKeysize() {
-		return getPayloadContent().getInteger(KEY_KEYSIZE, DEFAULT_KEY_SIZE);
+		return getPayloadContentAsDictionary().getInteger(KEY_KEYSIZE, DEFAULT_KEY_SIZE);
 	}
 	
 	public String getKeyType() {
-		return getPayloadContent().getString(KEY_KEY_TYPE);
+		return getPayloadContentAsDictionary().getString(KEY_KEY_TYPE);
 	}
 	
 	public int getKeyUsage() {
-		return getPayloadContent().getInteger(KEY_KEY_USAGE, KEY_USAGE_BOTH);
+		return getPayloadContentAsDictionary().getInteger(KEY_KEY_USAGE, KEY_USAGE_BOTH);
 	}
 	
 }

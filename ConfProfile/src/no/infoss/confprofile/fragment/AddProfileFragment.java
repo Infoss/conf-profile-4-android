@@ -16,7 +16,7 @@ import no.infoss.confprofile.R;
 import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.Plist;
 import no.infoss.confprofile.task.ParsePlistTask;
-import no.infoss.confprofile.task.SecondPhaseTask;
+import no.infoss.confprofile.task.InstallConfigurationTask;
 import no.infoss.confprofile.task.TaskError;
 import no.infoss.confprofile.task.ParsePlistTask.ParsePlistTaskListener;
 import no.infoss.confprofile.util.ParsePlistHandler;
@@ -149,7 +149,7 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 				
 				@Override
 				public void onClick(View v) {
-					new SecondPhaseTask(AddProfileFragment.this.getActivity(), null).execute(mPlist);
+					new InstallConfigurationTask(AddProfileFragment.this.getActivity(), null).execute(mPlist);
 				}
 			});
 		}

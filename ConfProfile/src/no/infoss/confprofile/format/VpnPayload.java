@@ -26,26 +26,26 @@ public class VpnPayload extends Payload {
 	}
 	
 	public String getUserDefinedName() {
-		return getPayloadContent().getString(KEY_USER_DEFINED_NAME);
+		return getPayloadContentAsDictionary().getString(KEY_USER_DEFINED_NAME);
 	}
 	
 	public boolean isOverridePrimary() {
-		return getPayloadContent().getBoolean(KEY_OVERRIDE_PRIMARY, false);
+		return getPayloadContentAsDictionary().getBoolean(KEY_OVERRIDE_PRIMARY, false);
 	}
 	
 	public String getVpnType() {
-		return getPayloadContent().getString(KEY_VPN_TYPE);
+		return getPayloadContentAsDictionary().getString(KEY_VPN_TYPE);
 	}
 	
 	public boolean isOnDemandEnabled() {
-		return getPayloadContent().getBoolean(KEY_ON_DEMAND_ENABLED, false);
+		return getPayloadContentAsDictionary().getBoolean(KEY_ON_DEMAND_ENABLED, false);
 	}
 	
 	public Array getOnDemandRules() {
-		return getPayloadContent().getArray(KEY_ON_DEMAND_RULES);
+		return getPayloadContentAsDictionary().getArray(KEY_ON_DEMAND_RULES);
 	}
 	
 	public Dictionary getVendorConfig() {
-		return getPayloadContent().getDictionary(KEY_VENDOR_CONFIG);
+		return getPayloadContentAsDictionary().getDictionary(KEY_VENDOR_CONFIG);
 	}
 }

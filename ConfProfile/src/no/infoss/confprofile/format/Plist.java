@@ -36,8 +36,11 @@ import java.util.Map.Entry;
 import no.infoss.confprofile.util.XmlUtils;
 
 import org.bouncycastle.cms.CMSSignedData;
+import org.bouncycastle.cms.DefaultCMSSignatureAlgorithmNameGenerator;
 import org.bouncycastle.cms.SignerInformation;
 import org.bouncycastle.cms.SignerInformationStore;
+import org.bouncycastle.cms.SignerInformationVerifier;
+import org.bouncycastle.operator.DefaultSignatureAlgorithmIdentifierFinder;
 import org.xmlpull.v1.XmlPullParser;
 import org.xmlpull.v1.XmlPullParserException;
 import org.xmlpull.v1.XmlSerializer;
@@ -74,11 +77,20 @@ public class Plist implements XmlSerializable {
 	
 	public Plist(CMSSignedData cmsSignedData) throws XmlPullParserException, IOException {
 		this(new ByteArrayInputStream((byte[]) cmsSignedData.getSignedContent().getContent()));
+		
+		mIsTrusted = true;
 		SignerInformationStore signerStore = cmsSignedData.getSignerInfos();
 		@SuppressWarnings("unchecked")
 		Collection<SignerInformation> signers = signerStore.getSigners();
+		//SignerInformationVerifier verifier = new SignerInformationVerifier(
+		//		new DefaultCMSSignatureAlgorithmNameGenerator(), 
+		//		new DefaultSignatureAlgorithmIdentifierFinder(), arg2, arg3);
 		for(SignerInformation signer : signers) {
-			//TODO: verify signed data	
+			//TODO: verify signed data
+			//signer.getSID().
+			//if(!signer.verify(verifier)) {
+			//	mIsTrusted = false;
+			//}
 		}
 		
 		mIsSigned = true;
