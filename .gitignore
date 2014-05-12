@@ -4,3 +4,7 @@
 /ConfProfile/bin
 /ConfProfile/gen
 /ConfProfile/obj
+/ConfProfile/libs/mips
+/ConfProfile/libs/x86
+/ConfProfile/libs/armeabi
+/ConfProfile/libs/armeabi-v7a
