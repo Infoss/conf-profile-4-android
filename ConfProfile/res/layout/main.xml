@@ -4,17 +4,24 @@
     android:layout_height="match_parent" >
 
     <!-- here should be the main fragment -->
+    <GridView 
+        android:id="@+id/profileGrid" 
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:numColumns="1">
+    </GridView>
+    
+    <include layout="@layout/no_profiles" />
     
     <!-- here is popup fragment -->
-   <LinearLayout 
-        android:id="@+id/popupFragmentPanel"
+	<LinearLayout 
+		android:id="@+id/popupFragmentPanel"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
         android:orientation="horizontal"
         android:gravity="center"
         android:background="#a0505050"
         android:visibility="gone">
-
-    </LinearLayout>
+	</LinearLayout>
 
 </RelativeLayout>

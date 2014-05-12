@@ -21,27 +21,55 @@ package no.infoss.confprofile;
 
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.fragment.AddProfileFragment;
+import no.infoss.confprofile.profile.DbOpenHelper;
+import no.infoss.confprofile.profile.ProfilesCursorLoader;
+import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
 import android.app.Activity;
 import android.app.Fragment;
 import android.app.FragmentTransaction;
+import android.app.LoaderManager.LoaderCallbacks;
 import android.content.Intent;
+import android.content.Loader;
+import android.database.Cursor;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.GridView;
+import android.widget.ListAdapter;
+import android.widget.TextView;
 
-public class Main extends Activity {
+import com.litecoding.classkit.view.LazyCursorList;
+import com.litecoding.classkit.view.ObjectAdapter;
+import com.litecoding.classkit.view.ObjectAdapter.ObjectMapper;
+
+public class Main extends Activity implements LoaderCallbacks<Cursor>{
 	public static final String TAG = Main.class.getSimpleName();
+	
+	private LazyCursorList<ProfileInfo> mProfileInfoList;
+	private DbOpenHelper mDbHelper;
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		
+		mProfileInfoList = new LazyCursorList<ProfileInfo>(ProfilesCursorLoader.PROFILE_CURSOR_MAPPER);
+		mDbHelper = new DbOpenHelper(this);
+		
+		ListAdapter profileAdapter = new ObjectAdapter<ProfileInfo>(
+				getLayoutInflater(), 
+				mProfileInfoList, 
+				R.layout.profile_item, 
+				new ProfileInfoMapper());
+		GridView grid = (GridView) findViewById(R.id.profileGrid);
+		grid.setEmptyView(findViewById(android.R.id.empty));
+		grid.setAdapter(profileAdapter);
+		
 		Intent intent = getIntent();
 		if(intent != null) {
 			if(Intent.ACTION_VIEW.equals(intent.getAction())) {
 				Fragment addProfile = getFragmentManager().findFragmentById(R.id.popupFragmentPanel);
 				if(addProfile == null || !(addProfile instanceof AddProfileFragment)) {
-					addProfile = new AddProfileFragment();
+					addProfile = new AddProfileFragment(mDbHelper);
 				}
 				
 				FragmentTransaction ft = getFragmentManager().beginTransaction();
@@ -57,5 +85,44 @@ public class Main extends Activity {
 			CertificateManager.getManager(this, CertificateManager.MANAGER_INTERNAL);
 		}		
 	}
+	
+	@Override
+	protected void onResume() {
+		super.onResume();
+		
+		getLoaderManager().restartLoader(0, null, this);
+	}
 
+	@Override
+	public Loader<Cursor> onCreateLoader(int id, Bundle params) {
+		return new ProfilesCursorLoader(this, id, params, mDbHelper);
+	}
+
+	@Override
+	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
+		mProfileInfoList.populateFrom(data, true);
+	}
+
+	@Override
+	public void onLoaderReset(Loader<Cursor> loader) {
+		// nothing to do here
+	}
+	
+	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {
+
+		@Override
+		public void mapData(int position, View view, ProfileInfo data) {
+			TextView text;
+			text = (TextView) view.findViewById(R.id.profileName);
+			if(text != null) {
+				text.setText(data.name);
+			}
+			
+			text = (TextView) view.findViewById(R.id.profileDetails);
+			if(text != null) {
+				text.setText(data.id);
+			}
+		}
+		
+	}
 }
