@@ -26,6 +26,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -480,6 +481,10 @@ public class Plist implements XmlSerializable {
 			return Plist.getType(get(index));
 		}
 		
+		public List<Object> asList() {
+			return Collections.unmodifiableList(mList);
+		}
+		
 		/*package*/ void add(Object object) {
 			mList.add(object);
 		}
@@ -606,6 +611,10 @@ public class Plist implements XmlSerializable {
 		
 		public String getType(String key) {
 			return Plist.getType(get(key));
+		}
+		
+		public Map<String, Object> asMap() {
+			return Collections.unmodifiableMap(mMap);
 		}
 		
 		/*package*/ void put(String key, Object object) {
