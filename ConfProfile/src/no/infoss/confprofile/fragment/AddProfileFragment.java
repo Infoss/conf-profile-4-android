@@ -1,5 +1,7 @@
 package no.infoss.confprofile.fragment;
 
+import java.util.List;
+
 import org.apache.http.HttpStatus;
 
 import android.app.Fragment;
@@ -15,13 +17,16 @@ import android.widget.TextView;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.Plist;
+import no.infoss.confprofile.profile.DbOpenHelper;
+import no.infoss.confprofile.task.InstallConfigurationTask.Action;
+import no.infoss.confprofile.task.InstallConfigurationTask.InstallConfigurationTaskListener;
 import no.infoss.confprofile.task.ParsePlistTask;
 import no.infoss.confprofile.task.InstallConfigurationTask;
 import no.infoss.confprofile.task.TaskError;
 import no.infoss.confprofile.task.ParsePlistTask.ParsePlistTaskListener;
 import no.infoss.confprofile.util.ParsePlistHandler;
 
-public class AddProfileFragment extends Fragment implements ParsePlistTaskListener {
+public class AddProfileFragment extends Fragment implements ParsePlistTaskListener, InstallConfigurationTaskListener {
 	public static final String TAG = AddProfileFragment.class.getSimpleName(); 
 	
 	private static final String FSK_STATE = TAG.concat(":state");
@@ -47,10 +52,12 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 	private int mHttpErrCode;
 	
 	private Plist mPlist; //TODO: fix this to avoid extra link here
+	private DbOpenHelper mDbHelper;
 	
-	public AddProfileFragment() {
+	public AddProfileFragment(DbOpenHelper dbHelper) {
 		super();
 		
+		mDbHelper = dbHelper;
 		resetFields();
 	}
 	
@@ -149,7 +156,10 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 				
 				@Override
 				public void onClick(View v) {
-					new InstallConfigurationTask(AddProfileFragment.this.getActivity(), null).execute(mPlist);
+					new InstallConfigurationTask(
+							AddProfileFragment.this.getActivity(), 
+							mDbHelper, 
+							AddProfileFragment.this).execute(mPlist);
 				}
 			});
 		}
@@ -209,6 +219,19 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 		
 		rootView.removeAllViews();
 		rootView.addView(createViewViewForState(null));
+	}
+
+	@Override
+	public void onInstallConfigurationFailed(InstallConfigurationTask task,
+			int taskErrorCode) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void onInstallConfigurationComplete(InstallConfigurationTask task,
+			List<Action> actions) {
+		// TODO Auto-generated method stub
 	}
 
 }

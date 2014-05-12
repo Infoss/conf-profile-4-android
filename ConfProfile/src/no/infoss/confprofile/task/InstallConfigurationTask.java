@@ -23,6 +23,7 @@ import java.security.spec.InvalidKeySpecException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -40,8 +41,13 @@ import no.infoss.confprofile.format.ConfigurationProfile.Payload;
 import no.infoss.confprofile.format.Plist;
 import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
+import no.infoss.confprofile.format.RootCertPayload;
 import no.infoss.confprofile.format.ScepPayload;
 import no.infoss.confprofile.format.VpnPayload;
+import no.infoss.confprofile.format.json.PlistTypeAdapterFactory;
+import no.infoss.confprofile.profile.BaseQueryCursorLoader;
+import no.infoss.confprofile.profile.DbOpenHelper;
+import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.HttpUtils;
 import no.infoss.jscep.transport.HttpClientTransportFactory;
@@ -82,11 +88,15 @@ import org.jscep.transaction.TransactionException;
 import org.jscep.transport.response.Capabilities;
 import org.xmlpull.v1.XmlPullParserException;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
 import android.content.Context;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.AsyncTask;
 import android.os.Build;
+import android.os.Bundle;
 import android.telephony.TelephonyManager;
 import android.util.Log;
 
@@ -94,13 +104,16 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 	public static final String TAG = InstallConfigurationTask.class.getSimpleName();
 	
 	private Context mCtx;
+	private DbOpenHelper mDbHelper;
 	private WeakReference<InstallConfigurationTaskListener> mListener;
 	private int mHttpStatusCode = HttpStatus.SC_OK;
 	
 	private String mUserAgent;
+	private List<Action> mActions = new LinkedList<Action>();
 	
-	public InstallConfigurationTask(Context ctx, InstallConfigurationTaskListener listener) {
+	public InstallConfigurationTask(Context ctx, DbOpenHelper dbHelper, InstallConfigurationTaskListener listener) {
 		mCtx = ctx;
+		mDbHelper = dbHelper;
 		mListener = new WeakReference<InstallConfigurationTaskListener>(listener);
 		
 		mUserAgent = mCtx.getString(R.string.idevice_ua);
@@ -200,6 +213,10 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
 			confProfiles.add(profile);
 			
+			InstallProfile act = new InstallProfile();
+			act.profile = profile;
+			mActions.add(act);
+			
 			while(confProfiles.size() > 0) {
 				Log.d(TAG, "confProfiles.size = " + confProfiles.size());
 				ConfigurationProfile confProfile = confProfiles.remove(0);
@@ -208,16 +225,76 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 				for(Payload payload : payloads) {
 					if(payload instanceof ScepPayload) {
 						ScepStruct scep = doScep((ScepPayload) payload);
-						//TODO: save enrolled certificate
+						if(!scep.isFailed && !scep.isPending) {
+							InstallPrivateKey action = new InstallPrivateKey();
+							action.chain = scep.certs;
+							action.privateKey = CryptoUtils.getRSAPrivateKey(scep.keyPair);
+							action.alias = payload.getPayloadUUID();
+							action.certificateMgrId = CertificateManager.MANAGER_INTERNAL;
+							mActions.add(action);
+						}
 					} else if(payload instanceof VpnPayload) {
 						Log.d(TAG, payload.toString());
-						//TODO: install vpn payload
+						
+						InstallVpn action = new InstallVpn();
+						action.payload = (VpnPayload) payload;
+						mActions.add(action);
+					} else if(payload instanceof RootCertPayload) {
+						Log.d(TAG, payload.toString());
+						
+						InstallCertificate action = new InstallCertificate();
+						action.certificate = ((RootCertPayload) payload).getPayloadContent();
+						action.alias = payload.getPayloadUUID();
+						action.certificateMgrId = CertificateManager.MANAGER_ANDROID_RAW;
+						mActions.add(action);
 					} else {
 						Log.d(TAG, payload.toString());
 					}
 				}			
 			}
 			//END Phase 3
+			
+			//perform some actions in background
+			List<Action> actions = new LinkedList<Action>();
+			actions.addAll(mActions);
+			mActions.clear();
+			for(Action action : actions) {
+				
+				//filter out actions with user interaction
+				if(action instanceof InstallCertificate) {
+					InstallCertificate instAction = (InstallCertificate) action;
+					if(CertificateManager.MANAGER_ANDROID_RAW.equals(instAction.certificateMgrId)) {
+						mActions.add(instAction);
+						continue;
+					}
+				}
+				
+				if(action instanceof InstallCertificate) {
+					InstallCertificate instAction = (InstallCertificate) action;
+					mgr = CertificateManager.getManager(mCtx, instAction.certificateMgrId);
+					if(mgr == null) {
+						Log.e(TAG, "Unknown certificate manager ".concat(instAction.certificateMgrId));
+						continue;
+					}
+					
+					while(!mgr.isLoaded()) {
+						try{
+							Thread.sleep(1000);
+						} catch(InterruptedException e) {
+							//nothing to do here
+						}
+					}
+					
+					mgr.putCertificate(instAction.alias, instAction.certificate);
+					mgr.store();
+				} else if(action instanceof InstallVpn) {
+					InstallVpn instAction = (InstallVpn) action;
+					BaseQueryCursorLoader.perform(
+							new PayloadsCursorLoader(mCtx, 0, instAction.asBundle(), mDbHelper));
+				}
+			}
+			actions.clear();
+			
 		} catch(Exception e) {
 			Log.e(TAG, "", e);
 			return TaskError.INTERNAL;
@@ -231,7 +308,7 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 		InstallConfigurationTaskListener listener = mListener.get();
 		if(listener != null) {
 			if(result == TaskError.SUCCESS) {
-				listener.onInstallConfigurationComplete(this);
+				listener.onInstallConfigurationComplete(this, mActions);
 			} else {
 				listener.onInstallConfigurationFailed(this, result);
 			}
@@ -479,7 +556,7 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 	
 	public interface InstallConfigurationTaskListener {
 		public void onInstallConfigurationFailed(InstallConfigurationTask task, int taskErrorCode);
-		public void onInstallConfigurationComplete(InstallConfigurationTask task);
+		public void onInstallConfigurationComplete(InstallConfigurationTask task, List<Action> actions);
 	}
 	
 	private static class ScepStruct {
@@ -490,5 +567,59 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 		public AsymmetricCipherKeyPair keyPair;
 		public X509Certificate requesterCert;
 		public Certificate[] certs;
+	}
+	
+	public abstract static class Action {
+		public abstract Bundle asBundle();
+	}
+	
+	public static class InstallCertificate extends Action {
+		public Certificate certificate;
+		public String alias;
+		public String certificateMgrId;
+		
+		@Override
+		public Bundle asBundle() {
+			return null;
+		}
+	}
+	
+	public static class InstallPrivateKey extends InstallCertificate {
+		public PrivateKey privateKey;
+		public Certificate[] chain;
+		
+		@Override
+		public Bundle asBundle() {
+			return null;
+		}
+	}
+	
+	public static class InstallProfile extends Action {
+		public ConfigurationProfile profile;
+		
+		@Override
+		public Bundle asBundle() {
+			return null;
+		}
+	}
+	
+	public static class InstallVpn extends Action {
+		public String profileId;
+		public VpnPayload payload;
+		
+		@Override
+		public Bundle asBundle() {
+			Bundle bundle = new Bundle();
+			bundle.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_INSERT);
+			bundle.putString(PayloadsCursorLoader.P_PROFILE_ID, profileId);
+			bundle.putString(PayloadsCursorLoader.P_PAYLOAD_UUID, payload.getPayloadUUID());
+			
+			GsonBuilder gsonBuilder = new GsonBuilder();
+			gsonBuilder.registerTypeAdapterFactory(new PlistTypeAdapterFactory());
+			Gson gson = gsonBuilder.create();
+			
+			bundle.putString(PayloadsCursorLoader.P_DATA, gson.toJson(payload));
+			return bundle;
+		}
 	}
 }
