@@ -31,6 +31,7 @@ import android.util.Log;
 public class HttpClientTransport extends AbstractTransport {
 	public static final String TAG = HttpClientTransport.class.getSimpleName();
 	
+	@SuppressWarnings("unused")
 	private Context mCtx;
 	private final Method mMethod;
 	private final String mUserAgent;
