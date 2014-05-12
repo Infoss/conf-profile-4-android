@@ -1,8 +1,9 @@
 package no.infoss.confprofile.profile;
 
 import android.content.Context;
+import android.content.CursorLoader;
+import android.database.Cursor;
 import android.os.Bundle;
-import android.support.v4.content.CursorLoader;
 
 public abstract class BaseQueryCursorLoader extends CursorLoader {
 	public static final String STMT_TYPE = "data.STMT_TYPE";
@@ -11,6 +12,7 @@ public abstract class BaseQueryCursorLoader extends CursorLoader {
 	public static final int STMT_DELETE = 2;
 	
 	public static final String PREFIX = "no.infoss.data.";
+	public static final String P_BATCH_MODE = PREFIX.concat("P_BATCH_MODE");
 	
 	protected int mId;
 	protected DbOpenHelper mDbHelper;
@@ -31,5 +33,20 @@ public abstract class BaseQueryCursorLoader extends CursorLoader {
 	public int getId() {
 		return mId;
 	}
+	
+	public static <T extends CursorLoader> Cursor perform(T loader) {
+		return new LoaderQueryPerformer(loader).perform();
+	}
 
+	public static class LoaderQueryPerformer {
+		private CursorLoader mLoader;
+		public <T extends CursorLoader> LoaderQueryPerformer(T loader) {
+			mLoader = loader;
+		}
+		
+		public Cursor perform() {
+			return mLoader.loadInBackground();
+		}
+		
+	}
 }
