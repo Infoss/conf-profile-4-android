@@ -21,6 +21,10 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			"object_id TEXT PRIMARY KEY NOT NULL, " + 
 			"manager_id  TEXT NOT NULL, " + 
 			"manager_key TEXT NOT NULL);";
+	private static final String SQL_PAYLOADS = "CREATE TABLE vpn_payloads (" + 
+			"profile_id TEXT NOT NULL REFERENCES profiles (id), " + 
+			"payload_uuid TEXT PRIMARY KEY NOT NULL, " + 
+			"data TEXT NOT NULL);";
  
 	public DbOpenHelper(Context context) {
 		super(context, TARGET_DB_NAME, null, DB_VERSION);
@@ -38,6 +42,12 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			db.execSQL(SQL_LINKED_OBJECTS, new Object[0]);
 		} catch(Exception e) {
 			Log.e(TAG, "SQL_LINKED_OBJECTS error", e);
+		}
+		
+		try {
+			db.execSQL(SQL_PAYLOADS, new Object[0]);
+		} catch(Exception e) {
+			Log.e(TAG, "SQL_PAYLOADS error", e);
 		}
 	}
 	
