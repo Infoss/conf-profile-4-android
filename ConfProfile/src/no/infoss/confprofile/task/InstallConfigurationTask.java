@@ -48,6 +48,7 @@ import no.infoss.confprofile.format.json.PlistTypeAdapterFactory;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
+import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.HttpUtils;
 import no.infoss.jscep.transport.HttpClientTransportFactory;
@@ -103,10 +104,28 @@ import android.util.Log;
 public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 	public static final String TAG = InstallConfigurationTask.class.getSimpleName();
 	
+	private static CertSelector ALL_SELECTOR = new CertSelector() {
+		
+		@Override
+		public boolean match(Certificate cert) {
+			return true;
+		}
+		
+		@Override
+		public CertSelector clone() {
+			try {
+				return (CertSelector) super.clone();
+			} catch(Exception e) {
+				return null;
+			}
+		}
+	};
+	
 	private Context mCtx;
 	private DbOpenHelper mDbHelper;
 	private WeakReference<InstallConfigurationTaskListener> mListener;
 	private int mHttpStatusCode = HttpStatus.SC_OK;
+	private FailInfo mScepFailInfo = null;
 	
 	private String mUserAgent;
 	private List<Action> mActions = new LinkedList<Action>();
@@ -117,6 +136,14 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 		mListener = new WeakReference<InstallConfigurationTaskListener>(listener);
 		
 		mUserAgent = mCtx.getString(R.string.idevice_ua);
+	}
+	
+	public int getHttpStatusCode() {
+		return mHttpStatusCode;
+	}
+	
+	public FailInfo getScepFailInfo() {
+		return mScepFailInfo;
 	}
 	
 	@Override
@@ -177,9 +204,11 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 					ScepStruct scep = doScep((ScepPayload) payload);
 					
 					if(scep.isFailed) {
-						return TaskError.INTERNAL; //TODO: change err code
+						mScepFailInfo = scep.scepFailInfo;
+						return TaskError.SCEP_FAILED;
 					} else if(scep.isPending) {
-						return TaskError.INTERNAL; //TODO: change err code
+						mScepFailInfo = null;
+						return TaskError.SCEP_TIMEOUT;
 					}
 					
 					certEnrolled = true;
@@ -193,7 +222,7 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 			}
 			
 			if(!certEnrolled) {
-				return TaskError.INTERNAL; //TODO: change err code
+				return TaskError.MISSING_SCEP_PAYLOAD;
 			}
 			// END Phase 2
 			
@@ -269,7 +298,12 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 					}
 				}
 				
-				if(action instanceof InstallCertificate) {
+				//TODO: fight with spaghetti again 
+				if(action instanceof InstallProfile) {
+					InstallProfile instAction = (InstallProfile) action;
+					BaseQueryCursorLoader.perform(
+							ProfilesCursorLoader.create(mCtx, 0, instAction.asBundle(), mDbHelper));
+				} else if(action instanceof InstallCertificate) {
 					InstallCertificate instAction = (InstallCertificate) action;
 					mgr = CertificateManager.getManager(mCtx, instAction.certificateMgrId);
 					if(mgr == null) {
@@ -287,10 +321,28 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 					
 					mgr.putCertificate(instAction.alias, instAction.certificate);
 					mgr.store();
+				} else if(action instanceof InstallPrivateKey) {
+					InstallPrivateKey instAction = (InstallPrivateKey) action;
+					mgr = CertificateManager.getManager(mCtx, instAction.certificateMgrId);
+					if(mgr == null) {
+						Log.e(TAG, "Unknown certificate manager ".concat(instAction.certificateMgrId));
+						continue;
+					}
+					
+					while(!mgr.isLoaded()) {
+						try{
+							Thread.sleep(1000);
+						} catch(InterruptedException e) {
+							//nothing to do here
+						}
+					}
+					
+					mgr.putKey(instAction.alias, instAction.privateKey, null, instAction.chain);
+					mgr.store();
 				} else if(action instanceof InstallVpn) {
 					InstallVpn instAction = (InstallVpn) action;
 					BaseQueryCursorLoader.perform(
-							new PayloadsCursorLoader(mCtx, 0, instAction.asBundle(), mDbHelper));
+							PayloadsCursorLoader.create(mCtx, 0, instAction.asBundle(), mDbHelper));
 				}
 			}
 			actions.clear();
@@ -474,8 +526,6 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 				requesterKeypair, 
 				sigAlg);
 		
-		result.requesterCert = requesterCert;
-		
 		//create CSR
 		AsymmetricCipherKeyPair entityKeypair = CryptoUtils.genBCRSAKeypair(scepPayload.getKeysize());
 		PublicKey entityPubKey = CryptoUtils.getRSAPublicKey(entityKeypair);
@@ -525,30 +575,16 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 		
 		result.isFailed = enrollment.isFailure();
 		result.isPending = enrollment.isPending();
-		result.scepFailInfo = enrollment.getFailInfo();
 		
-		if(enrollment.isFailure() || enrollment.isPending()) {
-			//TODO: implement correct way of error reporting
-			throw new IOException("SCEP failed");
+		if(result.isFailed) {
+			result.scepFailInfo = enrollment.getFailInfo();
 		}
 		
-		Collection<? extends Certificate> certs = enrollment.getCertStore().getCertificates(new CertSelector() {
-			
-			@Override
-			public boolean match(Certificate cert) {
-				return true;
-			}
-			
-			@Override
-			public CertSelector clone() {
-				try {
-					return (CertSelector) super.clone();
-				} catch(Exception e) {
-					return null;
-				}
-			}
-		});
+		if(result.isFailed || result.isPending) {
+			return result;
+		}
 		
+		Collection<? extends Certificate> certs = enrollment.getCertStore().getCertificates(ALL_SELECTOR);
 		result.certs = certs.toArray(new Certificate[certs.size()]);
 		
 		return result;
@@ -565,7 +601,6 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 		public FailInfo scepFailInfo;
 		
 		public AsymmetricCipherKeyPair keyPair;
-		public X509Certificate requesterCert;
 		public Certificate[] certs;
 	}
 	
@@ -599,7 +634,17 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 		
 		@Override
 		public Bundle asBundle() {
-			return null;
+			Bundle bundle = new Bundle();
+			bundle.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_INSERT);
+			bundle.putString(ProfilesCursorLoader.P_ID, profile.getPayloadIdentifier());
+			bundle.putString(ProfilesCursorLoader.P_NAME, profile.getPayloadDisplayName());
+			
+			GsonBuilder gsonBuilder = new GsonBuilder();
+			gsonBuilder.registerTypeAdapterFactory(new PlistTypeAdapterFactory());
+			Gson gson = gsonBuilder.create();
+			
+			bundle.putString(ProfilesCursorLoader.P_DATA, gson.toJson(profile));
+			return bundle;
 		}
 	}
 	
