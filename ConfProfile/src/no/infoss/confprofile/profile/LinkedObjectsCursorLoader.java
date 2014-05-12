@@ -37,42 +37,12 @@ public class LinkedObjectsCursorLoader extends BaseQueryCursorLoader {
 		}
 	};
 	
-	private String mNewProfileId = null;
-	private String mNewObjectId = null;
-	private String mNewManagerId = null;
-	private String mNewManagerKey = null;
-	
 	public LinkedObjectsCursorLoader(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
-		super(context, id, params, dbHelper);
-		
-		if(params != null) {
-			mNewProfileId = params.getString(LO_PROFILE_ID);
-			mNewObjectId = params.getString(LO_OBJECT_ID);
-			mNewManagerId = params.getString(LO_MANAGER_ID);
-			mNewManagerKey = params.getString(LO_MANAGER_KEY);
-		}
+		super(context, create(context, id, params, dbHelper));
 	}
 	
-	@Override
-    public Cursor loadInBackground() {
-		Cursor result;
-		if(mQueryType == STMT_INSERT && 
-				mNewProfileId != null && 
-				mNewObjectId != null && 
-				mNewManagerId != null &&
-				mNewManagerKey != null) {
-			ContentValues values = new ContentValues();
-			values.put(COL_PROFILE_ID, mNewProfileId);
-			values.put(COL_OBJECT_ID, mNewObjectId);
-			values.put(COL_MANAGER_ID, mNewManagerId);
-			values.put(COL_MANAGER_KEY, mNewManagerKey);
-			Insert.insert().into(TABLE).values(values).perform(mDbHelper.getWritableDatabase());
-		}
-		
-		//finally always do select
-		result = QueryBuilder.select().from(TABLE).all().perform(mDbHelper.getWritableDatabase());
-		
-		return result;
+	public static LinkedObjectsPerformance create(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
+		return new LinkedObjectsPerformance(context, id, params, dbHelper);
 	}
 	
 	public static class LinkedObjectInfo {
@@ -80,5 +50,45 @@ public class LinkedObjectsCursorLoader extends BaseQueryCursorLoader {
 		public String objectId; 
 		public String managerId;
 		public String managerKey;
+	}
+	
+	public static class LinkedObjectsPerformance extends LoaderQueryPerformance {
+		private String mNewProfileId = null;
+		private String mNewObjectId = null;
+		private String mNewManagerId = null;
+		private String mNewManagerKey = null;
+		
+		public LinkedObjectsPerformance(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
+			super(context, id, params, dbHelper);
+			
+			if(params != null) {
+				mNewProfileId = params.getString(LO_PROFILE_ID);
+				mNewObjectId = params.getString(LO_OBJECT_ID);
+				mNewManagerId = params.getString(LO_MANAGER_ID);
+				mNewManagerKey = params.getString(LO_MANAGER_KEY);
+			}
+		}
+		
+		@Override
+	    public Cursor perform() {
+			Cursor result;
+			if(mQueryType == STMT_INSERT && 
+					mNewProfileId != null && 
+					mNewObjectId != null && 
+					mNewManagerId != null &&
+					mNewManagerKey != null) {
+				ContentValues values = new ContentValues();
+				values.put(COL_PROFILE_ID, mNewProfileId);
+				values.put(COL_OBJECT_ID, mNewObjectId);
+				values.put(COL_MANAGER_ID, mNewManagerId);
+				values.put(COL_MANAGER_KEY, mNewManagerKey);
+				Insert.insert().into(TABLE).values(values).perform(mDbHelper.getWritableDatabase());
+			}
+			
+			//finally always do select
+			result = QueryBuilder.select().from(TABLE).all().perform(mDbHelper.getWritableDatabase());
+			
+			return result;
+		}
 	}
 }

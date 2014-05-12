@@ -14,39 +14,47 @@ public abstract class BaseQueryCursorLoader extends CursorLoader {
 	public static final String PREFIX = "no.infoss.data.";
 	public static final String P_BATCH_MODE = PREFIX.concat("P_BATCH_MODE");
 	
-	protected int mId;
-	protected DbOpenHelper mDbHelper;
-	protected int mQueryType = STMT_SELECT;
+	protected LoaderQueryPerformance mPerformance;
 	
-	public BaseQueryCursorLoader(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
+	public BaseQueryCursorLoader(Context context, LoaderQueryPerformance performance) {
 		super(context);
 		
-		mId = id;
-		mDbHelper = dbHelper;
-		
-		if(params != null) {
-			mQueryType = params.getInt(STMT_TYPE, STMT_SELECT);
-		}
+		mPerformance = performance;
 	}
 	
 	@Override
 	public int getId() {
-		return mId;
+		return mPerformance.getId();
 	}
 	
-	public static <T extends CursorLoader> Cursor perform(T loader) {
-		return new LoaderQueryPerformer(loader).perform();
+	@Override
+    public Cursor loadInBackground() {		
+		return mPerformance.perform();
+	}
+	
+	public static Cursor perform(LoaderQueryPerformance performance) {
+		return performance.perform();
 	}
 
-	public static class LoaderQueryPerformer {
-		private CursorLoader mLoader;
-		public <T extends CursorLoader> LoaderQueryPerformer(T loader) {
-			mLoader = loader;
+	public abstract static class LoaderQueryPerformance {
+		protected int mId;
+		protected DbOpenHelper mDbHelper;
+		protected int mQueryType = STMT_SELECT;
+		
+		public LoaderQueryPerformance(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
+			mId = id;
+			mDbHelper = dbHelper;
+			
+			if(params != null) {
+				mQueryType = params.getInt(STMT_TYPE, STMT_SELECT);
+			}
 		}
 		
-		public Cursor perform() {
-			return mLoader.loadInBackground();
+		public int getId() {
+			return mId;
 		}
+		
+		public abstract Cursor perform();
 		
 	}
 }

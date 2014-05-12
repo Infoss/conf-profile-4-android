@@ -35,59 +35,69 @@ public class ProfilesCursorLoader extends BaseQueryCursorLoader {
 		}
 	};
 	
-	private String mNewId[] = null;
-	private String mNewName[] = null;
-	private String mNewData[] = null;
-	
 	public ProfilesCursorLoader(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
-		super(context, id, params, dbHelper);
-		
-		if(params != null) {
-			if(params.containsKey("P_BATCH_MODE")) {
-				mNewId = params.getStringArray(P_ID);
-				mNewName = params.getStringArray(P_NAME);
-				mNewData = params.getStringArray(P_DATA);
-			} else {
-				mNewId = new String[] { params.getString(P_ID) };
-				mNewName = new String[] { params.getString(P_NAME) };
-				mNewData = new String[] { params.getString(P_DATA) };
-			}
-		}
+		super(context, create(context, id, params, dbHelper));
 	}
 	
-	@Override
-    public Cursor loadInBackground() {		
-		Cursor result;
-		SQLiteDatabase db = mDbHelper.getWritableDatabase();
-		
-		if(mQueryType == STMT_INSERT && 
-				mNewId != null && 
-				mNewName != null && 
-				mNewData != null) {	
-			db.beginTransaction();
-			try {
-				for(int i = 0; i < mNewId.length; i++) {
-					ContentValues values = new ContentValues();
-					values.put(COL_ID, mNewId[i]);
-					values.put(COL_NAME, mNewName[i]);
-					values.put(COL_DATA, mNewData[i]);
-					Insert.insert().into(TABLE).values(values).perform(db);
-				}
-				db.setTransactionSuccessful();
-			} finally {
-				db.endTransaction();
-			}
-		}
-		
-		//finally always do select to show changes in the UI
-		result = QueryBuilder.select().from(TABLE).all().perform(db);
-		
-		return result;
+	public static ProfilesPerformance create(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
+		return new ProfilesPerformance(context, id, params, dbHelper);
 	}
 	
 	public static class ProfileInfo {
 		public String id;
 		public String name;
 		public String data;
+	}
+	
+	public static class ProfilesPerformance extends LoaderQueryPerformance {
+		private String mNewId[] = null;
+		private String mNewName[] = null;
+		private String mNewData[] = null;
+		
+		public ProfilesPerformance(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
+			super(context, id, params, dbHelper);
+			
+			if(params != null) {
+				if(params.containsKey("P_BATCH_MODE")) {
+					mNewId = params.getStringArray(P_ID);
+					mNewName = params.getStringArray(P_NAME);
+					mNewData = params.getStringArray(P_DATA);
+				} else {
+					mNewId = new String[] { params.getString(P_ID) };
+					mNewName = new String[] { params.getString(P_NAME) };
+					mNewData = new String[] { params.getString(P_DATA) };
+				}
+			}
+		}
+
+		@Override
+		public Cursor perform() {
+			Cursor result;
+			SQLiteDatabase db = mDbHelper.getWritableDatabase();
+			
+			if(mQueryType == STMT_INSERT && 
+					mNewId != null && 
+					mNewName != null && 
+					mNewData != null) {	
+				db.beginTransaction();
+				try {
+					for(int i = 0; i < mNewId.length; i++) {
+						ContentValues values = new ContentValues();
+						values.put(COL_ID, mNewId[i]);
+						values.put(COL_NAME, mNewName[i]);
+						values.put(COL_DATA, mNewData[i]);
+						Insert.insert().into(TABLE).values(values).perform(db);
+					}
+					db.setTransactionSuccessful();
+				} finally {
+					db.endTransaction();
+				}
+			}
+			
+			//finally always do select to show changes in the UI
+			result = QueryBuilder.select().from(TABLE).all().perform(db);
+			
+			return result;
+		}
 	}
 }
