@@ -21,7 +21,7 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			"object_id TEXT PRIMARY KEY NOT NULL, " + 
 			"manager_id  TEXT NOT NULL, " + 
 			"manager_key TEXT NOT NULL);";
-	private static final String SQL_PAYLOADS = "CREATE TABLE vpn_payloads (" + 
+	private static final String SQL_PAYLOADS = "CREATE TABLE payloads (" + 
 			"profile_id TEXT NOT NULL REFERENCES profiles (id), " + 
 			"payload_uuid TEXT PRIMARY KEY NOT NULL, " + 
 			"data TEXT NOT NULL);";
