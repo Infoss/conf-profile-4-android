@@ -119,4 +119,10 @@ public class AndroidCertificateManager extends CertificateManager {
 		throw new UnsupportedOperationException("Can't put a certificate into this type of keystore");
 	}
 
+	@Override
+	public void putKey(String alias, Key key, char[] password,
+			Certificate[] certChain) throws KeyStoreException {
+		throw new UnsupportedOperationException("Can't put a key into this type of keystore");
+	}
+
 }

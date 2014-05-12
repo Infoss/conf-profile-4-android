@@ -205,11 +205,13 @@ public class AppCertificateManager extends CertificateManager {
 		return mKeyStore.getCertificateChain(alias);
 	}
 	
+	@Override
 	public void putCertificate(String alias, Certificate cert) 
 			throws KeyStoreException {
 		mKeyStore.setCertificateEntry(alias, cert);
 	}
 	
+	@Override
 	public void putKey(String alias, Key key, char[] password, Certificate[] certChain) 
 			throws KeyStoreException {
 		mKeyStore.setKeyEntry(alias, key, getPasswordForKey(alias), certChain);

@@ -110,6 +110,9 @@ public abstract class CertificateManager {
 	
 	public abstract void putCertificate(String alias, Certificate cert) throws KeyStoreException;
 	
+	public abstract void putKey(String alias, Key key, char[] password, Certificate[] certChain) 
+			throws KeyStoreException;
+	
 	protected abstract void doLoad() 
 			throws KeyStoreException, 
 				   NoSuchProviderException, 

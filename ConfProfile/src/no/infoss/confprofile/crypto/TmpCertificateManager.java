@@ -99,6 +99,13 @@ public class TmpCertificateManager extends CertificateManager {
 			throws KeyStoreException {
 		mCerts.put(alias, cert);
 	}
+	
+	@Override
+	public void putKey(String alias, Key key, char[] password,
+			Certificate[] certChain) throws KeyStoreException {
+		mKeys.put(alias, key);
+		mCertChains.put(alias, certChain);
+	}
 
 	@Override
 	protected void doLoad() 
