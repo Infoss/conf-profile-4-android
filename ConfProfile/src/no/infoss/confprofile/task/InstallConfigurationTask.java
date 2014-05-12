@@ -242,6 +242,7 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
 			confProfiles.add(profile);
 			
+			String profileId = profile.getPayloadIdentifier();
 			InstallProfile act = new InstallProfile();
 			act.profile = profile;
 			mActions.add(act);
@@ -303,24 +304,6 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 					InstallProfile instAction = (InstallProfile) action;
 					BaseQueryCursorLoader.perform(
 							ProfilesCursorLoader.create(mCtx, 0, instAction.asBundle(), mDbHelper));
-				} else if(action instanceof InstallCertificate) {
-					InstallCertificate instAction = (InstallCertificate) action;
-					mgr = CertificateManager.getManager(mCtx, instAction.certificateMgrId);
-					if(mgr == null) {
-						Log.e(TAG, "Unknown certificate manager ".concat(instAction.certificateMgrId));
-						continue;
-					}
-					
-					while(!mgr.isLoaded()) {
-						try{
-							Thread.sleep(1000);
-						} catch(InterruptedException e) {
-							//nothing to do here
-						}
-					}
-					
-					mgr.putCertificate(instAction.alias, instAction.certificate);
-					mgr.store();
 				} else if(action instanceof InstallPrivateKey) {
 					InstallPrivateKey instAction = (InstallPrivateKey) action;
 					mgr = CertificateManager.getManager(mCtx, instAction.certificateMgrId);
@@ -339,8 +322,27 @@ public class InstallConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 					
 					mgr.putKey(instAction.alias, instAction.privateKey, null, instAction.chain);
 					mgr.store();
+				} else if(action instanceof InstallCertificate) {
+					InstallCertificate instAction = (InstallCertificate) action;
+					mgr = CertificateManager.getManager(mCtx, instAction.certificateMgrId);
+					if(mgr == null) {
+						Log.e(TAG, "Unknown certificate manager ".concat(instAction.certificateMgrId));
+						continue;
+					}
+					
+					while(!mgr.isLoaded()) {
+						try{
+							Thread.sleep(1000);
+						} catch(InterruptedException e) {
+							//nothing to do here
+						}
+					}
+					
+					mgr.putCertificate(instAction.alias, instAction.certificate);
+					mgr.store();
 				} else if(action instanceof InstallVpn) {
 					InstallVpn instAction = (InstallVpn) action;
+					instAction.profileId = profileId;
 					BaseQueryCursorLoader.perform(
 							PayloadsCursorLoader.create(mCtx, 0, instAction.asBundle(), mDbHelper));
 				}
