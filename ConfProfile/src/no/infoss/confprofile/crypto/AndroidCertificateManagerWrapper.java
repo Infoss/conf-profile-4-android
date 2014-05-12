@@ -129,6 +129,11 @@ public class AndroidCertificateManagerWrapper extends CertificateManager {
 			KeyStoreException, NoSuchAlgorithmException {
 		return mWrapped.getKey(alias);
 	}
+	
+	public void putCertificate(String alias, Certificate cert) 
+			throws KeyStoreException {
+		mWrapped.putCertificate(alias, cert);
+	}
 
 	@Override
 	protected void doStore() throws KeyStoreException, NoSuchProviderException,

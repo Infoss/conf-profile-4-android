@@ -108,6 +108,8 @@ public abstract class CertificateManager {
 				   KeyStoreException, 
 				   NoSuchAlgorithmException;
 	
+	public abstract void putCertificate(String alias, Certificate cert) throws KeyStoreException;
+	
 	protected abstract void doLoad() 
 			throws KeyStoreException, 
 				   NoSuchProviderException, 

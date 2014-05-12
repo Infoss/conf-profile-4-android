@@ -113,5 +113,10 @@ public class AndroidCertificateManager extends CertificateManager {
 			KeyStoreException, NoSuchAlgorithmException {
 		throw new UnsupportedOperationException("Can't get a key from this type of keystore");
 	}
+	
+	public void putCertificate(String alias, Certificate cert) 
+			throws KeyStoreException {
+		throw new UnsupportedOperationException("Can't put a certificate into this type of keystore");
+	}
 
 }
