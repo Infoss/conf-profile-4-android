@@ -6,6 +6,9 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 
+import com.getbase.android.db.fluentsqlite.Delete;
+import com.getbase.android.db.fluentsqlite.Expressions.Expression;
+import com.getbase.android.db.fluentsqlite.Expressions;
 import com.getbase.android.db.fluentsqlite.Insert;
 import com.getbase.android.db.fluentsqlite.QueryBuilder;
 import com.litecoding.classkit.view.LazyCursorList.CursorMapper;
@@ -87,6 +90,18 @@ public class ProfilesCursorLoader extends BaseQueryCursorLoader {
 						values.put(COL_NAME, mNewName[i]);
 						values.put(COL_DATA, mNewData[i]);
 						Insert.insert().into(TABLE).values(values).perform(db);
+					}
+					db.setTransactionSuccessful();
+				} finally {
+					db.endTransaction();
+				}
+			} else if(mQueryType == STMT_DELETE && 
+					mNewId != null) {
+				db.beginTransaction();
+				try {
+					for(int i = 0; i < mNewId.length; i++) {
+						Expression expr = Expressions.column(COL_ID).eq(Expressions.literal(mNewId[i]));
+						Delete.delete().from(TABLE).where(expr, (Object[]) null).perform(db);
 					}
 					db.setTransactionSuccessful();
 				} finally {
