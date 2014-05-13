@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="no.infoss.confprofile"
     android:versionCode="1"
-    android:versionName="0.1.0 (pre-alpha)" >
+    android:versionName="0.1.1 (pre-alpha)" >
 
     <uses-sdk
         android:minSdkVersion="14"
@@ -23,6 +23,9 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+        </activity>
+        
+        <activity android:name=".InstallProfile">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

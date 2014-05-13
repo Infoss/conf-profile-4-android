@@ -19,16 +19,11 @@
 
 package no.infoss.confprofile;
 
-import no.infoss.confprofile.crypto.CertificateManager;
-import no.infoss.confprofile.fragment.AddProfileFragment;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
 import android.app.Activity;
-import android.app.Fragment;
-import android.app.FragmentTransaction;
 import android.app.LoaderManager.LoaderCallbacks;
-import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
@@ -62,28 +57,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>{
 				new ProfileInfoMapper());
 		GridView grid = (GridView) findViewById(R.id.profileGrid);
 		grid.setEmptyView(findViewById(android.R.id.empty));
-		grid.setAdapter(profileAdapter);
-		
-		Intent intent = getIntent();
-		if(intent != null) {
-			if(Intent.ACTION_VIEW.equals(intent.getAction())) {
-				Fragment addProfile = getFragmentManager().findFragmentById(R.id.popupFragmentPanel);
-				if(addProfile == null || !(addProfile instanceof AddProfileFragment)) {
-					addProfile = new AddProfileFragment(mDbHelper);
-				}
-				
-				FragmentTransaction ft = getFragmentManager().beginTransaction();
-				ft.replace(R.id.popupFragmentPanel, addProfile);
-				ft.commit();
-				
-				View popupPanel = findViewById(R.id.popupFragmentPanel);
-				popupPanel.setVisibility(View.VISIBLE);
-				
-				((AddProfileFragment) addProfile).parseDataByUri(this, intent.getData());
-			}
-			
-			CertificateManager.getManager(this, CertificateManager.MANAGER_INTERNAL);
-		}		
+		grid.setAdapter(profileAdapter);	
 	}
 	
 	@Override
