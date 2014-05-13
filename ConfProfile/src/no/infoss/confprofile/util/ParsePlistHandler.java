@@ -48,6 +48,10 @@ public class ParsePlistHandler implements ParsePlistTaskListener {
 		}
 	}
 	
+	public Plist getPlist() {
+		return mPlist;
+	}
+	
 	public void parseDataByUri(Context ctx, Uri uri, ParsePlistTaskListener listener) {
 		if(ctx == null || uri == null) {
 			return;
