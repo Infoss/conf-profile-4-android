@@ -4,8 +4,10 @@ import java.util.List;
 
 import org.apache.http.HttpStatus;
 
+import android.app.Activity;
 import android.app.Fragment;
 import android.content.Context;
+import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.LayoutInflater;
@@ -14,6 +16,7 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
+import no.infoss.confprofile.Main;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.Plist;
@@ -22,11 +25,16 @@ import no.infoss.confprofile.task.InstallConfigurationTask.Action;
 import no.infoss.confprofile.task.InstallConfigurationTask.InstallConfigurationTaskListener;
 import no.infoss.confprofile.task.ParsePlistTask;
 import no.infoss.confprofile.task.InstallConfigurationTask;
+import no.infoss.confprofile.task.RetrieveConfigurationTask;
 import no.infoss.confprofile.task.TaskError;
 import no.infoss.confprofile.task.ParsePlistTask.ParsePlistTaskListener;
+import no.infoss.confprofile.task.RetrieveConfigurationTask.RetrieveConfigurationTaskListener;
 import no.infoss.confprofile.util.ParsePlistHandler;
 
-public class AddProfileFragment extends Fragment implements ParsePlistTaskListener, InstallConfigurationTaskListener {
+public class AddProfileFragment extends Fragment 
+	implements ParsePlistTaskListener,
+			   RetrieveConfigurationTaskListener,
+			   InstallConfigurationTaskListener {
 	public static final String TAG = AddProfileFragment.class.getSimpleName(); 
 	
 	private static final String FSK_STATE = TAG.concat(":state");
@@ -51,14 +59,17 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 	private int mErrCode;
 	private int mHttpErrCode;
 	
-	private Plist mPlist; //TODO: fix this to avoid extra link here
 	private DbOpenHelper mDbHelper;
+	private ConfigurationProfile mProfile;
+	
+	public AddProfileFragment() {
+		super();
+		resetFields();
+	}
 	
 	public AddProfileFragment(DbOpenHelper dbHelper) {
-		super();
-		
+		this();
 		mDbHelper = dbHelper;
-		resetFields();
 	}
 	
 	private void resetFields() {
@@ -74,6 +85,14 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 	
 	public void parseDataByUri(Context ctx, Uri uri) {
 		HANDLER.parseDataByUri(ctx, uri, this);
+	}
+	
+	@Override
+	public void onAttach(Activity activity) {
+		super.onAttach(activity);
+		if(mDbHelper == null) {
+			mDbHelper = new DbOpenHelper(activity);
+		}
 	}
 	
 	@Override
@@ -99,6 +118,18 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 		return createViewViewForState(inflater);
 	}
 	
+	private void switchToState(int state) {
+		mState = state;
+		
+		ViewGroup rootView = (ViewGroup) getView();
+		if(rootView == null) {
+			return;
+		}
+		
+		rootView.removeAllViews();
+		rootView.addView(createViewViewForState(null));
+	}
+	
 	private View createViewViewForState(LayoutInflater inflater) {
 		View view = null;
 		
@@ -117,7 +148,12 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 			break;
 		}
 		case STATE_ERROR: {
-			view = inflater.inflate(R.layout.fragment_add_profile_wait, null);
+			view = inflater.inflate(R.layout.fragment_add_profile_error, null);
+			
+			TextView errorLabel = (TextView) view.findViewById(R.id.errorLabel);
+			if(errorLabel != null) {
+				errorLabel.setText(getErrorMessageId());
+			}
 			break;
 		}
 		case STATE_LOADING:
@@ -130,6 +166,36 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 		return view;
 	}
 	
+	private int getErrorMessageId() {
+		int result = 0;
+		
+		switch (mErrCode) {
+		case TaskError.HTTP_FAILED: {
+			result = R.string.error_add_profile_http_failed;
+			break;
+		}
+		
+		case TaskError.SCEP_FAILED:
+		case TaskError.SCEP_TIMEOUT: {
+			result = R.string.error_add_profile_scep_failed;
+			break;
+		}
+		
+		case TaskError.MISSING_SCEP_PAYLOAD: {
+			result = R.string.error_add_profile_missing_scep;
+			break;
+		}
+		
+		case TaskError.INTERNAL:
+		default: {
+			result = R.string.error_add_profile_generic;
+			break;
+		}
+		}
+		
+		return result;
+	}
+
 	private void fillProfileInfo(View view) {
 		if(view == null) {
 			return;
@@ -156,10 +222,25 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 				
 				@Override
 				public void onClick(View v) {
+					v.setEnabled(false);
 					new InstallConfigurationTask(
 							AddProfileFragment.this.getActivity(), 
 							mDbHelper, 
-							AddProfileFragment.this).execute(mPlist);
+							AddProfileFragment.this).execute(mProfile);
+				}
+			});
+		}
+		
+		Button btnCancel = (Button) view.findViewById(R.id.btnCancel);
+		if(btnCancel != null) {
+			btnCancel.setOnClickListener(new OnClickListener() {
+				
+				@Override
+				public void onClick(View v) {
+					Activity activity = AddProfileFragment.this.getActivity();
+					if(activity != null) {
+						activity.finish();
+					}
 				}
 			});
 		}
@@ -181,8 +262,6 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 	
 	@Override
 	public void onParsePlistFailed(ParsePlistTask task, int taskErrorCode) {
-		mState = STATE_PARSED;
-
 		mName = null;
 		mOrganization = null;
 		mDescription = null;
@@ -190,19 +269,11 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 		mErrCode = taskErrorCode;
 		mHttpErrCode = task.getHttpStatusCode();
 		
-		ViewGroup rootView = (ViewGroup) getView();
-		if(rootView == null) {
-			return;
-		}
-		
-		rootView.removeAllViews();
-		rootView.addView(createViewViewForState(null));
+		switchToState(STATE_ERROR);
 	}
 
 	@Override
 	public void onParsePlistComplete(ParsePlistTask task, Plist plist) {
-		mState = STATE_PARSED;
-		
 		mName = plist.getString(ConfigurationProfile.KEY_PAYLOAD_DISPLAY_NAME, null);
 		mOrganization = plist.getString(ConfigurationProfile.KEY_PAYLOAD_ORGANIZATION, null);
 		mDescription = plist.getString(ConfigurationProfile.KEY_PAYLOAD_DESCRIPTION, null);
@@ -210,28 +281,52 @@ public class AddProfileFragment extends Fragment implements ParsePlistTaskListen
 		mErrCode = TaskError.SUCCESS;
 		mHttpErrCode = task.getHttpStatusCode();
 		
-		mPlist = plist;
+		new RetrieveConfigurationTask(
+				AddProfileFragment.this.getActivity(), 
+				AddProfileFragment.this).execute(HANDLER.getPlist());
+	}
+	
+	@Override
+	public void onRetrieveConfigurationFailed(RetrieveConfigurationTask task,
+			int taskErrorCode) {
+		mErrCode = taskErrorCode;
+		mHttpErrCode = task.getHttpStatusCode();
 		
-		ViewGroup rootView = (ViewGroup) getView();
-		if(rootView == null) {
-			return;
-		}
+		switchToState(STATE_ERROR);
+	}
+
+	@Override
+	public void onRetrieveConfigurationComplete(RetrieveConfigurationTask task,
+			ConfigurationProfile profile) {
+		mName = profile.getPayloadDisplayName();
+		mOrganization = profile.getPayloadOrganization();
+		mDescription = profile.getPayloadDescription();
 		
-		rootView.removeAllViews();
-		rootView.addView(createViewViewForState(null));
+		mErrCode = TaskError.SUCCESS;
+		mHttpErrCode = task.getHttpStatusCode();
+		
+		mProfile = profile;
+		
+		switchToState(STATE_PARSED);
 	}
 
 	@Override
 	public void onInstallConfigurationFailed(InstallConfigurationTask task,
 			int taskErrorCode) {
-		// TODO Auto-generated method stub
+		mErrCode = taskErrorCode;
 		
+		switchToState(STATE_ERROR);
 	}
 
 	@Override
 	public void onInstallConfigurationComplete(InstallConfigurationTask task,
 			List<Action> actions) {
-		// TODO Auto-generated method stub
+		Activity activity = getActivity();
+		if(activity != null) {
+			Intent intent = new Intent(activity, Main.class);
+			activity.startActivity(intent);
+			activity.finish();
+		}
 	}
 
 }
