@@ -25,9 +25,15 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			"profile_id TEXT NOT NULL REFERENCES profiles (id), " + 
 			"payload_uuid TEXT PRIMARY KEY NOT NULL, " + 
 			"data TEXT NOT NULL);";
+	private static final String SQL_TRIGGER_DELETE_PROFILE = "CREATE TRIGGER delete_profile " + 
+			"BEFORE DELETE ON profiles " + 
+			"BEGIN " + 
+				"DELETE FROM linked_objects WHERE profile_id = old.id; " + 
+				"DELETE FROM payloads WHERE profile_id = old.id;" + 
+			"END;";
  
 	public DbOpenHelper(Context context) {
-		super(context, TARGET_DB_NAME, null, DB_VERSION);
+		super(context.getApplicationContext(), TARGET_DB_NAME, null, DB_VERSION);
 	}
  
 	@Override
@@ -48,6 +54,12 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			db.execSQL(SQL_PAYLOADS, new Object[0]);
 		} catch(Exception e) {
 			Log.e(TAG, "SQL_PAYLOADS error", e);
+		}
+		
+		try {
+			db.execSQL(SQL_TRIGGER_DELETE_PROFILE, new Object[0]);
+		} catch(Exception e) {
+			Log.e(TAG, "SQL_TRIGGER_DELETE_PROFILE error", e);
 		}
 	}
 	
