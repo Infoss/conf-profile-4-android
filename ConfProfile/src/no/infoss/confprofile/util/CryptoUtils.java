@@ -7,15 +7,19 @@ import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.security.spec.RSAPrivateCrtKeySpec;
 import java.security.spec.RSAPublicKeySpec;
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 
 import no.infoss.confprofile.format.ScepPayload;
@@ -26,10 +30,16 @@ import org.bouncycastle.asn1.x509.KeyUsage;
 import org.bouncycastle.asn1.x509.SubjectPublicKeyInfo;
 import org.bouncycastle.cert.X509CertificateHolder;
 import org.bouncycastle.cert.X509v3CertificateBuilder;
+import org.bouncycastle.cert.jcajce.JcaCertStore;
 import org.bouncycastle.cert.jcajce.JcaX509CertificateConverter;
+import org.bouncycastle.cms.CMSException;
+import org.bouncycastle.cms.CMSProcessableByteArray;
 import org.bouncycastle.cms.CMSSignedData;
+import org.bouncycastle.cms.CMSSignedDataGenerator;
+import org.bouncycastle.cms.CMSTypedData;
 import org.bouncycastle.cms.SignerInformation;
 import org.bouncycastle.cms.SignerInformationStore;
+import org.bouncycastle.cms.jcajce.JcaSignerInfoGeneratorBuilder;
 import org.bouncycastle.crypto.AsymmetricCipherKeyPair;
 import org.bouncycastle.crypto.generators.RSAKeyPairGenerator;
 import org.bouncycastle.crypto.params.RSAKeyGenerationParameters;
@@ -39,6 +49,7 @@ import org.bouncycastle.crypto.util.SubjectPublicKeyInfoFactory;
 import org.bouncycastle.operator.ContentSigner;
 import org.bouncycastle.operator.OperatorCreationException;
 import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
+import org.bouncycastle.operator.jcajce.JcaDigestCalculatorProviderBuilder;
 import org.bouncycastle.util.Selector;
 import org.bouncycastle.util.Store;
 
@@ -164,6 +175,29 @@ public class CryptoUtils {
 		
 		X509CertificateHolder certHolder = builder.build(signer);
 		return new JcaX509CertificateConverter().setProvider("BC").getCertificate(certHolder);
+	}
+	
+	public static CMSSignedData signData(byte[] data, Certificate signCert, PrivateKey privKey) 
+			throws CertificateEncodingException, 
+				   OperatorCreationException, 
+				   CMSException {
+		List<Certificate> certList = new ArrayList<Certificate>();
+	    CMSTypedData msg = new CMSProcessableByteArray(data);
+	    
+	    certList.add(signCert);
+
+	    Store certs = new JcaCertStore(certList);
+
+	    CMSSignedDataGenerator gen = new CMSSignedDataGenerator();
+	    ContentSigner sha1Signer = new JcaContentSignerBuilder("SHA1withRSA").setProvider("BC").build(privKey);
+
+	    gen.addSignerInfoGenerator(
+	    		new JcaSignerInfoGeneratorBuilder(
+	    				new JcaDigestCalculatorProviderBuilder().setProvider("BC").build())
+	    		.build(sha1Signer, (X509Certificate)signCert));
+
+	    gen.addCertificates(certs);
+	    return gen.generate(msg, true);
 	}
 	
 	public static String makeKeyAlias(String uuid) {
