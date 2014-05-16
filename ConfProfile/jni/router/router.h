@@ -3,29 +3,36 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <pthread.h>
 
-typedef void (*route_func_ptr)(uint8_t* buff, int len);
+typedef void (*tun_send_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
+typedef void (*tun_recv_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
 
 typedef struct route4_link {
     uint32_t ip4;
-    route_func_ptr route_func;
+    intptr_t tun_ctx;
+    tun_send_func_ptr tun_send_func;
+    tun_recv_func_ptr tun_recv_func;
     struct route4_link* next;
 } route4_link_t;
 
 typedef struct {
+	pthread_rwlock_t* rwlock4;
     route4_link_t* ip4_routes;
-    route_func_ptr ip4_default_route;
+    intptr_t ip4_default_tun_ctx;
+    tun_send_func_ptr ip4_default_tun_send_func;
+    tun_recv_func_ptr ip4_default_tun_recv_func;
 } router_ctx_t;
 
 router_ctx_t* router_init(router_ctx_t* ctx);
 void router_deinit(router_ctx_t* ctx);
 
-void route4(router_ctx_t* ctx, uint32_t ip4, void (*routefunc)(uint8_t* buff, int len));
-void route6(router_ctx_t* ctx, uint8_t* ip6, void (*routefunc)(uint8_t* buff, int len));
+void route4(router_ctx_t* ctx, uint32_t ip4, intptr_t tun_ctx, tun_send_func_ptr send_func, tun_recv_func_ptr recv_func);
+void route6(router_ctx_t* ctx, uint8_t* ip6, intptr_t tun_ctx, tun_send_func_ptr send_func, tun_recv_func_ptr recv_func);
 void unroute4(router_ctx_t* ctx, uint32_t ip4);
 void unroute6(router_ctx_t* ctx, uint8_t* ip6);
-void default4(router_ctx_t* ctx, void (*routefunc)(uint8_t* buff, int len));
-void default6(router_ctx_t* ctx, void (*routefunc)(uint8_t* buff, int len));
+void default4(router_ctx_t* ctx, intptr_t tun_ctx, tun_send_func_ptr send_func, tun_recv_func_ptr recv_func);
+void default6(router_ctx_t* ctx, intptr_t tun_ctx, tun_send_func_ptr send_func, tun_recv_func_ptr recv_func);
 void send(router_ctx_t* ctx, uint8_t* buff, int len);
 void send4(router_ctx_t* ctx, uint8_t* buff, int len);
 void send6(router_ctx_t* ctx, uint8_t* buff, int len);

@@ -58,6 +58,7 @@ JNI_METHOD(OcpaVpnWorkflow, createVpnServiceContext, jlong) {
 	ctx->workflow_protect = (*env)->GetMethodID(env, android_ocpavpnworkflow_class, "protect", "(I)Z");
 	ctx->free_vpn_service_ctx = free_vpn_service_ctx;
 	ctx->bypass_socket = bypass_socket;
+
 	return (jlong) (intptr_t) ctx;
 }
 
