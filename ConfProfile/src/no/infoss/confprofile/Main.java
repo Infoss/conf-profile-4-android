@@ -19,15 +19,20 @@
 
 package no.infoss.confprofile;
 
+import no.infoss.confprofile.fragment.ProfileDetailsFragment;
 import no.infoss.confprofile.profile.DbOpenHelper;
+import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.view.View;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.ListAdapter;
 import android.widget.TextView;
@@ -36,7 +41,7 @@ import com.litecoding.classkit.view.LazyCursorList;
 import com.litecoding.classkit.view.ObjectAdapter;
 import com.litecoding.classkit.view.ObjectAdapter.ObjectMapper;
 
-public class Main extends Activity implements LoaderCallbacks<Cursor>{
+public class Main extends Activity implements LoaderCallbacks<Cursor> {
 	public static final String TAG = Main.class.getSimpleName();
 	
 	private LazyCursorList<ProfileInfo> mProfileInfoList;
@@ -57,7 +62,20 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>{
 				new ProfileInfoMapper());
 		GridView grid = (GridView) findViewById(R.id.profileGrid);
 		grid.setEmptyView(findViewById(android.R.id.empty));
-		grid.setAdapter(profileAdapter);	
+		grid.setAdapter(profileAdapter);
+		grid.setOnItemClickListener(new OnItemClickListener() {
+
+			@Override
+			public void onItemClick(AdapterView<?> parent, View view,
+					int position, long id) {
+				@SuppressWarnings("unchecked")
+				ObjectAdapter<ProfileInfo> adapter = (ObjectAdapter<ProfileInfo>) parent.getAdapter();
+				ProfileInfo info = (ProfileInfo) adapter.getItem(position);
+				Intent intent = new Intent(Main.this, ProfileDetails.class);
+				intent.putExtra(PayloadsCursorLoader.P_PROFILE_ID, info.id);
+				Main.this.startActivity(intent);
+			}
+		});
 	}
 	
 	@Override
@@ -84,6 +102,28 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>{
 	
 	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {
 
+		@Override
+		public View prepareView(int position, View convertView) {
+			if(convertView == null) {
+				return convertView;
+			}
+			
+			int viewId = convertView.getId();
+			if(viewId != R.id.profileListItem) {
+				return null;
+			}
+			
+			TextView text;
+			
+			text = (TextView) convertView.findViewById(R.id.profileName);
+			text.setText(null);
+			
+			text = (TextView) convertView.findViewById(R.id.profileDetails);
+			text.setText(null);
+			
+			return convertView;
+		}
+		
 		@Override
 		public void mapData(int position, View view, ProfileInfo data) {
 			TextView text;
