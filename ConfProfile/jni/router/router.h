@@ -22,4 +22,12 @@ void router_deinit(router_ctx_t* ctx);
 
 void route4(router_ctx_t* ctx, uint32_t ip4, void (*routefunc)(uint8_t* buff, int len));
 void route6(router_ctx_t* ctx, uint8_t* ip6, void (*routefunc)(uint8_t* buff, int len));
+void unroute4(router_ctx_t* ctx, uint32_t ip4);
+void unroute6(router_ctx_t* ctx, uint8_t* ip6);
+void default4(router_ctx_t* ctx, void (*routefunc)(uint8_t* buff, int len));
+void default6(router_ctx_t* ctx, void (*routefunc)(uint8_t* buff, int len));
+void send(router_ctx_t* ctx, uint8_t* buff, int len);
+void send4(router_ctx_t* ctx, uint8_t* buff, int len);
+void send6(router_ctx_t* ctx, uint8_t* buff, int len);
+
 #endif // ROUTER_H_INCLUDED
