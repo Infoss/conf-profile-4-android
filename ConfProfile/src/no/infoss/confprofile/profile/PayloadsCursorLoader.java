@@ -6,6 +6,8 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 
+import com.getbase.android.db.fluentsqlite.Expressions;
+import com.getbase.android.db.fluentsqlite.Expressions.Expression;
 import com.getbase.android.db.fluentsqlite.Insert;
 import com.getbase.android.db.fluentsqlite.QueryBuilder;
 import com.litecoding.classkit.view.LazyCursorList.CursorMapper;
@@ -23,7 +25,7 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 	public static final String P_PAYLOAD_UUID = P_PREFIX.concat("P_PAYLOAD_UUID");
 	public static final String P_DATA = P_PREFIX.concat("P_DATA");
 	
-	public static final CursorMapper<PayloadInfo> PROFILE_CURSOR_MAPPER = new CursorMapper<PayloadInfo>() {
+	public static final CursorMapper<PayloadInfo> PAYLOAD_CURSOR_MAPPER = new CursorMapper<PayloadInfo>() {
 
 		@Override
 		public PayloadInfo mapRowToObject(Cursor cursor) {
@@ -53,12 +55,13 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 		private String mNewProfileId[] = null;
 		private String mNewPayloadUuid[] = null;
 		private String mNewData[] = null;
+		private String mSelectBy = null; 
 		
 		public PayloadsPerformance(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
 			super(context, id, params, dbHelper);
 			
 			if(params != null) {
-				if(params.containsKey("P_BATCH_MODE")) {
+				if(params.containsKey(P_BATCH_MODE)) {
 					mNewProfileId = params.getStringArray(P_PROFILE_ID);
 					mNewPayloadUuid = params.getStringArray(P_PAYLOAD_UUID);
 					mNewData = params.getStringArray(P_DATA);
@@ -66,6 +69,10 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 					mNewProfileId = new String[] { params.getString(P_PROFILE_ID) };
 					mNewPayloadUuid = new String[] { params.getString(P_PAYLOAD_UUID) };
 					mNewData = new String[] { params.getString(P_DATA) };
+				}
+				
+				if(params.containsKey(P_SELECT_BY)) {
+					mSelectBy = params.getString(P_SELECT_BY);
 				}
 			}
 		}
@@ -91,6 +98,14 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 					db.setTransactionSuccessful();
 				} finally {
 					db.endTransaction();
+				}
+			}
+			
+			if(mSelectBy != null) {
+				if(COL_PROFILE_ID.equals(mSelectBy)) {
+					Expression expr = Expressions.column(mSelectBy).eq(Expressions.literal(mNewProfileId[0]));
+					result = QueryBuilder.select().from(TABLE).where(expr, new Object[0]).perform(db);
+					return result;
 				}
 			}
 			
