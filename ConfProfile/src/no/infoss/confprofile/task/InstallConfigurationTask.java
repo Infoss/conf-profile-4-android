@@ -255,7 +255,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 			gsonBuilder.registerTypeAdapterFactory(new PlistTypeAdapterFactory());
 			Gson gson = gsonBuilder.create();
 			
-			bundle.putString(PayloadsCursorLoader.P_DATA, gson.toJson(payload));
+			bundle.putString(PayloadsCursorLoader.P_DATA, gson.toJson(payload.getDictionary()));
 			return bundle;
 		}
 	}

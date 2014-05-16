@@ -29,7 +29,7 @@ public class PlistTypeAdapterFactory implements TypeAdapterFactory {
 			return (TypeAdapter<T>) new ConfigurationProfileTypeAdapter(gson);
 		} else if(Dictionary.class.equals(clazz)) {
 			return (TypeAdapter<T>) new DictionaryTypeAdapter(gson);
-		} else if(Dictionary.class.equals(clazz)) {
+		} else if(Array.class.equals(clazz)) {
 			return (TypeAdapter<T>) new ArrayTypeAdapter(gson);
 		}
 		
@@ -37,6 +37,8 @@ public class PlistTypeAdapterFactory implements TypeAdapterFactory {
 	}
 	
 	public static class DictionaryTypeAdapter extends TypeAdapter<Dictionary> {
+		public static final String TAG = DictionaryTypeAdapter.class.getSimpleName();
+		
 		private Gson mGson;
 		
 		public DictionaryTypeAdapter(Gson gson) {
@@ -48,9 +50,10 @@ public class PlistTypeAdapterFactory implements TypeAdapterFactory {
 			Map<String, Object> result = new HashMap<String, Object>();
 			reader.beginObject();
 			while(reader.peek() == JsonToken.NAME) {
-				result.put(reader.nextName(), PlistTypesAdapterHelper.readSpecial(mGson, reader));
+				String name = reader.nextName();
+				result.put(name, PlistTypesAdapterHelper.readSpecial(mGson, reader));
 			}
-			
+			reader.endObject();
 			return Dictionary.wrap(result);
 		}
 
@@ -68,6 +71,8 @@ public class PlistTypeAdapterFactory implements TypeAdapterFactory {
 	}
 	
 	public static class ArrayTypeAdapter extends TypeAdapter<Array> {
+		public static final String TAG = ArrayTypeAdapter.class.getSimpleName();
+		
 		private Gson mGson;
 		
 		public ArrayTypeAdapter(Gson gson) {
@@ -81,7 +86,7 @@ public class PlistTypeAdapterFactory implements TypeAdapterFactory {
 			while(reader.peek() == JsonToken.BEGIN_OBJECT) {
 				result.add(PlistTypesAdapterHelper.readSpecial(mGson, reader));
 			}
-			
+			reader.endArray();
 			return Array.wrap(result);
 		}
 
