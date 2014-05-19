@@ -1,12 +1,13 @@
-
+#include <errno.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
 #include "router.h"
 
-router_ctx_t* router_init(router_ctx_t* ctx) {
-    router_ctx_t* context = ctx;
+typedef struct iphdr ip4_header;
+typedef struct ip6_hdr ip6_header;
 
-    if(context == NULL) {
-        context = (router_ctx_t*) malloc(sizeof(router_ctx_t));
-    }
+router_ctx_t* router_init() {
+    router_ctx_t* context = (router_ctx_t*) malloc(sizeof(router_ctx_t));
 
     if(context != NULL) {
     	context->rwlock4 = malloc(sizeof(pthread_rwlock_t));
@@ -22,9 +23,9 @@ router_ctx_t* router_init(router_ctx_t* ctx) {
     	}
 
         context->ip4_routes = NULL;
-        ctx->ip4_default_tun_ctx = (intptr_t) NULL;
-        ctx->ip4_default_tun_send_func = NULL;
-        ctx->ip4_default_tun_recv_func = NULL;
+        context->ip4_default_tun_ctx = (intptr_t) NULL;
+        context->ip4_default_tun_send_func = NULL;
+        context->ip4_default_tun_recv_func = NULL;
     }
 
     return context;
@@ -171,7 +172,7 @@ void default6(router_ctx_t* ctx, intptr_t tun_ctx, tun_send_func_ptr send_func, 
 	//TODO: implement this
 }
 
-void send(router_ctx_t* ctx, uint8_t* buff, int len) {
+void ipsend(router_ctx_t* ctx, uint8_t* buff, int len) {
 	if((buff[0] & 0xf0) == 0x40) {
 		send4(ctx, buff, len);
 	} else if((buff[0] & 0xf0) == 0x60) {
@@ -219,4 +220,71 @@ void send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 
 void send6(router_ctx_t* ctx, uint8_t* buff, int len) {
 	//TODO: implement this
+}
+
+int read_ip_packet(int fd, uint8_t* buff, int len) {
+	int size = 0;
+	int res = read(fd, buff, 1); //first, read the first byte to check IP version
+	if(res < 0) {
+		return res;
+	}
+
+	size += res;
+
+	if((buff[0] & 0xf0) == 0x40) {
+		res = read(fd, buff + 1, 19); //read the remaining part of the minimal IPv4 header
+		if(res < 0) {
+			return res;
+		}
+
+		size += res;
+
+		ip4_header* ip4hdr = (ip4_header*) buff;
+		short pkt_size = htons(ip4hdr->tot_len);
+
+		if(pkt_size > len) {
+			return EIO; //TODO: error code for insufficient MTU
+		}
+
+		pkt_size -= 20;
+		if(pkt_size == 0) {
+			return size;
+		} else if(pkt_size < 0) {
+			return EIO;
+		}
+
+		res = read(fd, buff +20 , pkt_size);
+		if(res < 0) {
+			return res;
+		}
+
+		size += res;
+	} else if((buff[0] & 0xf0) == 0x60) {
+		res = read(fd, buff + 1, 39); //read the remaining part of the minimal IPv6 header
+		if(res < 0) {
+			return res;
+		}
+
+		size += res;
+
+		ip6_header* ip6hdr = (ip6_header*) buff;
+		short payload_size = htons(ip6hdr->ip6_ctlun.ip6_un1.ip6_un1_plen);
+
+		if(payload_size + 40 > len) {
+			return EIO; //TODO: error code for insufficient MTU
+		} else if(payload_size == 0) {
+			return size;
+		}
+
+		res = read(fd,buff + 40, payload_size);
+		if(res < 0) {
+			return res;
+		}
+
+		size += res;
+	} else {
+		return EIO;
+	}
+
+	return size;
 }
