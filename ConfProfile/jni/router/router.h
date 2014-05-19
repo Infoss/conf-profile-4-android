@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdint.h>
 #include <pthread.h>
+#include <poll.h>
 
 typedef int (*tun_send_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
 typedef int (*tun_recv_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
@@ -23,9 +24,15 @@ struct router_ctx_t {
 	pthread_rwlock_t* rwlock4;
 	int dev_fd;
     route4_link_t* ip4_routes;
+    int ip4_routes_count;
     intptr_t ip4_default_tun_ctx;
+    uint8_t* ip4_pkt_buff;
+    int ip4_pkt_buff_size;
     tun_send_func_ptr ip4_default_tun_send_func;
     tun_recv_func_ptr ip4_default_tun_recv_func;
+    struct pollfd* poll_fds;
+    int poll_fds_count;
+    int poll_fds_nfds;
 };
 
 router_ctx_t* router_init();
@@ -42,5 +49,7 @@ void send4(router_ctx_t* ctx, uint8_t* buff, int len);
 void send6(router_ctx_t* ctx, uint8_t* buff, int len);
 
 int read_ip_packet(int fd, uint8_t* buff, int len);
+
+void rebuild_poll_struct(router_ctx_t* ctx);
 
 #endif // ROUTER_H_INCLUDED

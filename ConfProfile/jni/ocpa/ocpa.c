@@ -64,13 +64,59 @@ JNI_METHOD(OcpaVpnWorkflow, freeVpnServiceContext, void, jlong jvpnservicectx) {
 	free_vpn_service_ctx((vpn_service_ctx_t*) (intptr_t) jvpnservicectx);
 }
 
+JNI_METHOD(OcpaVpnWorkflow, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
+	jmethodID method_id;
+	int fd;
+
+	androidjni_attach_thread(&env);
+
+	method_id = (*env)->GetMethodID(env, android_ocpavpnservice_builder_class, "establish", "()I");
+
+	if (!method_id) {
+		goto failed;
+	}
+
+	fd = (*env)->CallIntMethod(env, jbuilder, method_id);
+	if (fd == -1) {
+		goto failed;
+	}
+
+	androidjni_detach_thread();
+
+	//START LOOP
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(ctx == NULL) {
+		goto failed;
+	}
+
+	ctx->dev_fd = fd;
+
+	int res = 0;
+	while(true) {
+		res = read_ip_packet(ctx->dev_fd, ctx->ip4_pkt_buff, ctx->ip4_pkt_buff_size);
+		if(res < 0) {
+			return res;
+		}
+
+		ipsend(ctx, ctx->ip4_pkt_buff, res);
+	}
+	//END LOOP
+
+	return 0;
+
+failed:
+	androidjni_exception_occurred(env);
+	androidjni_detach_thread();
+	return -1;
+}
+
 int common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 	if(tun_ctx == (intptr_t) NULL) {
 		return EBADF;
 	}
 
 	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
-	return send(ctx->remote_fd, buff, len, 0);
+	return write(ctx->remote_fd, buff, len);
 }
 
 int common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
@@ -85,7 +131,7 @@ int common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 		return res;
 	}
 
-	res = write(fd, ctx->router_ctx->dev_fd, res);
+	res = write(ctx->router_ctx->dev_fd, buff, res);
 
 	return res;
 }

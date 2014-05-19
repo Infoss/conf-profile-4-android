@@ -7,35 +7,47 @@ typedef struct iphdr ip4_header;
 typedef struct ip6_hdr ip6_header;
 
 router_ctx_t* router_init() {
-    router_ctx_t* context = (router_ctx_t*) malloc(sizeof(router_ctx_t));
+    router_ctx_t* ctx = (router_ctx_t*) malloc(sizeof(router_ctx_t));
 
-    if(context != NULL) {
-    	context->rwlock4 = malloc(sizeof(pthread_rwlock_t));
-    	if(context->rwlock4 == NULL) {
-    		free(context);
+    if(ctx != NULL) {
+    	ctx->rwlock4 = malloc(sizeof(pthread_rwlock_t));
+    	if(ctx->rwlock4 == NULL) {
+    		free(ctx);
     		return NULL;
     	}
-    	if(pthread_rwlock_init(context->rwlock4, NULL) != 0) {
-    		free(context->rwlock4);
-    		context->rwlock4 = NULL;
-    		free(context);
+    	if(pthread_rwlock_init(ctx->rwlock4, NULL) != 0) {
+    		free(ctx->rwlock4);
+    		ctx->rwlock4 = NULL;
+    		free(ctx);
     		return NULL;
     	}
 
-        context->ip4_routes = NULL;
-        context->ip4_default_tun_ctx = (intptr_t) NULL;
-        context->ip4_default_tun_send_func = NULL;
-        context->ip4_default_tun_recv_func = NULL;
+    	ctx->dev_fd = -1;
+        ctx->ip4_routes = NULL;
+        ctx->ip4_routes_count = 0;
+        ctx->ip4_default_tun_ctx = (intptr_t) NULL;
+
+        ctx->ip4_pkt_buff = malloc(1500);
+        if(ctx->ip4_pkt_buff == NULL) {
+        	free(ctx);
+        	return NULL;
+        }
+        ctx->ip4_pkt_buff_size = 1500;
+
+        ctx->ip4_default_tun_send_func = NULL;
+        ctx->ip4_default_tun_recv_func = NULL;
+
+        ctx->poll_fds = NULL;
+        ctx->poll_fds_count = 0;
+        ctx->poll_fds_nfds = 0;
     }
 
-    return context;
+    return ctx;
 }
 
 void router_deinit(router_ctx_t* ctx) {
     if(ctx != NULL) {
-    	pthread_rwlock_destroy(ctx->rwlock4);
-    	free(ctx->rwlock4);
-    	ctx->rwlock4 = NULL;
+    	pthread_rwlock_wrlock(ctx->rwlock4);
 
         if(ctx->ip4_routes != NULL) {
             route4_link_t* curr = ctx->ip4_routes;
@@ -50,10 +62,36 @@ void router_deinit(router_ctx_t* ctx) {
             }
         }
 
+        if(ctx->dev_fd >= 0) {
+        	close(ctx->dev_fd);
+        }
+
+        ctx->dev_fd = -1;
         ctx->ip4_routes = NULL;
+        ctx->ip4_routes_count = 0;
         ctx->ip4_default_tun_ctx = (intptr_t) NULL;
+
+        if(ctx->ip4_pkt_buff != NULL) {
+        	free(ctx->ip4_pkt_buff);
+        }
+        ctx->ip4_pkt_buff = NULL;
+        ctx->ip4_pkt_buff_size = 0;
+
         ctx->ip4_default_tun_send_func = NULL;
         ctx->ip4_default_tun_recv_func = NULL;
+
+        if(ctx->poll_fds != NULL) {
+        	free(ctx->poll_fds);
+        }
+
+        ctx->poll_fds = NULL;
+        ctx->poll_fds_count = 0;
+        ctx->poll_fds_nfds = 0;
+
+        pthread_rwlock_unlock(ctx->rwlock4);
+        pthread_rwlock_destroy(ctx->rwlock4);
+        free(ctx->rwlock4);
+        ctx->rwlock4 = NULL;
 
         free(ctx);
     }
@@ -63,6 +101,8 @@ void route4(router_ctx_t* ctx, uint32_t ip4, intptr_t tun_ctx, tun_send_func_ptr
 	if(ctx == NULL) {
 		return;
 	}
+
+	pthread_rwlock_wrlock(ctx->rwlock4);
 
 	route4_link_t* link = (route4_link_t*) malloc(sizeof(route4_link_t));
 	link->ip4 = ip4;
@@ -87,6 +127,8 @@ void route4(router_ctx_t* ctx, uint32_t ip4, intptr_t tun_ctx, tun_send_func_ptr
 				} else {
 					prev->next = link;
 				}
+
+				ctx->ip4_routes_count++;
 
 				//Our job is done
 				break;
@@ -117,16 +159,22 @@ void route4(router_ctx_t* ctx, uint32_t ip4, intptr_t tun_ctx, tun_send_func_ptr
 			curr = next;
 		}
 	}
+
+	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 void route6(router_ctx_t* ctx, uint8_t* ip6, intptr_t tun_ctx, tun_send_func_ptr send_func, tun_recv_func_ptr recv_func) {
 	//TODO: implement this
+	pthread_rwlock_wrlock(ctx->rwlock4);
+	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 void unroute4(router_ctx_t* ctx, uint32_t ip4) {
 	if(ctx == NULL) {
 		return;
 	}
+
+	pthread_rwlock_wrlock(ctx->rwlock4);
 
 	route4_link_t* curr = ctx->ip4_routes;
 	route4_link_t* prev = NULL;
@@ -143,6 +191,8 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4) {
 
 			free(curr);
 
+			ctx->ip4_routes_count--;
+
 			//Our job is done
 			break;
 		} else if(curr->ip4 < ip4) {
@@ -154,22 +204,31 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4) {
 		prev = curr;
 		curr = next;
 	}
+
+	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 void unroute6(router_ctx_t* ctx, uint8_t* ip6) {
 	//TODO: implement this
+
+	pthread_rwlock_wrlock(ctx->rwlock4);
+	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 void default4(router_ctx_t* ctx, intptr_t tun_ctx, tun_send_func_ptr send_func, tun_recv_func_ptr recv_func) {
 	if(ctx != NULL) {
+		pthread_rwlock_wrlock(ctx->rwlock4);
 		ctx->ip4_default_tun_ctx = tun_ctx;
 		ctx->ip4_default_tun_send_func = send_func;
 		ctx->ip4_default_tun_recv_func = recv_func;
+		pthread_rwlock_unlock(ctx->rwlock4);
 	}
 }
 
 void default6(router_ctx_t* ctx, intptr_t tun_ctx, tun_send_func_ptr send_func, tun_recv_func_ptr recv_func) {
 	//TODO: implement this
+	pthread_rwlock_wrlock(ctx->rwlock4);
+	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 void ipsend(router_ctx_t* ctx, uint8_t* buff, int len) {
@@ -187,6 +246,8 @@ void send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 	if(ctx == NULL) {
 		return;
 	}
+
+	pthread_rwlock_rdlock(ctx->rwlock4);
 
 	uint32_t ip4 = ((uint32_t*)(buff + 16))[0];
 
@@ -216,10 +277,13 @@ void send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 	if(send_func != NULL) {
 		send_func(tun_ctx, buff, len);
 	}
+	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 void send6(router_ctx_t* ctx, uint8_t* buff, int len) {
 	//TODO: implement this
+	pthread_rwlock_rdlock(ctx->rwlock4);
+	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 int read_ip_packet(int fd, uint8_t* buff, int len) {
@@ -276,7 +340,7 @@ int read_ip_packet(int fd, uint8_t* buff, int len) {
 			return size;
 		}
 
-		res = read(fd,buff + 40, payload_size);
+		res = read(fd, buff + 40, payload_size);
 		if(res < 0) {
 			return res;
 		}
@@ -287,4 +351,18 @@ int read_ip_packet(int fd, uint8_t* buff, int len) {
 	}
 
 	return size;
+}
+
+void rebuild_poll_struct(router_ctx_t* ctx) {
+	if(ctx == NULL) {
+		return;
+	}
+
+	pthread_rwlock_wrlock(ctx->rwlock4);
+	int poll_count;
+
+	if(ctx->poll_fds != NULL) {
+		free(ctx->poll_fds);
+	}
+	pthread_rwlock_unlock(ctx->rwlock4);
 }

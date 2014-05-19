@@ -46,7 +46,7 @@ import android.util.Log;
 
 						BuilderAdapter builder = mVpnService.getBuilderForProfile(mProfile);
 						builder.setMtu(1500);
-						routerLoop(builder.establish(), 1500);
+						routerLoop(mRouterCtx, builder);
 
 					}
 				} catch (InterruptedException e) {
@@ -77,5 +77,5 @@ import android.util.Log;
 	private native long createVpnServiceContext();
 	private native void freeVpnServiceContext(long ctx);
 	
-	private native int routerLoop(int fd, int mtu);
+	private native int routerLoop(long routerCtx, BuilderAdapter builder);
 }
