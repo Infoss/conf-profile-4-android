@@ -2,6 +2,7 @@ package no.infoss.confprofile.format;
 
 import java.io.ByteArrayInputStream;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.security.cert.CertificateException;
 import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
@@ -23,8 +24,7 @@ public class RootCertPayload extends Payload {
 		X509Certificate cert = null;
 		InputStream is = null;
 		try {
-			byte[] decoded = Base64.decode((byte[]) super.getPayloadContent(), Base64.DEFAULT);
-			is = new ByteArrayInputStream(decoded);
+			is = new ByteArrayInputStream((byte[]) super.getPayloadContent());
 			CertificateFactory factory = CertificateFactory.getInstance("X509");
 			cert = (X509Certificate) factory.generateCertificate(is);
 		} catch (CertificateException e) {
