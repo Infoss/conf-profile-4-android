@@ -1,6 +1,4 @@
-#include "android_jni.h"
 #include "ocpa.h"
-#include "router.h"
 
 void free_vpn_service_ctx(vpn_service_ctx_t* ctx) {
 	if(ctx == NULL) {
@@ -41,7 +39,7 @@ failed:
 }
 
 JNI_METHOD(OcpaVpnWorkflow, initIpRouter, jlong) {
-	return (jlong) (intptr_t) router_init(NULL);
+	return (jlong) (intptr_t) router_init();
 }
 
 JNI_METHOD(OcpaVpnWorkflow, deinitIpRouter, void, jlong jrouterctx) {
@@ -66,4 +64,29 @@ JNI_METHOD(OcpaVpnWorkflow, freeVpnServiceContext, void, jlong jvpnservicectx) {
 	free_vpn_service_ctx((vpn_service_ctx_t*) (intptr_t) jvpnservicectx);
 }
 
+int common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
+	if(tun_ctx == (intptr_t) NULL) {
+		return EBADF;
+	}
+
+	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
+	return send(ctx->remote_fd, buff, len, 0);
+}
+
+int common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
+	if(tun_ctx == (intptr_t) NULL) {
+		return EBADF;
+	}
+
+	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
+
+	int res = read_ip_packet(ctx->local_fd, buff, len);
+	if(res < 0) {
+		return res;
+	}
+
+	res = write(fd, ctx->router_ctx->dev_fd, res);
+
+	return res;
+}
 
