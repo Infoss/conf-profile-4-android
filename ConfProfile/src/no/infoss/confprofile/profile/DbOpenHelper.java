@@ -65,6 +65,7 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 	
 	@Override
 	public void onOpen(SQLiteDatabase db) {
+		/*
 		Cursor tables = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table'", null);
 		while(tables.moveToNext()) {
 			Log.d(TAG, "===");
@@ -101,6 +102,7 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 				Log.d(TAG, tables.getColumnName(i) + ": " + data);
 			}
 		}
+		*/
 	}
  
 	@Override

@@ -3,7 +3,9 @@ package no.infoss.confprofile.profile;
 import android.content.Context;
 import android.content.CursorLoader;
 import android.database.Cursor;
+import android.os.AsyncTask;
 import android.os.Bundle;
+import android.util.Log;
 
 public abstract class BaseQueryCursorLoader extends CursorLoader {
 	public static final String STMT_TYPE = "data.STMT_TYPE";
@@ -57,5 +59,47 @@ public abstract class BaseQueryCursorLoader extends CursorLoader {
 		
 		public abstract Cursor perform();
 		
+	}
+	
+	public static class AsyncPerformance extends AsyncTask<Void, Void, Cursor> {
+		public static final String TAG = AsyncPerformance.class.getSimpleName();
+		
+		private LoaderQueryPerformance mPerformance;
+		private AsyncPerformanceListener mListener;
+		
+		public AsyncPerformance(LoaderQueryPerformance performance, AsyncPerformanceListener listener) {
+			mPerformance = performance;
+			mListener = listener;
+		}
+		
+		public LoaderQueryPerformance getPerformance() {
+			return mPerformance;
+		}
+		
+		@Override
+		protected Cursor doInBackground(Void... params) {
+			Cursor result = null;
+			try {
+				result = mPerformance.perform();
+			} catch(Exception e) {
+				Log.e(TAG, "Error while performing a query", e);
+			}
+			return result;
+		}
+		
+		@Override
+		protected void onPostExecute(Cursor result) {
+			if(result != null) {
+				mListener.onAsyncPerformanceSuccess(this, result);
+			} else {
+				mListener.onAsyncPerformanceError(this);
+			}
+		}
+		
+	}
+	
+	public interface AsyncPerformanceListener {
+		public void onAsyncPerformanceSuccess(AsyncPerformance task, Cursor result);
+		public void onAsyncPerformanceError(AsyncPerformance task);
 	}
 }
