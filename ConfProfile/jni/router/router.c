@@ -1,8 +1,12 @@
+
 #include <errno.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <stdbool.h>
+#include "android_log_utils.h"
 #include "router.h"
+
+#define LOG_TAG "router.c"
 
 typedef struct iphdr ip4_header;
 typedef struct ip6_hdr ip6_header;
@@ -284,67 +288,13 @@ void send6(router_ctx_t* ctx, uint8_t* buff, int len) {
 
 int read_ip_packet(int fd, uint8_t* buff, int len) {
 	int size = 0;
-	int res = read(fd, buff, 1); //first, read the first byte to check IP version
+
+	int res = read(fd, buff, len);
 	if(res < 0) {
 		return res;
 	}
 
 	size += res;
-
-	if((buff[0] & 0xf0) == 0x40) {
-		res = read(fd, buff + 1, 19); //read the remaining part of the minimal IPv4 header
-		if(res < 0) {
-			return res;
-		}
-
-		size += res;
-
-		ip4_header* ip4hdr = (ip4_header*) buff;
-		short pkt_size = htons(ip4hdr->tot_len);
-
-		if(pkt_size > len) {
-			return EIO; //TODO: error code for insufficient MTU
-		}
-
-		pkt_size -= 20;
-		if(pkt_size == 0) {
-			return size;
-		} else if(pkt_size < 0) {
-			return EIO;
-		}
-
-		res = read(fd, buff +20 , pkt_size);
-		if(res < 0) {
-			return res;
-		}
-
-		size += res;
-	} else if((buff[0] & 0xf0) == 0x60) {
-		res = read(fd, buff + 1, 39); //read the remaining part of the minimal IPv6 header
-		if(res < 0) {
-			return res;
-		}
-
-		size += res;
-
-		ip6_header* ip6hdr = (ip6_header*) buff;
-		short payload_size = htons(ip6hdr->ip6_ctlun.ip6_un1.ip6_un1_plen);
-
-		if(payload_size + 40 > len) {
-			return EIO; //TODO: error code for insufficient MTU
-		} else if(payload_size == 0) {
-			return size;
-		}
-
-		res = read(fd, buff + 40, payload_size);
-		if(res < 0) {
-			return res;
-		}
-
-		size += res;
-	} else {
-		return EIO;
-	}
 
 	return size;
 }
