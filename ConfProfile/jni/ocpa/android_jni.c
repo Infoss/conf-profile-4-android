@@ -24,7 +24,7 @@ static JavaVM *android_jvm;
 
 jclass *android_ocpavpnservice_class;
 jclass *android_ocpavpnservice_builder_class;
-jclass *android_ocpavpnworkflow_class;
+jclass *android_routerloop_class;
 android_sdk_version_t android_sdk_version;
 
 /**
@@ -79,9 +79,9 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved)
 	android_ocpavpnservice_builder_class =
 				(*env)->NewGlobalRef(env, (*env)->FindClass(env,
 						JNI_PACKAGE_STRING "/OcpaVpnService$BuilderAdapter"));
-	android_ocpavpnworkflow_class =
+	android_routerloop_class =
 					(*env)->NewGlobalRef(env, (*env)->FindClass(env,
-							JNI_PACKAGE_STRING "/OcpaVpnWorkflow"));
+							JNI_PACKAGE_STRING "/RouterLoop"));
 
 	jversion = (*env)->FindClass(env, "android/os/Build$VERSION");
 	jsdk_int = (*env)->GetStaticFieldID(env, jversion, "SDK_INT", "I");

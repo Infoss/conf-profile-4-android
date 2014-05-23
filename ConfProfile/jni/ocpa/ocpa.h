@@ -19,8 +19,8 @@ typedef void (*free_vpn_service_ctx_func_ptr)(vpn_service_ctx_t* ctx);
 typedef bool (*bypass_socket_func_ptr)(vpn_service_ctx_t* ctx, int sock);
 
 struct vpn_service_ctx_t {
-	jobject workflow_object;
-	jmethodID workflow_protect;
+	jobject routerloop_object;
+	jmethodID routerloop_protect;
 	free_vpn_service_ctx_func_ptr free_vpn_service_ctx;
     bypass_socket_func_ptr bypass_socket;
 };
