@@ -115,7 +115,7 @@ public class NetworkConfig {
 	}
 	
 	public void setActive(boolean isActive) {
-		mIsActive = false;
+		mIsActive = isActive;
 	}
 	
 	public boolean isStrict() {
@@ -210,6 +210,27 @@ public class NetworkConfig {
 		}
 		
 		return result;
+	}
+	
+	@Override
+	public String toString() {
+		StringBuilder builder = new StringBuilder();
+		builder.append(mIsActive ? "active " : "inactive ");
+		builder.append(mIsStrict ? "strict " : "");
+		builder.append("if=");
+		builder.append(mInterfaceType != null ? mInterfaceType : "<unknown>");
+		builder.append(" ");
+		if(mSsid != null) {
+			builder.append("ssid=");
+			builder.append(mSsid);
+		}
+		builder.append(" ");
+		builder.append(" dnsDomains=");
+		builder.append(mDnsDomains.toString());
+		builder.append(" dnsAddresses=");
+		builder.append(mDnsAddresses.toString());
+		
+		return builder.toString();
 	}
 	
 	public static class DomainName {
@@ -391,4 +412,5 @@ public class NetworkConfig {
 			return addrList;
 		}
 	}
+	
 }
