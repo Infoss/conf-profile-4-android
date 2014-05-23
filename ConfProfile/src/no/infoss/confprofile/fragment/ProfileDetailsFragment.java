@@ -5,6 +5,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import no.infoss.confprofile.Main;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.ConfigurationProfile.Payload;
@@ -18,7 +19,9 @@ import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.PayloadsCursorLoader.PayloadInfo;
 import android.app.Activity;
 import android.app.Fragment;
+import android.app.FragmentManager;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.AsyncTask;
@@ -29,6 +32,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ExpandableListAdapter;
 import android.widget.ExpandableListView;
+import android.widget.ExpandableListView.OnChildClickListener;
 import android.widget.TextView;
 
 import com.google.gson.Gson;
@@ -105,6 +109,22 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 		
 		mPayloadInfoList = new LazyCursorList<PayloadInfo>(PayloadsCursorLoader.PAYLOAD_CURSOR_MAPPER);
 		
+		ExpandableListView list = (ExpandableListView) getView().findViewById(R.id.list);
+		list.setOnChildClickListener(new OnChildClickListener() {
+			
+			@Override
+			public boolean onChildClick(ExpandableListView parent, View v,
+					int groupPosition, int childPosition, long id) {
+				PayloadInfoEx info = (PayloadInfoEx) parent.getExpandableListAdapter().getChild(groupPosition, childPosition);
+				if(info != null) {
+					Intent intent = new Intent(getActivity(), Main.class);
+					intent.setAction(Main.ACTION_CALL_PREPARE);
+					ProfileDetailsFragment.this.startActivityForResult(intent, Main.REQUEST_CODE_PREPARE);
+					return true;
+				}
+				return false;
+			}
+		});
 		
 		
 		Bundle request = new Bundle();
@@ -121,6 +141,20 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 		outState.putString(FSK_NAME, mName);
 		outState.putString(FSK_ORGANIZATION, mOrganization);
 		outState.putString(FSK_DESC, mDescription);
+	}
+	
+	@Override
+	public void onActivityResult(int requestCode, int resultCode, Intent data) {
+		switch (requestCode) {
+		case Main.REQUEST_CODE_PREPARE: {
+			//TODO: show the changed data here
+			break;
+		}
+		default: {
+			super.onActivityResult(requestCode, resultCode, data);
+			break;
+		}
+		}
 	}
 
 	@Override

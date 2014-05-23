@@ -19,17 +19,19 @@
 
 package no.infoss.confprofile;
 
-import no.infoss.confprofile.fragment.ProfileDetailsFragment;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
+import no.infoss.confprofile.vpn.OcpaVpnService;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.ActivityNotFoundException;
 import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.util.Log;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -43,6 +45,12 @@ import com.litecoding.classkit.view.ObjectAdapter.ObjectMapper;
 
 public class Main extends Activity implements LoaderCallbacks<Cursor> {
 	public static final String TAG = Main.class.getSimpleName();
+	
+	public static final String ACTION_CALL_PREPARE = Main.class.getSimpleName().concat(".CALL_PREPARE");
+	public static final int REQUEST_CODE_PREPARE = 0;
+	public static final int RESULT_VPN_LOCKED = 2;
+	public static final int RESULT_VPN_UNSUPPORTED = 3;
+	
 	
 	private LazyCursorList<ProfileInfo> mProfileInfoList;
 	private DbOpenHelper mDbHelper;
@@ -76,6 +84,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 				Main.this.startActivity(intent);
 			}
 		});
+		
+		//and prepare VPN!
+		prepareVpn();
 	}
 	
 	@Override
@@ -98,6 +109,47 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 	@Override
 	public void onLoaderReset(Loader<Cursor> loader) {
 		// nothing to do here
+	}
+	
+	@Override
+	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+		switch (requestCode) {
+		case REQUEST_CODE_PREPARE: {
+			Intent callerIntent = getIntent();
+			
+			if(resultCode == RESULT_OK) {
+				Intent intent = new Intent(this, OcpaVpnService.class);
+				startService(intent);
+			}
+			
+			if(callerIntent != null && ACTION_CALL_PREPARE.equals(callerIntent.getAction())) {
+				setResult(resultCode, null);
+				finish();
+			}
+			break;
+		}
+		default: {
+			super.onActivityResult(requestCode, resultCode, data);
+			break;
+		}
+		}
+	}
+	
+	private void prepareVpn() {
+		try {
+			Intent prepareIntent = OcpaVpnService.prepare(this);
+			if(prepareIntent == null) {
+				onActivityResult(REQUEST_CODE_PREPARE, RESULT_OK, null);
+			} else {
+				startActivityForResult(prepareIntent, REQUEST_CODE_PREPARE);
+			}
+		} catch(IllegalStateException e) {
+			Log.e(TAG, "VPN service is locked by system", e);
+			onActivityResult(REQUEST_CODE_PREPARE, RESULT_VPN_LOCKED, null);
+		} catch(ActivityNotFoundException e) {
+			Log.e(TAG, "VPN service isn't supported by system", e);
+			onActivityResult(REQUEST_CODE_PREPARE, RESULT_VPN_UNSUPPORTED, null);
+		}
 	}
 	
 	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {

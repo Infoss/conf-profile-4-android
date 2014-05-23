@@ -1,8 +1,8 @@
 package no.infoss.confprofile;
 
-import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.fragment.ProfileDetailsFragment;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
+import no.infoss.confprofile.vpn.OcpaVpnService;
 import android.app.Activity;
 import android.app.FragmentManager;
 import android.content.Intent;
@@ -28,4 +28,5 @@ public class ProfileDetails extends Activity {
 			f.setProfileId(intent.getStringExtra(PayloadsCursorLoader.P_PROFILE_ID));
 		}		
 	}
+	
 }
