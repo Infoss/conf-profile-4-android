@@ -8,26 +8,29 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.net.VpnService;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
+import android.util.Log;
 
-public class OcpaVpnService extends VpnService {
+public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 	public static final String TAG = OcpaVpnService.class.getSimpleName();
 
 	static {
 		System.loadLibrary("ocpa");
 	}
 	
-	private Thread mVpnThread;
-	private VpnManager mVpnMgr;
+	private Binder mBinder = new Binder();
+	
+	private VpnManagerInterface mVpnMgr;
 	private final Object mVpnMgrLock = new Object();
 	
 	private final ServiceConnection mServiceConnection = new ServiceConnection() {
 		
 		@Override
 		public void onServiceDisconnected(ComponentName name) {
-			/* since the service is local this is theoretically only called when the process is terminated */
+			Log.d(TAG, "Service disconnected: " + name.flattenToString());
 			synchronized (mVpnMgrLock) {
 				mVpnMgr = null;
 			}
@@ -35,11 +38,10 @@ public class OcpaVpnService extends VpnService {
 
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder service) {
+			Log.d(TAG, "Service connected: " + name.flattenToString());
 			synchronized (mVpnMgrLock) {
-				mVpnMgr = (VpnManager) service.queryLocalInterface(VpnManager.TAG);
+				mVpnMgr = (VpnManagerInterface) service.queryLocalInterface(VpnManagerInterface.TAG);
 			}
-			/* we are now ready to start the handler thread */
-			mVpnThread.start();
 		}
 	};
 
@@ -56,46 +58,45 @@ public class OcpaVpnService extends VpnService {
 
 	@Override
 	public void onCreate() {
-		mVpnThread = new Thread(new OcpaVpnWorkflow(this));
-		/* the thread is started when the service is bound */
 		bindService(new Intent(this, VpnManagerService.class), mServiceConnection, Service.BIND_AUTO_CREATE);
 	}
 
 	@Override
 	public void onRevoke() {
-		/* the system revoked the rights grated with the initial prepare() call.
-		 * called when the user clicks disconnect in the system's VPN dialog */
-	}
-
-	@Override
-	public void onDestroy() {
-		try {
-			mVpnThread.join();
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		
-		if (mVpnMgr != null) {
-			unbindService(mServiceConnection);
-		}
-	}
-
-	/**
-	 * Notify the state service about a new connection attempt.
-	 * Called by the handler thread.
-	 *
-	 * @param profile currently active VPN profile
-	 */
-	/*package*/ void notifyConnectionStarted(VpnConnectionProfile profile) {
+		Log.d(TAG, "onRevoke()");
 		synchronized (mVpnMgrLock) {
 			if (mVpnMgr != null) {
-				mVpnMgr.notifyConnectionStarted(profile);
+				mVpnMgr.notifyVpnServiceRevoked();
 			}
 		}
 	}
 
-	/*package*/ BuilderAdapter getBuilderForProfile(VpnConnectionProfile profile) {
-		return new BuilderAdapter(profile.getName());
+	@Override
+	public void onDestroy() {		
+		if (mVpnMgr != null) {
+			unbindService(mServiceConnection);
+		}
+	}
+	
+	@Override
+	public IBinder onBind(Intent intent) {
+		mBinder.attachInterface(this, OcpaVpnInterface.TAG);
+		return mBinder;
+	}
+
+	@Override
+	public IBinder asBinder() {
+		return mBinder;
+	}
+	
+	@Override
+	public boolean onUnbind(Intent intent) {
+		return false;
+	}
+
+	@Override
+	public BuilderAdapter createBuilderAdapter(String displayName) {
+		return new BuilderAdapter(displayName);
 	}
 	
 
@@ -169,8 +170,8 @@ public class OcpaVpnService extends VpnService {
 			ParcelFileDescriptor fd;
 			try {
 				fd = mBuilder.establish();
-			} catch (Exception ex) {
-				ex.printStackTrace();
+			} catch (Exception e) {
+				Log.e(TAG, "BuilderAdapter.establish() exception", e); 
 				return -1;
 			}
 			
