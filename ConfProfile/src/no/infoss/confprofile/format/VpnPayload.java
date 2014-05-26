@@ -19,10 +19,32 @@ public class VpnPayload extends Payload {
 	
 	public static final String KEY_PPP = "PPP";
 	public static final String KEY_IPSEC = "IPSec";
+	public static final String KEY_VPN = "VPN";
+	public static final String KEY_IPv4 = "IPv4";
+	
+	public static final String IF_TYPE_ETHER = "Ethernet";
+	public static final String IF_TYPE_WIFI  = "WiFi";
+	public static final String IF_TYPE_CELL  = "Cellular";
 	
 
 	public VpnPayload(Dictionary dict) throws ConfigurationProfileException {
 		super(dict);
+	}
+	
+	public Dictionary getPpp() {
+		return getPayloadContentAsDictionary().getDictionary(KEY_PPP);
+	}
+	
+	public Dictionary getIpsec() {
+		return getPayloadContentAsDictionary().getDictionary(KEY_IPSEC);
+	}
+	
+	public Dictionary getVpn() {
+		return getPayloadContentAsDictionary().getDictionary(KEY_VPN);
+	}
+	
+	public Dictionary getIpv4() {
+		return getPayloadContentAsDictionary().getDictionary(KEY_IPv4);
 	}
 	
 	public String getUserDefinedName() {
