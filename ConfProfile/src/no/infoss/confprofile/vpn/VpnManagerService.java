@@ -1,22 +1,20 @@
 package no.infoss.confprofile.vpn;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
-import no.infoss.confprofile.profile.BaseQueryCursorLoader.AsyncPerformance;
-import no.infoss.confprofile.profile.BaseQueryCursorLoader.AsyncPerformanceListener;
-import no.infoss.confprofile.profile.DbOpenHelper;
-import no.infoss.confprofile.profile.PayloadsCursorLoader.PayloadsPerformance;
+import no.infoss.confprofile.task.ObtainOnDemandVpns;
+import no.infoss.confprofile.task.ObtainOnDemandVpns.ObtainOnDemandVpnsListener;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.ServiceConnection;
-import android.database.Cursor;
 import android.os.Binder;
 import android.os.IBinder;
 import android.util.Log;
 
-public class VpnManagerService extends Service implements VpnManagerInterface, AsyncPerformanceListener {
+public class VpnManagerService extends Service implements VpnManagerInterface, ObtainOnDemandVpnsListener {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
 	
 	private Binder mBinder = new Binder();
@@ -56,17 +54,18 @@ public class VpnManagerService extends Service implements VpnManagerInterface, A
 	
 	private final Map<String, VpnTunnel> mTuns = new HashMap<String, VpnTunnel>();
 	
-	private PayloadsPerformance mPayloadsPerformance = null;
 	private boolean mIsRequestActive = false;
+	private boolean mReevaluateOnRequest = false;
+	private List<VpnConfigInfo> mConfigInfos;
+	
+	private NetworkConfig mSavedNetworkConfig;
+	private boolean mSavedFailoverFlag;
 	
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		mNetworkListener = new NetworkStateListener(getApplicationContext(), this);
-		DbOpenHelper dbHelper = new DbOpenHelper(getApplicationContext());
-		mPayloadsPerformance = new PayloadsPerformance(getApplicationContext(), 0, null, dbHelper);
-		mIsRequestActive = true;
-		new AsyncPerformance(mPayloadsPerformance, this).execute((Void[]) null);
+		obtainOnDemandVpns();
 		bindService(new Intent(this, OcpaVpnService.class), mVpnServiceConn, Service.BIND_AUTO_CREATE);
 	}
 	
@@ -105,10 +104,34 @@ public class VpnManagerService extends Service implements VpnManagerInterface, A
 	
 	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover) {
 		Log.d(TAG, "lost " + netConfig.toString() + (isFailover ? ", failover" : ""));
+		mSavedNetworkConfig = netConfig;
+		mSavedFailoverFlag = isFailover;
+		
+		updateCurrentConfiguration();
 	}
 	
 	public void notifyConnectivityChanged(NetworkConfig netConfig, boolean isFailover) {
 		Log.d(TAG, "changed to " + netConfig.toString() + (isFailover ? ", failover" : ""));
+		if(mIsRequestActive) {
+			mReevaluateOnRequest = true;
+		}
+		
+		mSavedNetworkConfig = netConfig;
+		mSavedFailoverFlag = isFailover;
+		
+		updateCurrentConfiguration();
+	}
+	
+	private synchronized void updateCurrentConfiguration() {
+		if(mSavedNetworkConfig == null) {
+			return;
+		}
+		
+		for(VpnConfigInfo info : mConfigInfos) {
+			if(mSavedNetworkConfig.match(mSavedNetworkConfig)) {
+				
+			}
+		}
 	}
 	
 	@Override
@@ -127,18 +150,33 @@ public class VpnManagerService extends Service implements VpnManagerInterface, A
 	/*package*/ RouterLoop getRouterLoop() {
 		return mRouterLoop;
 	}
-
-	@Override
-	public void onAsyncPerformanceSuccess(AsyncPerformance task, Cursor result) {
-		// TODO Auto-generated method stub
-		mIsRequestActive = false;
+	
+	public void obtainOnDemandVpns() {
+		if(!mIsRequestActive) {
+			mIsRequestActive = true;
+			new ObtainOnDemandVpns(this, this).execute((Void[]) null);
+		}
 	}
 
 	@Override
-	public void onAsyncPerformanceError(AsyncPerformance task) {
+	public void obtainOnDemandVpnsSuccess(ObtainOnDemandVpns task, List<VpnConfigInfo> result) {
 		// TODO Auto-generated method stub
 		mIsRequestActive = false;
+		if(mConfigInfos != null) {
+			mConfigInfos.clear();
+		}
+		mConfigInfos = result;
+	}
+
+	@Override
+	public void obtainOnDemandVpnsError(ObtainOnDemandVpns task) {
+		// TODO Auto-generated method stub
+		mIsRequestActive = false;
+		Log.e(TAG, "Error while getting On-Demand VPN configuration");
 	}
 	
-	
+	public static class VpnConfigInfo {
+		public NetworkConfig networkConfig;
+		public Map<String, Object> params;
+	}
 }
