@@ -133,7 +133,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		
 		mWorker = new OpenVpnWorker(this, argv, new HashMap<String, String>(), info.nativeLibraryDir);
 		mWorkerThread = new Thread(mWorker, "OpenVPN worker");
-		mWorkerThread.run();
+		mWorkerThread.start();
 		
 
 		try {
