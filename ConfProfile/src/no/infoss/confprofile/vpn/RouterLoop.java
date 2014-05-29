@@ -37,26 +37,29 @@ import android.util.Log;
 			return;
 		}
 		
-		while (true) {
-			synchronized (this) {
-				if(!mBuilder.setMtu(1500)) {
-					Log.d(TAG, "Can't set MTU=".concat(String.valueOf(1500)));
-				}
-				if(!mBuilder.addAddress("172.31.255.254", 32)) {
-					Log.d(TAG, "Can't add address=".concat("172.31.255.254/32"));
-				}
-				if(!mBuilder.addRoute("0.0.0.0", 0)) {
-					Log.d(TAG, "Can't add route=".concat("0.0.0.0/0"));
-				}
-				routerLoop(mRouterCtx, mBuilder);
-				break;
+		synchronized (this) {
+			if(!mBuilder.setMtu(1500)) {
+				Log.d(TAG, "Can't set MTU=".concat(String.valueOf(1500)));
 			}
-		} //while
+			if(!mBuilder.addAddress("172.31.255.254", 32)) {
+				Log.d(TAG, "Can't add address=".concat("172.31.255.254/32"));
+			}
+			if(!mBuilder.addRoute("0.0.0.0", 0)) {
+				Log.d(TAG, "Can't add route=".concat("0.0.0.0/0"));
+			}
+			int result = routerLoop(mRouterCtx, mBuilder);
+			Log.d(TAG, String.format("Router loop returned %d as exit code", result));
+		}
 		deinitIpRouter(mRouterCtx);
 	}
 	
 	public void terminate() {
-		//TODO: termination here
+		terminateRouterLoop(mRouterCtx);
+		mRouterCtx = 0;
+	}
+	
+	public void defaultRoute4(VpnTunnel tunnel) {
+		defaultRoute4(mRouterCtx, tunnel.mVpnTunnelCtx);
 	}
 
 	/*package*/ long getRouterCtx() {
@@ -86,6 +89,7 @@ import android.util.Log;
 	/*package*/ native void defaultRoute4(long routerCtx, long tunCtx);
 	/*package*/ native void removeRoute4(long routerCtx, int ip4);
 	/*package*/ native List<Route4> getRoutes4(long routerCtx);
+	/*package*/ native void terminateRouterLoop(long routerCtx);
 	
 	public static abstract class Route {
 		protected long mVpnTunnelCtx;
@@ -112,7 +116,7 @@ import android.util.Log;
 			int b3 = (mIp4 >>> 8) & 0x000000ff;
 			int b4 = mIp4 & 0x000000ff;
 			
-			return String.format("%d\\.%d\\.%d\\.%d/%d", b1, b2, b3, b4, mMask4);
+			return String.format("%d.%d.%d.%d/%d [tun ctx %#016x]", b1, b2, b3, b4, mMask4, mVpnTunnelCtx);
 		}
 	}
 }
