@@ -10,12 +10,15 @@ public class VpnPayload extends Payload {
 	public static final String KEY_USER_DEFINED_NAME = "UserDefinedName";
 	public static final String KEY_OVERRIDE_PRIMARY = "OverridePrimary";
 	public static final String KEY_VPN_TYPE = "VPNType";
+	public static final String KEY_VPN_SUB_TYPE = "VPNSubType";
 	public static final String KEY_ON_DEMAND_ENABLED = "OnDemandEnabled";
 	public static final String KEY_ON_DEMAND_MATCH_DOMAINS_ALWAYS = "OnDemandMatchDomainsAlways";
 	public static final String KEY_ON_DEMAND_MATCH_DOMAINS_NEVER = "OnDemandMatchDomainsNever";
 	public static final String KEY_ON_DEMAND_MATCH_DOMAINS_ON_RETRY = "OnDemandMatchDomainsOnRetry";
 	public static final String KEY_ON_DEMAND_RULES = "OnDemandRules";
 	public static final String KEY_VENDOR_CONFIG = "VendorConfig";
+	public static final String KEY_AUTHENTICATION_METHOD = "AuthenticationMethod";
+	public static final String KEY_PAYLOAD_CERTIFICATE_UUID = "PayloadCertificateUUID";
 	
 	public static final String KEY_PPP = "PPP";
 	public static final String KEY_IPSEC = "IPSec";
@@ -26,25 +29,45 @@ public class VpnPayload extends Payload {
 	public static final String IF_TYPE_WIFI  = "WiFi";
 	public static final String IF_TYPE_CELL  = "Cellular";
 	
+	public static final String AUTH_METHOD_SHARED_SECRET = "SharedSecret";
+	public static final String AUTH_METHOD_CERTIFICATE = "Certificate";
+	
+	public static final String VPN_TYPE_CUSTOM = "VPN";
+	public static final String VPN_TYPE_PPTP   = "PPTP";
+	public static final String VPN_TYPE_L2TP   = "L2TP";
+	public static final String VPN_TYPE_IPSEC  = "IPSec";
+	
+	private final String mVpnDictKey;
 
 	public VpnPayload(Dictionary dict) throws ConfigurationProfileException {
 		super(dict);
+		
+		String vpnType = getVpnType();
+		if(KEY_VPN.equals(vpnType)) {
+			mVpnDictKey = KEY_VPN;
+		} else if(KEY_IPSEC.equals(vpnType)) {
+			mVpnDictKey = KEY_IPSEC;
+		} else if(KEY_PPP.equals(vpnType)) {
+			mVpnDictKey = KEY_PPP;
+		} else {
+			mVpnDictKey = null;
+		}
 	}
 	
 	public Dictionary getPpp() {
-		return getPayloadContentAsDictionary().getDictionary(KEY_PPP);
+		return mDict.getDictionary(KEY_PPP);
 	}
 	
 	public Dictionary getIpsec() {
-		return getPayloadContentAsDictionary().getDictionary(KEY_IPSEC);
+		return mDict.getDictionary(KEY_IPSEC);
 	}
 	
 	public Dictionary getVpn() {
-		return getPayloadContentAsDictionary().getDictionary(KEY_VPN);
+		return mDict.getDictionary(KEY_VPN);
 	}
 	
 	public Dictionary getIpv4() {
-		return getPayloadContentAsDictionary().getDictionary(KEY_IPv4);
+		return mDict.getDictionary(KEY_IPv4);
 	}
 	
 	public String getUserDefinedName() {
@@ -56,18 +79,26 @@ public class VpnPayload extends Payload {
 	}
 	
 	public String getVpnType() {
-		return getPayloadContentAsDictionary().getString(KEY_VPN_TYPE);
+		return mDict.getString(KEY_VPN_TYPE);
+	}
+	
+	public String getVpnSubType() {
+		return mDict.getString(KEY_VPN_SUB_TYPE);
 	}
 	
 	public boolean isOnDemandEnabled() {
-		return getPayloadContentAsDictionary().getBoolean(KEY_ON_DEMAND_ENABLED, false);
+		return mDict.
+				getDictionary(mVpnDictKey).
+				getInteger(KEY_ON_DEMAND_ENABLED, 0) == 1;
 	}
 	
 	public Array getOnDemandRules() {
-		return getPayloadContentAsDictionary().getArray(KEY_ON_DEMAND_RULES);
+		return mDict.
+				getDictionary(mVpnDictKey).
+				getArray(KEY_ON_DEMAND_RULES);
 	}
 	
 	public Dictionary getVendorConfig() {
-		return getPayloadContentAsDictionary().getDictionary(KEY_VENDOR_CONFIG);
+		return mDict.getDictionary(KEY_VENDOR_CONFIG);
 	}
 }
