@@ -1,11 +1,14 @@
 package no.infoss.confprofile.task;
 
+import java.security.PrivateKey;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
+import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.format.ConfigurationProfile.Payload;
 import no.infoss.confprofile.format.PayloadFactory;
 import no.infoss.confprofile.format.Plist.Dictionary;
@@ -30,7 +33,7 @@ public class ObtainOnDemandVpns extends AsyncTask<Void, Void, Integer> {
 	
 	public ObtainOnDemandVpns(Context ctx, ObtainOnDemandVpnsListener listener) {
 		mCtx = ctx.getApplicationContext();
-		DbOpenHelper dbHelper = new DbOpenHelper(mCtx);
+		DbOpenHelper dbHelper = DbOpenHelper.getInstance(mCtx);
 		mPayloadsPerformance = new PayloadsPerformance(mCtx, 0, null, dbHelper);
 		mListener = listener;
 	}
@@ -41,34 +44,69 @@ public class ObtainOnDemandVpns extends AsyncTask<Void, Void, Integer> {
 		gsonBuilder.registerTypeAdapterFactory(new PlistTypeAdapterFactory());
 		Gson gson = gsonBuilder.create();
 		
+		CertificateManager mgr = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_INTERNAL);
+		
 		try {
 			mResult = new LinkedList<VpnConfigInfo>();
 			Cursor payloads = mPayloadsPerformance.perform();
-			
-			while(!payloads.isAfterLast()) {
-				String data = payloads.getString(2);
-				Payload payload = PayloadFactory.createPayload(gson.fromJson(data, Dictionary.class));
-				if(payload instanceof VpnPayload) {
-					VpnPayload vpnPayload = (VpnPayload) payload;
-					if(vpnPayload.isOnDemandEnabled()) {
-						Dictionary testDict;
-						
-						testDict = vpnPayload.getIpsec();
-						if(testDict == null) {
-							testDict = vpnPayload.getVpn();
-						}
-						if(testDict == null) {
-							testDict = vpnPayload.getPpp();
-						}
-						
-						if(testDict != null) {
-							VpnConfigInfo configInfo = new VpnConfigInfo();
-							configInfo.networkConfig = ConfigUtils.build(vpnPayload);
-							configInfo.params = testDict.asMap();
+			if(payloads.moveToFirst()) {
+				while(!payloads.isAfterLast()) {
+					String data = payloads.getString(2);
+					Payload payload = PayloadFactory.createPayload(gson.fromJson(data, Dictionary.class));
+					if(payload instanceof VpnPayload) {
+						VpnPayload vpnPayload = (VpnPayload) payload;
+						if(vpnPayload.isOnDemandEnabled()) {
+							Dictionary testDict;
+							
+							testDict = vpnPayload.getIpsec();
+							if(testDict == null) {
+								testDict = vpnPayload.getVpn();
+							}
+							if(testDict == null) {
+								testDict = vpnPayload.getPpp();
+							}
+							
+							if(testDict != null) {
+								VpnConfigInfo configInfo = new VpnConfigInfo();
+								configInfo.configId = vpnPayload.getPayloadUUID();
+								configInfo.networkConfig = ConfigUtils.build(vpnPayload);
+								configInfo.params = new HashMap<String, Object>();
+								
+								Dictionary tmpDict;
+								tmpDict = vpnPayload.getIpsec();
+								if(tmpDict != null) {
+									configInfo.params.put(VpnConfigInfo.PARAMS_IPSEC, tmpDict.asMap());
+								}
+								
+								tmpDict = vpnPayload.getPpp();
+								if(tmpDict != null) {
+									configInfo.params.put(VpnConfigInfo.PARAMS_PPP, tmpDict.asMap());
+								}
+								
+								tmpDict = vpnPayload.getVendorConfig();
+								if(tmpDict != null) {
+									configInfo.params.put(VpnConfigInfo.PARAMS_CUSTOM, tmpDict.asMap());
+								}
+								
+								if(VpnPayload.VPN_TYPE_CUSTOM.equals(vpnPayload.getVpnType())) {
+									configInfo.vpnType = vpnPayload.getVpnSubType();
+								} else {
+									configInfo.vpnType = vpnPayload.getVpnType();
+								}
+								
+								String method = testDict.getString(VpnPayload.KEY_AUTHENTICATION_METHOD);
+								if(VpnPayload.AUTH_METHOD_CERTIFICATE.equals(method)) {
+									String uuid = testDict.getString(VpnPayload.KEY_PAYLOAD_CERTIFICATE_UUID);
+									configInfo.certificates = mgr.getCertificateChain(uuid);
+									configInfo.privateKey = (PrivateKey) mgr.getKey(uuid);
+								}
+								
+								mResult.add(configInfo);
+							}
 						}
 					}
+					payloads.moveToNext();
 				}
-				payloads.moveToNext();
 			}
 		} catch(Exception e) {
 			Log.e(TAG, "", e);
