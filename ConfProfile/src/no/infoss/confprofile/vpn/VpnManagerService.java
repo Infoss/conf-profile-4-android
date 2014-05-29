@@ -1,11 +1,14 @@
 package no.infoss.confprofile.vpn;
 
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import no.infoss.confprofile.task.ObtainOnDemandVpns;
 import no.infoss.confprofile.task.ObtainOnDemandVpns.ObtainOnDemandVpnsListener;
+import no.infoss.confprofile.vpn.RouterLoop.Route4;
 import android.app.Service;
 import android.content.ComponentName;
 import android.content.Intent;
@@ -27,7 +30,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		@Override
 		public void onServiceDisconnected(ComponentName name) {
 			Log.d(TAG, "Service disconnected: " + name.flattenToString());
-			synchronized (mVpnServiceLock) {
+			synchronized(mVpnServiceLock) {
 				mVpnService = null;
 				if(mRouterLoop != null) {
 					mRouterLoop.terminate();
@@ -39,7 +42,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		@Override
 		public void onServiceConnected(ComponentName name, IBinder service) {
 			Log.d(TAG, "Service connected: " + name.flattenToString());
-			synchronized (mVpnServiceLock) {
+			synchronized(mVpnServiceLock) {
 				mVpnService = (OcpaVpnInterface) service.queryLocalInterface(OcpaVpnInterface.TAG);
 				if(mRouterLoop != null) {
 					mRouterLoop.terminate();
@@ -123,13 +126,48 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	private synchronized void updateCurrentConfiguration() {
-		if(mSavedNetworkConfig == null) {
+		if(mSavedNetworkConfig == null || mConfigInfos == null) {
 			return;
 		}
 		
+		List<Route4> routes4 = mRouterLoop.getRoutes4(mRouterLoop.getRouterCtx());
+		if(routes4 == null) {
+			Log.d(TAG, "IPv4 routes: none");
+		} else {
+			Log.d(TAG, "IPv4 routes: " + routes4.toString());
+		}
+		
+		VpnTunnel tun = null;
+		
 		for(VpnConfigInfo info : mConfigInfos) {
-			if(mSavedNetworkConfig.match(mSavedNetworkConfig)) {
+			if(mSavedNetworkConfig.match(info.networkConfig)) {
+				Log.d(TAG, "MATCHED==========");
+				Log.d(TAG, mSavedNetworkConfig.toString());
+				Log.d(TAG, info.networkConfig.toString());
+				Log.d(TAG, "=================");
+				//TODO: check routes
+				if(!mTuns.containsKey(info.configId)) {
+					tun = VpnTunnelFactory.getTunnel(getApplicationContext(), this, info);
+					if(tun != null) {
+						mTuns.put(info.configId, tun);
+						mRouterLoop.defaultRoute4(tun);
+						tun.establishConnection(info.params);
+						
+						Log.d(TAG, "IPv4 routes: " + routes4.toString());
+						
+						break;
+					}
+				}
+			} else {
+				Log.d(TAG, "UNMATCHED========");
+				Log.d(TAG, mSavedNetworkConfig.toString());
+				Log.d(TAG, info.networkConfig.toString());
+				Log.d(TAG, "=================");
 				
+				if(mTuns.containsKey(info.configId)) {
+					tun = mTuns.remove(info.configId);
+					tun.terminateConnection();
+				}
 			}
 		}
 	}
@@ -160,12 +198,12 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 
 	@Override
 	public void obtainOnDemandVpnsSuccess(ObtainOnDemandVpns task, List<VpnConfigInfo> result) {
-		// TODO Auto-generated method stub
 		mIsRequestActive = false;
 		if(mConfigInfos != null) {
 			mConfigInfos.clear();
 		}
 		mConfigInfos = result;
+		updateCurrentConfiguration();
 	}
 
 	@Override
@@ -176,7 +214,15 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	public static class VpnConfigInfo {
+		public static final String PARAMS_IPSEC = "IPSec";
+		public static final String PARAMS_PPP = "PPP";
+		public static final String PARAMS_CUSTOM = "Custom";
+		
+		public String configId;
+		public String vpnType;
 		public NetworkConfig networkConfig;
 		public Map<String, Object> params;
+		public Certificate[] certificates;
+		public PrivateKey privateKey;
 	}
 }
