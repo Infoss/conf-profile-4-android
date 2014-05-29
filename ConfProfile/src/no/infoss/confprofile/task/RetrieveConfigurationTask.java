@@ -92,7 +92,7 @@ public class RetrieveConfigurationTask extends AsyncTask<Plist, Void, Integer> {
 			Plist resp = null;
 			
 			try {
-				CertificateManager tmpMgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_TMP);
+				CertificateManager tmpMgr = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_TMP);
 				Certificate chain[] = tmpMgr.getCertificateChain(TmpCertificateManager.DEFAULT_KEY_ALIAS);
 				signCert = chain[0];
 				privKey = (PrivateKey) tmpMgr.getKey(TmpCertificateManager.DEFAULT_KEY_ALIAS);

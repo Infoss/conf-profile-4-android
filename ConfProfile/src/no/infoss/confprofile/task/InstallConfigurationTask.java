@@ -53,15 +53,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 		ConfigurationProfile profile = profiles[0];
 		
 		try {
-			CertificateManager mgr = CertificateManager.getManager(mCtx, CertificateManager.MANAGER_INTERNAL);
-			while(!mgr.isLoaded()) {
-				try{
-					Thread.sleep(1000);
-				} catch(InterruptedException e) {
-					//nothing to do here
-				}
-			}
-			Log.d(TAG, "Certificate manager successfully loaded");
+			CertificateManager mgr = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_INTERNAL);
 			
 			//RESUME Phase 3
 			List<ConfigurationProfile> confProfiles = new ArrayList<ConfigurationProfile>(2);
