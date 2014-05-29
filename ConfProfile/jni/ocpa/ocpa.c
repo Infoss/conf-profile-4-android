@@ -150,6 +150,11 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		} else if(res < 0) {
 			LOGD(LOG_TAG, "Polling tun fds finished with error %d %s", errno, strerror(errno));
 		}*/
+
+		if(ctx->terminate) {
+			LOGD(LOG_TAG, "Terminating router loop");
+			break;
+		}
 	}
 	//END LOOP
 
@@ -246,7 +251,7 @@ JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
 	pthread_rwlock_rdlock(router_ctx->rwlock4);
 	jobject list = (*env)->NewObject(env, array_list_class, array_list_init, router_ctx->ip4_routes_count + 1);
 	jobject item = (*env)->NewObject(env, route4_class, route4_init, (jlong) (intptr_t) router_ctx->ip4_default_tun_ctx, 0, 0);
-	if((*env)->CallBooleanMethod(env, list, item) != JNI_TRUE) {
+	if((*env)->CallBooleanMethod(env, list, array_list_add, item) != JNI_TRUE) {
 		LOGW(LOG_TAG, "Can't add object %p to list", item);
 	}
 
@@ -254,7 +259,7 @@ JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
 	while(link4 != NULL) {
 		//TODO: fix subnets
 		item = (*env)->NewObject(env, route4_class, route4_init, (jlong) (intptr_t) link4->tun_ctx, link4->ip4, 32);
-		if((*env)->CallBooleanMethod(env, list, item) != JNI_TRUE) {
+		if((*env)->CallBooleanMethod(env, list, array_list_add, item) != JNI_TRUE) {
 			LOGW(LOG_TAG, "Can't add object %p to list", item);
 		}
 		link4 = link4->next;
@@ -262,6 +267,16 @@ JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
 
 	pthread_rwlock_unlock(router_ctx->rwlock4);
 	return list;
+}
+
+JNI_METHOD(RouterLoop, terminateRouterLoop, void, jlong jrouterctx) {
+	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+		if(router_ctx == NULL) {
+			return;
+		}
+	pthread_rwlock_wrlock(router_ctx->rwlock4);
+	router_ctx->terminate = true;
+	pthread_rwlock_unlock(router_ctx->rwlock4);
 }
 
 JNI_METHOD(OpenVpnTunnel, initOpenVpnTun, jlong) {

@@ -43,6 +43,8 @@ router_ctx_t* router_init() {
         ctx->poll_fds_count = 0;
         ctx->poll_fds_nfds = 0;
         ctx->poll_ctxs = NULL;
+
+        ctx->terminate = false;
     }
 
     return ctx;
@@ -85,6 +87,7 @@ void router_deinit(router_ctx_t* ctx) {
         ctx->poll_fds = NULL;
         ctx->poll_fds_count = 0;
         ctx->poll_fds_nfds = 0;
+        ctx->terminate = false;
 
         if(ctx->poll_ctxs != NULL) {
         	free(ctx->poll_ctxs);

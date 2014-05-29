@@ -3,6 +3,7 @@
 
 #include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <pthread.h>
 #include <poll.h>
 
@@ -47,6 +48,7 @@ struct router_ctx_t {
     common_tun_ctx_t** poll_ctxs;
     int poll_fds_count;
     int poll_fds_nfds;
+    bool terminate;
 };
 
 router_ctx_t* router_init();
