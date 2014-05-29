@@ -52,7 +52,7 @@ public abstract class CertificateManager {
 		MANAGERS = new HashMap<String, CertificateManager>();
 	}
 	
-	public static final CertificateManager getManager(Context context, String managerName) {
+	protected static final CertificateManager getOrCreateManager(Context context, String managerName) {
 		CertificateManager result = null;
 		
 		synchronized(MANAGERS) {
@@ -79,9 +79,30 @@ public abstract class CertificateManager {
 				
 				if(result != null) {
 					MANAGERS.put(managerName, result);
-					result.load(null);
 				}
 			}
+		}
+		
+		return result;
+	}
+	
+	public static final CertificateManager getManagerSync(Context context, String managerName) {
+		CertificateManager result = getOrCreateManager(context, managerName);
+		if(result != null && !result.isLoaded()) {
+			try {
+				result.loadSync();
+			} catch (Exception e) {
+				Log.e(TAG, "Exception while loading certificate manager", e);
+			}
+		}
+		
+		return result;
+	}
+	
+	public static final CertificateManager getManager(Context context, String managerName) {
+		CertificateManager result = getOrCreateManager(context, managerName);
+		if(result != null && !result.isLoaded()) {
+			result.load(null);
 		}
 		
 		return result;
