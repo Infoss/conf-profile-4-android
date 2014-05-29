@@ -5,6 +5,7 @@ import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.StringWriter;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
@@ -18,12 +19,18 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Vector;
 
-import no.infoss.confprofile.util.CryptoUtils;
+import no.infoss.confprofile.BuildConfig;
+import no.infoss.confprofile.util.StringUtils;
+import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
+
+import org.bouncycastle.openssl.PEMWriter;
+
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
+import android.os.Build;
 import android.util.Log;
 
 public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
@@ -32,13 +39,13 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	public static final String VPN_TYPE = "net.openvpn.OpenVPN-Connect.vpnplugin";
 	
 	private Map<String, Object> mOptions;
+	private VpnManagerInterface mVpnMgr;
 	private boolean mIsTerminating;
 	private Thread mWorkerThread;
 	private OpenVpnWorker mWorker;
 	
 	
 	private LocalSocket mSocket;
-	private VpnManagerInterface mVpnMgr;
 	private LinkedList<FileDescriptor> mFDList=new LinkedList<FileDescriptor>();
     private LocalServerSocket mServerSocket;
 	private boolean mReleaseHold=true;
@@ -51,8 +58,8 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
     private pauseReason lastPauseReason = pauseReason.noNetwork;
 	
 	
-	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr) {
-		super(ctx);
+	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
+		super(ctx, cfg);
 		mVpnServiceCtx = vpnServiceCtx;
 		mVpnMgr = vpnMgr;
 		mIsTerminating = false;
@@ -72,13 +79,14 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		return VPN_TYPE;
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public void establishConnection(Map<String, Object> options) {
 		if(mIsTerminating) {
 			return;
 		}
 		
-		mOptions = options;
+		mOptions = (Map<String, Object>) options.get(VpnConfigInfo.PARAMS_CUSTOM);
 		mVpnTunnelCtx = initOpenVpnTun();
 		
 		startLoop();
@@ -93,13 +101,17 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
 	@Override
 	public void run() {
+		if(!writeMiniVPN(mCtx)) {
+			Log.e(TAG, "Error writing minivpn");
+		}
+		
 		byte [] buffer = new byte[2048];
 		//	mSocket.setSoTimeout(5); // Setting a timeout cannot be that bad
-
+		
 		String pendingInput="";
 		active.add(this);
 		
-		String confFileName = CryptoUtils.getRandomAlphanumericString(10).concat(".ovpn");
+		String confFileName = mCfg.configId.concat(".ovpn");
 		File cacheDir = mCtx.getCacheDir();
 		
 		String[] argv = new String[3];
@@ -111,8 +123,9 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
 		FileOutputStream fos = null;
 		try {
+			String buildConfig = buildConfig();
 			fos = new FileOutputStream(argv[2]);
-			fos.write(buildConfig().getBytes("UTF-8"));
+			fos.write(buildConfig.getBytes("UTF-8"));
 		} catch(Exception e) {
 			Log.e(TAG, "Error while saving config", e);
 		} finally {
@@ -131,14 +144,73 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			}
 		}
 		
-		mWorker = new OpenVpnWorker(this, argv, new HashMap<String, String>(), info.nativeLibraryDir);
+		// Could take a while to open connection
+        int tries=8;
+
+        String socketName = (mCtx.getCacheDir().getAbsolutePath() + "/" +  "mgmtsocket");
+        // The mServerSocketLocal is transferred to the LocalServerSocket, ignore warning
+
+        mServerSocketLocal = new LocalSocket();
+
+        while(tries > 0) {
+        	if(mIsTerminating) {
+        		break;
+        	}
+        	
+            try {
+                mServerSocketLocal.bind(new LocalSocketAddress(socketName,
+                        LocalSocketAddress.Namespace.FILESYSTEM));
+                Log.d(TAG, "unix socket bound at " + socketName);
+                break;
+            } catch (IOException e) {
+                // wait 300 ms before retrying
+            	Log.w(TAG, e);
+                try {
+                	Thread.sleep(300);
+                } catch (InterruptedException e1) {
+                }
+            }
+            tries--;
+        }
+        
+        try {
+            mServerSocket = new LocalServerSocket(mServerSocketLocal.getFileDescriptor());
+            Log.d(TAG, "Management interface opened");
+        } catch (IOException e) {
+        	Log.e(TAG, "Error opening management interface");
+            VpnStatus.logException(e);
+        }
+        
+        mWorker = new OpenVpnWorker(this, argv, new HashMap<String, String>(), info.nativeLibraryDir);
 		mWorkerThread = new Thread(mWorker, "OpenVPN worker");
 		mWorkerThread.start();
 		
+		/*
+		tries = 8;
+        while(tries > 0 && !mServerSocketLocal.isConnected()) {
+        	if(mIsTerminating) {
+        		break;
+        	}
+        	
+        	try {
+            	Thread.sleep(300);
+            } catch (InterruptedException e1) {
+            }
+        }
+
+        try {
+            mServerSocket = new LocalServerSocket(mServerSocketLocal.getFileDescriptor());
+            Log.d(TAG, "Management interface opened");
+        } catch (IOException e) {
+        	Log.e(TAG, "Error opening management interface");
+            VpnStatus.logException(e);
+        }
+        */
+        
 
 		try {
 			// Wait for a client to connect
-			mSocket= mServerSocket.accept();
+			mSocket = mServerSocket.accept();
 			InputStream instream = mSocket.getInputStream();
             // Close the management socket after client connected
 
@@ -178,42 +250,27 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	}
 
     public boolean openManagementInterface() {
-        // Could take a while to open connection
-        int tries=8;
-
-        String socketName = (mCtx.getCacheDir().getAbsolutePath() + "/" +  "mgmtsocket");
-        // The mServerSocketLocal is transferred to the LocalServerSocket, ignore warning
-
-        mServerSocketLocal = new LocalSocket();
-
+        int tries = 8;
         while(tries > 0 && !mServerSocketLocal.isConnected()) {
         	if(mIsTerminating) {
         		return false;
         	}
         	
-            try {
-                mServerSocketLocal.bind(new LocalSocketAddress(socketName,
-                        LocalSocketAddress.Namespace.FILESYSTEM));
-            } catch (IOException e) {
-                // wait 300 ms before retrying
-                try { Thread.sleep(300);
-                } catch (InterruptedException e1) {
-                }
-
+        	try {
+            	Thread.sleep(300);
+            } catch (InterruptedException e1) {
             }
-            tries--;
         }
 
         try {
-
             mServerSocket = new LocalServerSocket(mServerSocketLocal.getFileDescriptor());
             return true;
         } catch (IOException e) {
             VpnStatus.logException(e);
         }
+        
+        Log.e(TAG, "Error opening management interface");
         return false;
-
-
     }
 
 	public void managmentCommand(String cmd) {
@@ -722,6 +779,23 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	
 	private String buildConfig() {
 		StringBuilder builder = new StringBuilder();
+		builder.append("management ");
+		builder.append(mCtx.getCacheDir().getAbsolutePath() + "/" +  "mgmtsocket unix");
+		builder.append("\n");
+		
+		builder.append("management-client\n");
+		builder.append("management-query-passwords\n");
+		builder.append("management-hold\n");
+		
+		builder.append("management-hold\n");
+		//builder.append(String.format("setenv IV_GUI_VER %s \n", openVpnEscape(getVersionEnvString(context))));
+
+		builder.append("machine-readable-output\n");
+		
+		if(BuildConfig.DEBUG) {
+			builder.append("verb 4\n");
+		}
+		
 		for(Entry<String, Object> entry : mOptions.entrySet()) {
 			String key = entry.getKey();
 			if("ca".equals(key) || 
@@ -729,7 +803,8 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 				builder.append("<");
 				builder.append(key);
 				builder.append(">\n");
-				builder.append(entry.getValue());
+				String value = (String) entry.getValue();
+				builder.append(StringUtils.join(value.split("\\\\n"), "\n", true));
 				builder.append("\n</");
 				builder.append(key);
 				builder.append(">");
@@ -744,7 +819,79 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			builder.append("\n");
 		}
 		
+		StringWriter strWriter = new StringWriter();
+		PEMWriter pemWriter = new PEMWriter(strWriter);
+		try {
+			pemWriter.writeObject(mCfg.certificates[0]);
+			pemWriter.flush();
+			builder.append("<cert>\n");
+			builder.append(strWriter.toString());
+			builder.append("</cert>\n");
+			pemWriter.close();
+			
+			strWriter = new StringWriter();
+			pemWriter = new PEMWriter(strWriter);
+			pemWriter.writeObject(mCfg.privateKey);
+			pemWriter.flush();
+			builder.append("<key>\n");
+			builder.append(strWriter.toString());
+			builder.append("</key>\n");
+			pemWriter.close();
+		} catch (IOException e) {
+			Log.e(TAG, "Can't write pem", e);
+		}
+		
+		
+		
 		return builder.toString();
+	}
+	
+	static private boolean writeMiniVPN(Context context) {
+		File mvpnout = new File(context.getCacheDir(), OpenVpnWorker.MINIVPN);
+		if (mvpnout.exists() && mvpnout.canExecute())
+			return true;
+
+		IOException e2 = null;
+
+		try {
+			InputStream mvpn;
+			
+			try {
+				mvpn = context.getAssets().open("minivpn." + Build.CPU_ABI);
+			}
+			catch (IOException errabi) {
+				VpnStatus.logInfo("Failed getting assets for archicture " + Build.CPU_ABI);
+				e2=errabi;
+				mvpn = context.getAssets().open("minivpn." + Build.CPU_ABI2);
+				
+			}
+
+
+			FileOutputStream fout = new FileOutputStream(mvpnout);
+
+			byte buf[]= new byte[4096];
+
+			int lenread = mvpn.read(buf);
+			while(lenread> 0) {
+				fout.write(buf, 0, lenread);
+				lenread = mvpn.read(buf);
+			}
+			fout.close();
+
+			if(!mvpnout.setExecutable(true)) {
+				VpnStatus.logError("Failed to set minivpn executable");
+				return false;
+			}
+				
+			
+			return true;
+		} catch (IOException e) {
+			if(e2!=null)
+				VpnStatus.logException(e2);
+			VpnStatus.logException(e);
+
+			return false;
+		}
 	}
 	
 	public static String openVpnEscape(String unescaped) {
@@ -771,8 +918,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		}
 
 		public static void logError(String format) {
-			// TODO Auto-generated method stub
-			
+			Log.e(TAG, format);
 		}
 
 		public static void updateStateString(String string, String string2,
@@ -782,20 +928,17 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		}
 
 		public static void logInfo(String string, String hostName, int port) {
-			// TODO Auto-generated method stub
-			
+			Log.i(TAG, String.format("%s %s:%d", string, hostName, port));
 		}
 
 		public static void logMessageOpenVPN(
 				no.infoss.confprofile.vpn.OpenVpnTunnel.VpnStatus.LogLevel level,
 				int ovpnlevel, String msg) {
-			// TODO Auto-generated method stub
-			
+			Log.d(TAG, String.format("[level=%d] %s", ovpnlevel, msg));
 		}
 
 		public static void updateStateString(String currentstate, String string) {
-			// TODO Auto-generated method stub
-			
+			Log.d(TAG, "updateState from " + currentstate + " to " + string);
 		}
 
 		public static void updateByteCount(long in, long out) {
@@ -809,28 +952,23 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		}
 
 		public static void logException(String string, Exception exp) {
-			// TODO Auto-generated method stub
-			
+			Log.e(TAG, string, exp);
 		}
 
 		public static void logWarning(String string) {
-			// TODO Auto-generated method stub
-			
+			Log.w(TAG, string);
 		}
 
 		public static void logException(IOException e) {
-			// TODO Auto-generated method stub
-			
+			Log.e(TAG, "", e);
 		}
 
 		public static void logException(String string, IOException e) {
-			// TODO Auto-generated method stub
-			
+			Log.e(TAG, string, e);
 		}
 
 		public static void logInfo(String string) {
-			// TODO Auto-generated method stub
-			
+			Log.i(TAG, string);
 		}
 		
 	}
