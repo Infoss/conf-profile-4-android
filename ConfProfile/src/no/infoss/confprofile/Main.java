@@ -23,6 +23,7 @@ import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
+import no.infoss.confprofile.task.BackupTask;
 import no.infoss.confprofile.vpn.OcpaVpnService;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
@@ -32,6 +33,9 @@ import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
@@ -61,7 +65,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 		setContentView(R.layout.main);
 		
 		mProfileInfoList = new LazyCursorList<ProfileInfo>(ProfilesCursorLoader.PROFILE_CURSOR_MAPPER);
-		mDbHelper = new DbOpenHelper(this);
+		mDbHelper = DbOpenHelper.getInstance(this);
 		
 		ListAdapter profileAdapter = new ObjectAdapter<ProfileInfo>(
 				getLayoutInflater(), 
@@ -94,6 +98,35 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 		super.onResume();
 		
 		getLoaderManager().restartLoader(0, null, this);
+	}
+	
+	@Override
+	public boolean onCreateOptionsMenu(Menu menu) {
+		if(BuildConfig.DEBUG) {
+			MenuInflater inflater = getMenuInflater();
+			inflater.inflate(R.menu.main, menu);
+			return true;
+		}
+		
+		return super.onCreateOptionsMenu(menu);
+	}
+	
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+	    if(BuildConfig.DEBUG) {
+		    switch (item.getItemId()) {
+		        case R.id.menu_item_backup_all:
+		            backupData();
+		            return true;
+		        case R.id.menu_item_restore_all:
+		            restoreData();
+		            return true;
+		        default:
+		            return super.onOptionsItemSelected(item);
+		    }
+	    }
+	    
+	    return super.onOptionsItemSelected(item);
 	}
 
 	@Override
@@ -150,6 +183,14 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 			Log.e(TAG, "VPN service isn't supported by system", e);
 			onActivityResult(REQUEST_CODE_PREPARE, RESULT_VPN_UNSUPPORTED, null);
 		}
+	}
+	
+	private void backupData() {
+		new BackupTask(this).execute();
+	}
+	
+	private void restoreData() {
+		
 	}
 	
 	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {
