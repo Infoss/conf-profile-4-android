@@ -82,7 +82,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	public void onAttach(Activity activity) {
 		super.onAttach(activity);
 		if(mDbHelper == null) {
-			mDbHelper = new DbOpenHelper(activity);
+			mDbHelper = DbOpenHelper.getInstance(activity);
 		}
 	}
 

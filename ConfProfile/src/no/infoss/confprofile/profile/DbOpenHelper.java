@@ -1,5 +1,6 @@
 package no.infoss.confprofile.profile;
 
+import no.infoss.confprofile.BuildConfig;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
@@ -31,8 +32,10 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 				"DELETE FROM linked_objects WHERE profile_id = old.id; " + 
 				"DELETE FROM payloads WHERE profile_id = old.id;" + 
 			"END;";
+	
+	private static DbOpenHelper INSTANCE = null;
  
-	public DbOpenHelper(Context context) {
+	private DbOpenHelper(Context context) {
 		super(context.getApplicationContext(), TARGET_DB_NAME, null, DB_VERSION);
 	}
  
@@ -65,7 +68,17 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 	
 	@Override
 	public void onOpen(SQLiteDatabase db) {
-		/*
+		if(BuildConfig.DEBUG) {
+			traceTables(db);
+		}
+	}
+ 
+	@Override
+	public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
+ 
+	}
+	
+	public static final void traceTables(SQLiteDatabase db) {
 		Cursor tables = db.rawQuery("SELECT * FROM sqlite_master WHERE type='table'", null);
 		while(tables.moveToNext()) {
 			Log.d(TAG, "===");
@@ -102,12 +115,14 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 				Log.d(TAG, tables.getColumnName(i) + ": " + data);
 			}
 		}
-		*/
 	}
- 
-	@Override
-	public void onUpgrade(SQLiteDatabase db, int oldVersion, int newVersion) {
- 
+	
+	public static synchronized DbOpenHelper getInstance(Context ctx) {
+		if(INSTANCE == null) {
+			INSTANCE = new DbOpenHelper(ctx);
+		}
+		
+		return INSTANCE;
 	}
 
 }
