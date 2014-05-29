@@ -16,7 +16,7 @@ import android.util.Log;
 
 public class OpenVpnWorker implements Runnable {
 	public static final String TAG = OpenVpnWorker.class.getSimpleName();
-	public static final String MINIVPN = "miniopenvpn";
+	public static final String MINIVPN = "minivpn"; //was: miniopenvpn
 	
     public static final int M_FATAL = (1 << 4);
     public static final int M_NONFATAL = (1 << 5);
@@ -49,7 +49,7 @@ public class OpenVpnWorker implements Runnable {
 			Log.i(TAG, "Giving up");
 		} catch (Exception e) {
             VpnStatus.logException("Starting OpenVPN Thread" ,e);
-			Log.e(TAG, "OpenVPNThread Got " + e.toString());
+			Log.e(TAG, "OpenVPNThread Got " + e.toString(), e);
 		} finally {
 			int exitvalue = 0;
 			try {
