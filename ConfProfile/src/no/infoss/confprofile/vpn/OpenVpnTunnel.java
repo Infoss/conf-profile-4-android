@@ -217,6 +217,8 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
             mServerSocket.close();
             // Closing one of the two sockets also closes the other
             //mServerSocketLocal.close();
+            
+            resume();
 
 			while(true) {
 				int numbytesread = instream.read(buffer);
@@ -793,7 +795,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		builder.append("machine-readable-output\n");
 		
 		if(BuildConfig.DEBUG) {
-			builder.append("verb 4\n");
+			builder.append("verb 6\n");
 		}
 		
 		for(Entry<String, Object> entry : mOptions.entrySet()) {
