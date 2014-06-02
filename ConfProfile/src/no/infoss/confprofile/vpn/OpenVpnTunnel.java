@@ -20,6 +20,7 @@ import java.util.Map.Entry;
 import java.util.Vector;
 
 import no.infoss.confprofile.BuildConfig;
+import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.StringUtils;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 
@@ -773,6 +774,8 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	
 	private void setLocalIp4(String ip, String mask, int mtu, String mode) {
 		Log.d(TAG, "setLocalIp4 ip=" + ip + " mask=" + mask + " mtu=" + mtu + " mode=" + mode);
+		setMasqueradeIp4(NetUtils.ip4StrToInt(ip));
+		setMasqueradeIp4Mode(true);
 	}
 	
 	private void setLocalIp6(String ip) {
