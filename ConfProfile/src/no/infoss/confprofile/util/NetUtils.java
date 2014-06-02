@@ -32,4 +32,34 @@ public class NetUtils {
 		int b3 = ip4 & 0x000000ff;
 		return String.format("%d\\.%d\\.%d\\.%d", b0, b1, b2, b3);
 	}
+	
+	public static int mask4StrToInt(String mask4) {
+		int maskIp = ip4StrToInt(mask4);
+		int maskNum = 0;
+		for(int i = 0; i < 32; i++) {
+			if(((maskIp >>> (31 - i)) & 0x01) == 1) {
+				maskNum++;
+			} else {
+				break;
+			}
+		}
+		
+		return maskNum;
+	}
+	
+	public static String mask4IntToStr(int mask4) {
+		if(mask4 < 0 || mask4 > 32) {
+			throw new IllegalArgumentException("Invalid IPv4 subnet /".concat(String.valueOf(mask4)));
+		}
+		int maskIp = 0;
+		for(int i = 0; i < mask4; i++) {
+			maskIp |= 0x01;
+			maskIp <<= 1;
+		}
+		for(int i = mask4; i < 32; i++) {
+			maskIp <<= 1;
+		}
+		
+		return ip4IntToStr(maskIp);
+	}
 }
