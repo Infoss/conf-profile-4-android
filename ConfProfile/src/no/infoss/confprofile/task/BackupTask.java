@@ -10,9 +10,12 @@ import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.os.AsyncTask;
 import android.os.Environment;
 import android.util.Log;
+
+import com.google.gson.Gson;
 
 public class BackupTask extends AsyncTask<Void, Void, Void> {
 	public static final String TAG = BackupTask.class.getSimpleName();
@@ -90,21 +93,13 @@ public class BackupTask extends AsyncTask<Void, Void, Void> {
 	        zos.closeEntry();
 	        
 			//saving preferences
+	        SharedPreferences pref = mCtx.getSharedPreferences("confprofile.pref", Context.MODE_PRIVATE);
 	        entry = new ZipEntry("confprofile.pref");
 	        zos.putNextEntry(entry);
 	        
-	        is = mCtx.openFileInput("confprofile.pref");
-	        while((readbytes = is.read(buff)) != -1) {
-	        	zos.write(buff, 0, readbytes);
-	        }
-	        
-	        try {
-	        	is.close();
-	        } catch(Exception e) {
-	        	Log.w(TAG, "Backup error while closing", e);
-	        }
-	        is = null;
-	        
+	        Gson gson = new Gson();
+	        String prefStrJson = gson.toJson(pref.getAll());
+	        zos.write(prefStrJson.getBytes("UTF-8"));
 	        zos.closeEntry();
 		} catch (Exception e) {
 			Log.e(TAG, "Backup error", e);
