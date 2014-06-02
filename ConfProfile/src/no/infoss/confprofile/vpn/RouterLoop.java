@@ -2,6 +2,7 @@ package no.infoss.confprofile.vpn;
 
 import java.util.List;
 
+import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.vpn.OcpaVpnService.BuilderAdapter;
 import android.util.Log;
 
@@ -49,6 +50,9 @@ import android.util.Log;
 			if(!mBuilder.addRoute("0.0.0.0", 0)) {
 				Log.d(TAG, "Can't add route=".concat("0.0.0.0/0"));
 			}
+			
+			setMasqueradeIp4(mRouterCtx, NetUtils.ip4StrToInt("172.31.255.254"));
+			setMasqueradeIp4Mode(mRouterCtx, true);
 			
 			int result = routerLoop(mRouterCtx, mBuilder);
 			Log.d(TAG, String.format("Router loop returned %d as exit code", result));
@@ -101,6 +105,9 @@ import android.util.Log;
 	/*package*/ native void removeRoute4(long routerCtx, int ip4);
 	/*package*/ native List<Route4> getRoutes4(long routerCtx);
 	/*package*/ native void terminateRouterLoop(long routerCtx);
+	
+	private native void setMasqueradeIp4Mode(long routerCtx, boolean isOn);
+	private native void setMasqueradeIp4(long routerCtx, int ip4);
 	
 	public static abstract class Route {
 		protected long mVpnTunnelCtx;

@@ -129,9 +129,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 					tun_recv_func_ptr recv_func = poll_struct->poll_ctxs[i]->recv_func;
 					if(recv_func != NULL) {
 						res = recv_func((intptr_t) poll_struct->poll_ctxs[i], ip_pkt_buff, ip_pkt_buff_size);
-						if(res > 0) {
-							log_dump_packet(LOG_TAG, ip_pkt_buff, res);
-						} else if(res == 0) {
+						if(res == 0) {
 							LOGD(LOG_TAG, "Read from fd=%d returned 0", poll_struct->poll_fds[i].fd);
 						}
 					} else {
@@ -315,6 +313,26 @@ JNI_METHOD(RouterLoop, terminateRouterLoop, void, jlong jrouterctx) {
 	pthread_rwlock_wrlock(router_ctx->rwlock4);
 	router_ctx->terminate = true;
 	pthread_rwlock_unlock(router_ctx->rwlock4);
+}
+
+JNI_METHOD(RouterLoop, setMasqueradeIp4Mode, void, jlong jrouterctx, jboolean jison) {
+	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+			return;
+		}
+
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+
+	ctx->dev_tun_ctx.use_masquerade4 = jison;
+}
+
+JNI_METHOD(RouterLoop, setMasqueradeIp4, void, jlong jrouterctx, jint jip) {
+	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+		return;
+	}
+
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+
+	ctx->dev_tun_ctx.masquerade4 = jip;
 }
 
 JNI_METHOD(OpenVpnTunnel, initOpenVpnTun, jlong) {

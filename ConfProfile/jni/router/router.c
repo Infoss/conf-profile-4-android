@@ -37,6 +37,10 @@ router_ctx_t* router_init() {
 
     	ctx->dev_tun_ctx.local_fd = -1;
     	ctx->dev_tun_ctx.remote_fd = -1;
+    	ctx->dev_tun_ctx.masquerade4 = 0;
+    	memset(ctx->dev_tun_ctx.masquerade6, 0, sizeof(ctx->dev_tun_ctx.masquerade6));
+    	ctx->dev_tun_ctx.use_masquerade4 = false;
+    	ctx->dev_tun_ctx.use_masquerade6 = false;
     	ctx->dev_tun_ctx.send_func = dev_tun_send;
     	ctx->dev_tun_ctx.recv_func = dev_tun_recv;
     	ctx->dev_tun_ctx.router_ctx = ctx;
@@ -486,7 +490,32 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 		return res;
 	}
 
+	pthread_rwlock_rdlock(ctx->router_ctx->rwlock4);
+	if((buff[0] & 0xf0) == 0x40 && ctx->router_ctx->dev_tun_ctx.use_masquerade4) {
+		LOGE(LOG_TAG, "Before masquerading back:");
+		log_dump_packet(LOG_TAG, buff, res);
+
+		ip4_header* hdr = (ip4_header*) buff;
+		hdr->daddr = htonl(ctx->router_ctx->dev_tun_ctx.masquerade4);
+		ip4_calc_ip_checksum(buff, res);
+
+		switch(hdr->protocol) {
+		case IPPROTO_TCP: {
+			ip4_calc_tcp_checksum(buff, res);
+			break;
+		}
+		default: {
+			LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", hdr->protocol);
+			break;
+		}
+		}
+		LOGE(LOG_TAG, "Masquerading back:");
+		log_dump_packet(LOG_TAG, buff, res);
+	} else if((buff[0] & 0xf0) == 0x60 && ctx->router_ctx->dev_tun_ctx.use_masquerade6) {
+
+	}
 	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
+	pthread_rwlock_unlock(ctx->router_ctx->rwlock4);
 	return res;
 }
 
@@ -553,6 +582,7 @@ uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len) {
 
 	int seq_num = -1;
 	uint16_t* ptr = (uint16_t*) (buff + hdr->ihl * 4);
+	LOGD(LOG_TAG, "TCP frame size is %d, packet address is %p, tcp data starts from %p", tcp_len, buff, ptr);
 	tcp_header* tcp_hdr = (tcp_header*) ptr;
 	ptr--; //this is safe due to a following ptr++
 	while(cycles > 0) {
@@ -569,8 +599,10 @@ uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len) {
 
 	if((tcp_len & 1) == 1) {
 		//adding odd byte
-		uint16_t odd_byte = ((uint16_t)((uint8_t*) ptr)[0]) << 8;
-		sum = ip4_update_sum(sum, odd_byte);
+		ptr++;
+		uint8_t odd_byte = ((uint8_t*) ptr)[0];
+		sum = ip4_update_sum(sum, htons((uint16_t) odd_byte));
+		LOGD(LOG_TAG, "TCP frame size is odd, adding %02x %p to checksum", htons((uint16_t) odd_byte), ptr);
 	}
 	uint16_t checksum = ~sum;
 	tcp_hdr->check = htons(checksum);
