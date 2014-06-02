@@ -41,12 +41,15 @@ import android.util.Log;
 			if(!mBuilder.setMtu(1500)) {
 				Log.d(TAG, "Can't set MTU=".concat(String.valueOf(1500)));
 			}
+			
 			if(!mBuilder.addAddress("172.31.255.254", 32)) {
 				Log.d(TAG, "Can't add address=".concat("172.31.255.254/32"));
 			}
+			
 			if(!mBuilder.addRoute("0.0.0.0", 0)) {
 				Log.d(TAG, "Can't add route=".concat("0.0.0.0/0"));
 			}
+			
 			int result = routerLoop(mRouterCtx, mBuilder);
 			Log.d(TAG, String.format("Router loop returned %d as exit code", result));
 		}
@@ -59,7 +62,15 @@ import android.util.Log;
 	}
 	
 	public void defaultRoute4(VpnTunnel tunnel) {
+		if(tunnel.mVpnTunnelCtx == 0) {
+			Log.w(TAG, "Tunnel " + tunnel.getTunnelId() + " is unitialized and can't be used as default route");
+			return;
+		}
 		defaultRoute4(mRouterCtx, tunnel.mVpnTunnelCtx);
+	}
+	
+	public List<Route4> getRoutes4() {
+		return getRoutes4(mRouterCtx);
 	}
 
 	/*package*/ long getRouterCtx() {
