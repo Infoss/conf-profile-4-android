@@ -21,8 +21,13 @@ openvpn_tun_ctx_t* openvpn_tun_init() {
 
 	ctx->common.local_fd = fds[0];
 	ctx->common.remote_fd = fds[1];
+	ctx->common.masquerade4 = 0;
+	ctx->common.use_masquerade4 = false;
+	memset(ctx->common.masquerade6, 0, sizeof(ctx->common.masquerade6));
+	ctx->common.use_masquerade6 = false;
 	ctx->common.send_func = common_tun_send;
 	ctx->common.recv_func = common_tun_recv;
+	ctx->common.router_ctx = NULL;
 
 	return ctx;
 }
@@ -40,8 +45,13 @@ void openvpn_tun_deinit(openvpn_tun_ctx_t* ctx) {
 		shutdown(ctx->common.remote_fd, SHUT_RDWR);
 	}
 
+	ctx->common.masquerade4 = 0;
+	ctx->common.use_masquerade4 = false;
+	memset(ctx->common.masquerade6, 0, sizeof(ctx->common.masquerade6));
+	ctx->common.use_masquerade6 = false;
 	ctx->common.send_func = NULL;
 	ctx->common.recv_func = NULL;
+	ctx->common.router_ctx = NULL;
 
 	free(ctx);
 }
