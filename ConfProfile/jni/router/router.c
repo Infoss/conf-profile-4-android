@@ -1,5 +1,6 @@
 
 #include <errno.h>
+#include <linux/tcp.h>
 #include <netinet/ip.h>
 #include <netinet/ip6.h>
 #include <stdbool.h>
@@ -10,6 +11,13 @@
 
 typedef struct iphdr ip4_header;
 typedef struct ip6_hdr ip6_header;
+typedef struct tcphdr tcp_header;
+
+uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len);
+uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len);
+uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len);
+inline uint32_t ip4_update_sum(uint32_t previous, uint16_t data);
+
 
 router_ctx_t* router_init() {
     router_ctx_t* ctx = (router_ctx_t*) malloc(sizeof(router_ctx_t));
@@ -288,6 +296,24 @@ ssize_t send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 
 	ssize_t result = 0;
 	if(tun_ctx != NULL && tun_ctx->send_func != NULL) {
+		if(tun_ctx->use_masquerade4) {
+			ip4_header* hdr = (ip4_header*) buff;
+			hdr->saddr = htonl(tun_ctx->masquerade4);
+			ip4_calc_ip_checksum(buff, len);
+
+			switch(hdr->protocol) {
+			case IPPROTO_TCP: {
+				ip4_calc_tcp_checksum(buff, len);
+				break;
+			}
+			default: {
+				LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", hdr->protocol);
+				break;
+			}
+			}
+			LOGE(LOG_TAG, "Masquerading:");
+			log_dump_packet(LOG_TAG, buff, len);
+		}
 		result = tun_ctx->send_func((intptr_t) tun_ctx, buff, len);
 	} else {
 		LOGE(LOG_TAG, "Destination tunnel is not ready, dropping a packet");
@@ -479,4 +505,103 @@ ssize_t common_tun_pipe(intptr_t tun_ctx, uint8_t* buff, int len) {
 
 	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
 	return res;
+}
+
+uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len) {
+	if(buff == NULL || len < 20) {
+		return 0;
+	}
+
+	ip4_header* hdr = (ip4_header*) buff;
+	int cycles = hdr->ihl * 2;
+
+	if(len < cycles * sizeof(uint16_t)) {
+		return 0;
+	}
+
+	int seq_num = -1;
+	uint32_t sum = 0;
+	uint16_t* ptr = (uint16_t*) buff;
+	ptr--; //this is safe due to a following ptr++
+	while(cycles > 0) {
+		cycles--;
+		ptr++;
+		seq_num++;
+		if(seq_num == 5) {
+			//skipping checksum field
+			continue;
+		}
+
+		sum = ip4_update_sum(sum, ntohs(ptr[0]));
+	}
+
+	uint16_t checksum = ~sum;
+	hdr->check = htons(checksum);
+
+	return checksum;
+}
+
+uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len) {
+	if(buff == NULL || len < 40) {
+		return 0;
+	}
+	ip4_header* hdr = (ip4_header*) buff;
+	uint16_t tcp_len = ntohs(hdr->tot_len) - (hdr->ihl * 4);
+	uint32_t sum = ip4_calc_pseudoheader_checksum(buff, len);
+
+	int cycles = tcp_len >> 1; //integer division
+
+	int seq_num = -1;
+	uint16_t* ptr = (uint16_t*) (buff + hdr->ihl * 4);
+	tcp_header* tcp_hdr = (tcp_header*) ptr;
+	ptr--; //this is safe due to a following ptr++
+	while(cycles > 0) {
+		cycles--;
+		ptr++;
+		seq_num++;
+		if(seq_num == 8) {
+			//skipping checksum field
+			continue;
+		}
+
+		sum = ip4_update_sum(sum, ntohs(ptr[0]));
+	}
+
+	if((tcp_len & 1) == 1) {
+		//adding odd byte
+		uint16_t odd_byte = ((uint16_t)((uint8_t*) ptr)[0]) << 8;
+		sum = ip4_update_sum(sum, odd_byte);
+	}
+	uint16_t checksum = ~sum;
+	tcp_hdr->check = htons(checksum);
+
+	return checksum;
+}
+
+uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len) {
+	//packet should be validated before this method call
+	uint32_t sum = 0;
+	ip4_header* hdr = (ip4_header*) buff;
+	uint16_t* ptr = (uint16_t*) buff;
+
+	//src addr
+	sum = ip4_update_sum(sum, ntohs(ptr[6]));
+	sum = ip4_update_sum(sum, ntohs(ptr[7]));
+
+	//dst addr
+	sum = ip4_update_sum(sum, ntohs(ptr[8]));
+	sum = ip4_update_sum(sum, ntohs(ptr[9]));
+
+	sum = ip4_update_sum(sum, (uint16_t) hdr->protocol);
+	sum = ip4_update_sum(sum, ntohs(hdr->tot_len) - (hdr->ihl * 4));
+
+	return sum;
+}
+
+inline uint32_t ip4_update_sum(uint32_t previous, uint16_t data) {
+	uint32_t sum = previous;
+	sum += data;
+	sum += sum >> 16;
+	sum &= 0x0000ffff;
+	return sum;
 }
