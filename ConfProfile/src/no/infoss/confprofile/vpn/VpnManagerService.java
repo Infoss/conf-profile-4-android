@@ -130,7 +130,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			return;
 		}
 		
-		List<Route4> routes4 = mRouterLoop.getRoutes4(mRouterLoop.getRouterCtx());
+		List<Route4> routes4 = mRouterLoop.getRoutes4();
 		if(routes4 == null) {
 			Log.d(TAG, "IPv4 routes: none");
 		} else {
@@ -150,9 +150,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 					tun = VpnTunnelFactory.getTunnel(getApplicationContext(), this, info);
 					if(tun != null) {
 						mTuns.put(info.configId, tun);
-						mRouterLoop.defaultRoute4(tun);
 						tun.establishConnection(info.params);
+						mRouterLoop.defaultRoute4(tun);
 						
+						routes4 = mRouterLoop.getRoutes4();
 						Log.d(TAG, "IPv4 routes: " + routes4.toString());
 						
 						break;
