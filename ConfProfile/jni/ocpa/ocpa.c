@@ -70,6 +70,7 @@ JNI_METHOD(RouterLoop, freeVpnServiceContext, void, jlong jvpnservicectx) {
 }
 
 JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
+	jint ret_val = 0;
 	jmethodID method_id;
 	int fd;
 
@@ -93,63 +94,69 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		goto failed;
 	}
 
-	ctx->dev_fd = fd;
-	rebuild_poll_struct(ctx);
+	ctx->dev_tun_ctx.local_fd = fd;
+	ctx->dev_tun_ctx.remote_fd = fd;
 
 	int timeout_msecs = 500;
 	int ip_pkt_buff_size = 1500;
 	uint8_t* ip_pkt_buff = malloc(sizeof(uint8_t) * ip_pkt_buff_size);
 
-	struct pollfd poll_dev_fd;
-	poll_dev_fd.fd = ctx->dev_fd;
-	poll_dev_fd.events = POLLIN | POLLHUP;
-	poll_dev_fd.revents = 0;
+	poll_helper_struct_t* poll_struct = malloc(sizeof(poll_helper_struct_t));
+	if(poll_struct == NULL) {
+		LOGE(LOG_TAG, "Can't allocate poll helper struct");
+		goto failed;
+	}
+	poll_struct->poll_ctxs = NULL;
+	poll_struct->poll_fds = NULL;
+	poll_struct->poll_fds_count = 0;
+	rebuild_poll_struct(ctx, poll_struct);
 
+	LOGD(LOG_TAG, "Starting router loop");
 	int i;
 	int res = 0;
 	while(true) {
-		res = poll(&poll_dev_fd, 1, timeout_msecs);
-
-		if(res > 0 && (poll_dev_fd.revents & POLLIN) != 0) {
-			LOGD(LOG_TAG, "Reading a packet from /dev/tun fd (poll res = %d, poll_dev_fd.revents = %d)", res, poll_dev_fd.revents);
-			res = read_ip_packet(ctx->dev_fd, ip_pkt_buff, ip_pkt_buff_size);
-			if(res < 0) {
-				//TODO: error handling
-				LOGE(LOG_TAG, "Can't read IP packet from /dev/tun (%d - %s)", res, strerror(res));
-				log_dump_packet(LOG_TAG, ip_pkt_buff, ip_pkt_buff_size);
-				goto failed;
-			}
-
-			log_dump_packet(LOG_TAG, ip_pkt_buff, res);
-
-			LOGD(LOG_TAG, "Sending received packet");
-			ipsend(ctx, ip_pkt_buff, res);
+		if(ctx->routes_updated) {
+			rebuild_poll_struct(ctx, poll_struct);
 		}
 
-		poll_dev_fd.revents = 0;
-		/*
-		res = poll(ctx->poll_fds, ctx->poll_fds_count, timeout_msecs);
+		res = poll(poll_struct->poll_fds, poll_struct->poll_fds_count, timeout_msecs);
+
 		if(res > 0) {
-			for(i = 0; i < ctx->poll_fds_count; i++) {
-				if((ctx->poll_fds[i].revents && POLLIN) != 0) {
-					res = read_ip_packet(ctx->poll_ctxs[i]->local_fd, ip_pkt_buff, ip_pkt_buff_size);
+			for(i = 0; i < poll_struct->poll_fds_count; i++) {
+				if((poll_struct->poll_fds[i].revents && POLLIN) != 0) {
+					LOGD(LOG_TAG, "Read from fd=%d", poll_struct->poll_fds[i].fd);
+					res = 0;
+					tun_recv_func_ptr recv_func = poll_struct->poll_ctxs[i]->recv_func;
+					if(recv_func != NULL) {
+						res = recv_func((intptr_t) poll_struct->poll_ctxs[i], ip_pkt_buff, ip_pkt_buff_size);
+						if(res > 0) {
+							log_dump_packet(LOG_TAG, ip_pkt_buff, res);
+						} else if(res == 0) {
+							LOGD(LOG_TAG, "Read from fd=%d returned 0", poll_struct->poll_fds[i].fd);
+						}
+					} else {
+						LOGE(LOG_TAG, "Tunnel not ready, dropping a packet");
+						log_dump_packet(LOG_TAG, ip_pkt_buff, ip_pkt_buff_size);
+					}
+
 					if(res < 0) {
 						//TODO: error handling
-						LOGE(LOG_TAG, "Can't read IP packet from tun sockets");
+						LOGE(LOG_TAG, "Can't read IP packet from tun socket (tun_ctx=%p)", poll_struct->poll_ctxs[i]);
+						LOGE(LOG_TAG, "R/W on tun fds finished with error %d (returned %d) %s", errno, res, strerror(errno));
+						log_dump_packet(LOG_TAG, ip_pkt_buff, ip_pkt_buff_size);
 						goto failed;
 					}
 
-					tun_recv_func_ptr recv_func = ctx->poll_ctxs[i]->recv_func;
-					if(recv_func != NULL) {
-						recv_func((intptr_t) ctx->poll_ctxs[i], ip_pkt_buff, res);
-					}
+
+				} else if((poll_struct->poll_fds[i].revents && POLLHUP) != 0) {
+					LOGE(LOG_TAG, "HUP for fd %d", poll_struct->poll_fds[i].fd);
 				}
 
-				ctx->poll_fds[i].revents = 0;
+				poll_struct->poll_fds[i].revents = 0;
 			}
 		} else if(res < 0) {
 			LOGD(LOG_TAG, "Polling tun fds finished with error %d %s", errno, strerror(errno));
-		}*/
+		}
 
 		if(ctx->terminate) {
 			LOGD(LOG_TAG, "Terminating router loop");
@@ -157,12 +164,41 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		}
 	}
 	//END LOOP
-
-	return 0;
+	if(poll_struct != NULL) {
+		if(poll_struct->poll_ctxs != NULL) {
+			free(poll_struct->poll_ctxs);
+			poll_struct->poll_ctxs = NULL;
+		}
+		if(poll_struct->poll_fds != NULL) {
+			free(poll_struct->poll_fds);
+			poll_struct->poll_fds = NULL;
+		}
+		poll_struct->poll_fds_count = 0;
+		free(poll_struct);
+	}
+	LOGD(LOG_TAG, "Router loop was gracefully terminated");
+	ret_val = 0;
+	goto exit;
 
 failed:
+	if(poll_struct != NULL) {
+		if(poll_struct->poll_ctxs != NULL) {
+			free(poll_struct->poll_ctxs);
+			poll_struct->poll_ctxs = NULL;
+		}
+		if(poll_struct->poll_fds != NULL) {
+			free(poll_struct->poll_fds);
+			poll_struct->poll_fds = NULL;
+		}
+		poll_struct->poll_fds_count = 0;
+		free(poll_struct);
+	}
+	LOGD(LOG_TAG, "Router loop was terminated due to error");
+	ret_val = -1;
+	goto exit;
 
-	return -1;
+exit:
+	return ret_val;
 }
 
 JNI_METHOD(RouterLoop, addRoute4, void, jlong jrouterctx, jint jip4, jlong jtunctx) {
