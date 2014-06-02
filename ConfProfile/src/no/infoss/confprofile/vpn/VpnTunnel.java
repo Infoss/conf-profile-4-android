@@ -32,4 +32,15 @@ public abstract class VpnTunnel implements Runnable {
 	/*package*/ long getTunnelCtx() {
 		return mVpnTunnelCtx;
 	}
+	
+	protected void setMasqueradeIp4Mode(boolean isOn) {
+		setMasqueradeIp4Mode(mVpnTunnelCtx, isOn);
+	}
+	
+	protected void setMasqueradeIp4(int ip4) {
+		setMasqueradeIp4(mVpnTunnelCtx, ip4);
+	}
+	
+	private native void setMasqueradeIp4Mode(long vpnTunnelCtx, boolean isOn);
+	private native void setMasqueradeIp4(long vpnTunnelCtx, int ip4);
 }

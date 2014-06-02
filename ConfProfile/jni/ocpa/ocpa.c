@@ -338,3 +338,19 @@ JNI_METHOD(OpenVpnTunnel, getRemoteFd, jint, jlong jtunctx) {
 
 	return ((openvpn_tun_ctx_t*) (intptr_t) jtunctx)->common.remote_fd;
 }
+
+JNI_METHOD(VpnTunnel, setMasqueradeIp4Mode, void, jlong jtunctx, jboolean jison) {
+	if(((common_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
+		return;
+	}
+
+	((common_tun_ctx_t*) (intptr_t) jtunctx)->use_masquerade4 = jison;
+}
+
+JNI_METHOD(VpnTunnel, setMasqueradeIp4, void, jlong jtunctx, jint jip) {
+	if(((common_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
+		return;
+	}
+
+	((common_tun_ctx_t*) (intptr_t) jtunctx)->masquerade4 = jip;
+}
