@@ -14,7 +14,7 @@ openvpn_tun_ctx_t* openvpn_tun_init() {
 	}
 
 	int fds[2];
-	if(socketpair(AF_UNIX, SOCK_DGRAM, PF_UNSPEC, fds) != 0) {
+	if(socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, fds) != 0) {
 		free(ctx);
 		return NULL;
 	}

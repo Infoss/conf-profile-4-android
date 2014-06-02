@@ -150,6 +150,8 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 
 				} else if((poll_struct->poll_fds[i].revents && POLLHUP) != 0) {
 					LOGE(LOG_TAG, "HUP for fd %d", poll_struct->poll_fds[i].fd);
+				} else {
+					LOGD(LOG_TAG, "no action for fd %d (events=%d, revents=%d)", poll_struct->poll_fds[i].fd, poll_struct->poll_fds[i].events, poll_struct->poll_fds[i].revents);
 				}
 
 				poll_struct->poll_fds[i].revents = 0;

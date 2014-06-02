@@ -32,6 +32,7 @@ import android.net.LocalServerSocket;
 import android.net.LocalSocket;
 import android.net.LocalSocketAddress;
 import android.os.Build;
+import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
@@ -580,6 +581,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
 		Method setInt;
 		int fdint = getRemoteFd(mVpnTunnelCtx);
+		Log.d(TAG, "Sending tun fd=" + fdint + " to OpenVPN");
 		try {
 			setInt = FileDescriptor.class.getDeclaredMethod("setInt$",int.class);
 			FileDescriptor fdtosend = new FileDescriptor();
@@ -597,8 +599,13 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
 			// Set the FileDescriptor to null to stop this mad behavior 
 			mSocket.setFileDescriptorsForSend(null);
-
-			//pfd.close();			
+	
+			ParcelFileDescriptor pfd = ParcelFileDescriptor.adoptFd(fdint);
+			try {
+				pfd.close();
+			} catch(IOException e) {
+				Log.e(TAG, "Error while closing remote socket from socketpair", e);
+			}
 
 			return true;
 		} catch (NoSuchMethodException e) {
@@ -798,7 +805,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		builder.append("machine-readable-output\n");
 		
 		if(BuildConfig.DEBUG) {
-			builder.append("verb 6\n");
+			builder.append("verb 5\n");
 		}
 		
 		for(Entry<String, Object> entry : mOptions.entrySet()) {
