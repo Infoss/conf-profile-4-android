@@ -637,3 +637,11 @@ inline uint32_t ip4_update_sum(uint32_t previous, uint16_t data) {
 	sum &= 0x0000ffff;
 	return sum;
 }
+
+inline uint16_t ip4_update_checksum(uint16_t old_checksum, uint16_t old_data, uint16_t new_data) {
+	uint32_t sum = (~old_checksum) & 0x0000ffff;
+	sum = ip4_update_sum(sum, old_data);
+	sum = ip4_update_sum(sum, ~new_data);
+	uint16_t checksum = ~sum;
+	return checksum;
+}
