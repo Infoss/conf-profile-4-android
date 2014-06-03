@@ -274,7 +274,7 @@ ssize_t send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 
 	pthread_rwlock_rdlock(ctx->rwlock4);
 
-	uint32_t ip4 = ((uint32_t*)(buff + 16))[0];
+	uint32_t ip4 = ntohl(((uint32_t*)(buff + 16))[0]);
 
 	if(ctx->ip4_routes != NULL) {
 		route4_link_t* curr = ctx->ip4_routes;
