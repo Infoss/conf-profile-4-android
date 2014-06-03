@@ -17,7 +17,15 @@ uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len);
 inline uint32_t ip4_update_sum(uint32_t previous, uint16_t data);
+inline uint16_t ip4_update_checksum(uint16_t old_checksum, uint16_t old_data, uint16_t new_data);
 
+inline bool ip4_addr_match(uint32_t network, uint8_t netmask, uint32_t test_ip) {
+	uint32_t prepared_test_ip = (test_ip >> (32 - netmask)) << (32 - netmask);
+	if(network == prepared_test_ip) {
+		return true;
+	}
+	return false;
+}
 
 router_ctx_t* router_init() {
     router_ctx_t* ctx = (router_ctx_t*) malloc(sizeof(router_ctx_t));
@@ -120,15 +128,24 @@ void router_deinit(router_ctx_t* ctx) {
     }
 }
 
-void route4(router_ctx_t* ctx, uint32_t ip4, common_tun_ctx_t* tun_ctx) {
+void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, common_tun_ctx_t* tun_ctx) {
 	if(ctx == NULL) {
 		return;
 	}
+
+	if(mask > 32) {
+		mask = 32;
+	}
+
+	uint8_t netmask = (uint8_t) mask;
+
+	ip4 = (ip4 >> (32 - netmask)) << (32 - netmask);
 
 	pthread_rwlock_wrlock(ctx->rwlock4);
 
 	route4_link_t* link = (route4_link_t*) malloc(sizeof(route4_link_t));
 	link->ip4 = ip4;
+	link->mask = netmask;
 	link->tun_ctx = tun_ctx;
 	link->next = NULL;
 
@@ -140,7 +157,7 @@ void route4(router_ctx_t* ctx, uint32_t ip4, common_tun_ctx_t* tun_ctx) {
 		route4_link_t* next = NULL;
 		while(curr != NULL) {
 			next = curr->next;
-			if(curr->ip4 < ip4) {
+			if(curr->ip4 < ip4 || (curr->ip4 == ip4 && curr->mask < netmask)) {
 				//insert link before this
 				link->next = curr;
 				if(prev == NULL) {
@@ -154,7 +171,7 @@ void route4(router_ctx_t* ctx, uint32_t ip4, common_tun_ctx_t* tun_ctx) {
 				//Our job is done
 				break;
 
-			} else if(curr->ip4 == ip4) {
+			} else if(curr->ip4 == ip4 && curr->mask == netmask) {
 				//replace this link
 				link->next = next;
 				if(prev == NULL) {
@@ -185,13 +202,13 @@ void route4(router_ctx_t* ctx, uint32_t ip4, common_tun_ctx_t* tun_ctx) {
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
-void route6(router_ctx_t* ctx, uint8_t* ip6, common_tun_ctx_t* tun_ctx) {
+void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tun_ctx) {
 	//TODO: implement this
 	pthread_rwlock_wrlock(ctx->rwlock4);
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
-void unroute4(router_ctx_t* ctx, uint32_t ip4) {
+void unroute4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask) {
 	if(ctx == NULL) {
 		return;
 	}
@@ -234,7 +251,7 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4) {
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
-void unroute6(router_ctx_t* ctx, uint8_t* ip6) {
+void unroute6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask) {
 	//TODO: implement this
 
 	pthread_rwlock_wrlock(ctx->rwlock4);
@@ -282,7 +299,7 @@ ssize_t send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 	if(ctx->ip4_routes != NULL) {
 		route4_link_t* curr = ctx->ip4_routes;
 		while(curr != NULL) {
-			if((curr->ip4 & ip4) == curr->ip4) { //mask & ip == mask
+			if(ip4_addr_match(curr->ip4, curr->mask, ip4)) {
 				tun_ctx = curr->tun_ctx;
 				//Our job is done
 				break;
@@ -648,3 +665,4 @@ inline uint16_t ip4_update_checksum(uint16_t old_checksum, uint16_t old_data, ui
 	uint16_t checksum = ~sum;
 	return checksum;
 }
+

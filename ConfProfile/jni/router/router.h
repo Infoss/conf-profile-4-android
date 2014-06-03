@@ -29,6 +29,7 @@ struct common_tun_ctx_t {
 
 struct route4_link_t {
     uint32_t ip4;
+    uint8_t mask;
     common_tun_ctx_t* tun_ctx;
     route4_link_t* next;
 };
@@ -62,10 +63,10 @@ struct poll_helper_struct_t {
 router_ctx_t* router_init();
 void router_deinit(router_ctx_t* ctx);
 
-void route4(router_ctx_t* ctx, uint32_t ip4, common_tun_ctx_t* tun_ctx);
-void route6(router_ctx_t* ctx, uint8_t* ip6, common_tun_ctx_t* tun_ctx);
-void unroute4(router_ctx_t* ctx, uint32_t ip4);
-void unroute6(router_ctx_t* ctx, uint8_t* ip6);
+void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, common_tun_ctx_t* tun_ctx);
+void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tun_ctx);
+void unroute4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask);
+void unroute6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask);
 void default4(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx);
 void default6(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx);
 ssize_t ipsend(router_ctx_t* ctx, uint8_t* buff, int len);

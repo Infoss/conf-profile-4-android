@@ -100,9 +100,9 @@ import android.util.Log;
 	
 	private native int routerLoop(long routerCtx, BuilderAdapter builder);
 	
-	/*package*/ native void addRoute4(long routerCtx, int ip4, long tunCtx);
+	/*package*/ native void addRoute4(long routerCtx, int ip4, int mask, long tunCtx);
 	/*package*/ native void defaultRoute4(long routerCtx, long tunCtx);
-	/*package*/ native void removeRoute4(long routerCtx, int ip4);
+	/*package*/ native void removeRoute4(long routerCtx, int ip4, int mask);
 	/*package*/ native List<Route4> getRoutes4(long routerCtx);
 	/*package*/ native void terminateRouterLoop(long routerCtx);
 	

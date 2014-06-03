@@ -201,7 +201,7 @@ exit:
 	return ret_val;
 }
 
-JNI_METHOD(RouterLoop, addRoute4, void, jlong jrouterctx, jint jip4, jlong jtunctx) {
+JNI_METHOD(RouterLoop, addRoute4, void, jlong jrouterctx, jint jip4, jint jmask, jlong jtunctx) {
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	common_tun_ctx_t* tun_ctx = (common_tun_ctx_t*) (intptr_t) jtunctx;
 	if(router_ctx == NULL || tun_ctx == NULL) {
@@ -217,7 +217,7 @@ JNI_METHOD(RouterLoop, addRoute4, void, jlong jrouterctx, jint jip4, jlong jtunc
 
 	tun_ctx->router_ctx = router_ctx;
 
-	route4(router_ctx, jip4, tun_ctx);
+	route4(router_ctx, jip4, jmask, tun_ctx);
 }
 
 JNI_METHOD(RouterLoop, defaultRoute4, void, jlong jrouterctx, jlong jtunctx) {
@@ -239,13 +239,13 @@ JNI_METHOD(RouterLoop, defaultRoute4, void, jlong jrouterctx, jlong jtunctx) {
 	default4(router_ctx, tun_ctx);
 }
 
-JNI_METHOD(RouterLoop, removeRoute4, void, jlong jrouterctx, jint jip4) {
+JNI_METHOD(RouterLoop, removeRoute4, void, jlong jrouterctx, jint jip4, jint jmask) {
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(router_ctx == NULL) {
 		return;
 	}
 
-	unroute4(router_ctx, jip4);
+	unroute4(router_ctx, jip4, jmask);
 }
 
 JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
