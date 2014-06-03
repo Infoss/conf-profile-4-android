@@ -2,7 +2,6 @@ LOCAL_PATH := $(call my-dir)
 ocpa_INCLUDES := 
 subproject_PATHS := \
 					uip \
-					router \
 					utils \
 					lzo \
 					snappy \
