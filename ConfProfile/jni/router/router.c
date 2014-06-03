@@ -78,7 +78,10 @@ void router_deinit(router_ctx_t* ctx) {
             }
         }
 
-        //TODO: smth with duplicating fds
+        if(ctx->dev_tun_ctx.local_fd == ctx->dev_tun_ctx.remote_fd) {
+        	ctx->dev_tun_ctx.remote_fd = -1;
+        }
+
         if(ctx->dev_tun_ctx.local_fd >= 0) {
         	close(ctx->dev_tun_ctx.local_fd);
         	ctx->dev_tun_ctx.local_fd = -1;
