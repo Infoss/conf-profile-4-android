@@ -33,6 +33,10 @@ public abstract class VpnTunnel implements Runnable {
 		return mVpnTunnelCtx;
 	}
 	
+	/*package*/ void processDied() {
+		//default implementation
+	}
+	
 	protected void setMasqueradeIp4Mode(boolean isOn) {
 		setMasqueradeIp4Mode(mVpnTunnelCtx, isOn);
 	}
