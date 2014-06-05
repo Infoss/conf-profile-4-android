@@ -1,6 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 ocpa_INCLUDES := 
-subproject_PATHS := \
+subproject_PATHS := mtpd \
 					uip \
 					utils \
 					lzo \
