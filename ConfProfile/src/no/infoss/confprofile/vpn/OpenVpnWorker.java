@@ -11,12 +11,13 @@ import java.util.Map.Entry;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.vpn.OpenVpnTunnel.VpnStatus;
 import android.util.Log;
 
 public class OpenVpnWorker implements Runnable {
 	public static final String TAG = OpenVpnWorker.class.getSimpleName();
-	public static final String MINIVPN = "minivpn"; //was: miniopenvpn
+	public static final String MINIVPN = "minivpn";
 	
     public static final int M_FATAL = (1 << 4);
     public static final int M_NONFATAL = (1 << 5);
@@ -24,13 +25,11 @@ public class OpenVpnWorker implements Runnable {
     public static final int M_DEBUG = (1 << 7);
     private String[] mArgv;
 	private Process mProcess;
-	private String mNativeDir;
 	private OpenVpnTunnel mTunnel;
 	private Map<String, String> mProcessEnv;
 
-	public OpenVpnWorker(OpenVpnTunnel tunnel, String[] argv, Map<String, String> processEnv, String nativelibdir) {
+	public OpenVpnWorker(OpenVpnTunnel tunnel, String[] argv, Map<String, String> processEnv) {
 		mArgv = argv;
-		mNativeDir = nativelibdir;
 		mTunnel = tunnel;
 		mProcessEnv = processEnv;
 	}
@@ -38,8 +37,6 @@ public class OpenVpnWorker implements Runnable {
 	public void stopProcess() {
 		mProcess.destroy();
 	}
-
-
 
 	@Override
 	public void run() {
@@ -77,10 +74,7 @@ public class OpenVpnWorker implements Runnable {
 
 		ProcessBuilder pb = new ProcessBuilder(argvlist);
 		// Hack O rama
-
-		String lbpath = genLibraryPath(argv, pb);
-
-		pb.environment().put("LD_LIBRARY_PATH", lbpath);
+		pb.environment().put("LD_LIBRARY_PATH", MiscUtils.genLibraryPath(mTunnel.mCtx, pb));
 
 		// Add extra variables
 		for(Entry<String,String> e:env.entrySet()){
@@ -135,27 +129,5 @@ public class OpenVpnWorker implements Runnable {
 			stopProcess();
 		}
 
-
-	}
-
-	private String genLibraryPath(String[] argv, ProcessBuilder pb) {
-		// Hack until I find a good way to get the real library path
-        System.out.println(argv[0]);
-        String applibpath = argv[0].replace("/cache/" + MINIVPN , "/lib");
-
-		String lbpath = pb.environment().get("LD_LIBRARY_PATH");
-
-
-		if(lbpath==null)
-			lbpath = applibpath;
-		else
-			lbpath = lbpath + ":" + applibpath;
-
-		if (!applibpath.equals(mNativeDir)) {
-			lbpath = lbpath + ":" + mNativeDir;
-		}
-
-
-		return lbpath;
 	}
 }
