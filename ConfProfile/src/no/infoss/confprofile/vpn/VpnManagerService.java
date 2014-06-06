@@ -171,6 +171,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 				}
 			}
 		}
+		
+		if(mRouterLoop.isPaused()) {
+			mRouterLoop.pause(false);
+		}
 	}
 	
 	@Override
