@@ -2,6 +2,7 @@ package no.infoss.confprofile.vpn;
 
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -148,7 +149,9 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 				//TODO: check routes
 				if(!mTuns.containsKey(info.configId)) {
 					tun = VpnTunnelFactory.getTunnel(getApplicationContext(), this, info);
-					if(tun != null) {
+					if(tun == null) {
+						Log.d(TAG, "Can't create tun " + info.vpnType + " with id=" + info.configId);
+					} else {
 						mTuns.put(info.configId, tun);
 						tun.establishConnection(info.params);
 						mRouterLoop.defaultRoute4(tun);
@@ -207,7 +210,13 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		if(mConfigInfos != null) {
 			mConfigInfos.clear();
 		}
+		
 		mConfigInfos = result;
+		
+		if(mConfigInfos != null) {
+			Collections.reverse(mConfigInfos);
+		}
+		
 		updateCurrentConfiguration();
 	}
 
