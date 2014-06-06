@@ -38,6 +38,8 @@ import android.util.Log;
 			return;
 		}
 		
+		pause(true);
+		
 		synchronized (this) {
 			if(!mBuilder.setMtu(1500)) {
 				Log.d(TAG, "Can't set MTU=".concat(String.valueOf(1500)));
@@ -58,6 +60,14 @@ import android.util.Log;
 			Log.d(TAG, String.format("Router loop returned %d as exit code", result));
 		}
 		deinitIpRouter(mRouterCtx);
+	}
+	
+	public boolean isPaused() {
+		return isPausedRouterLoop(mRouterCtx);
+	}
+	
+	public boolean pause(boolean pause) {
+		return pauseRouterLoop(mRouterCtx, pause);
 	}
 	
 	public void terminate() {
@@ -104,6 +114,8 @@ import android.util.Log;
 	/*package*/ native void defaultRoute4(long routerCtx, long tunCtx);
 	/*package*/ native void removeRoute4(long routerCtx, int ip4, int mask);
 	/*package*/ native List<Route4> getRoutes4(long routerCtx);
+	/*package*/ native boolean isPausedRouterLoop(long routerCtx);
+	/*package*/ native boolean pauseRouterLoop(long routerCtx, boolean pause);
 	/*package*/ native void terminateRouterLoop(long routerCtx);
 	
 	private native void setMasqueradeIp4Mode(long routerCtx, boolean isOn);
