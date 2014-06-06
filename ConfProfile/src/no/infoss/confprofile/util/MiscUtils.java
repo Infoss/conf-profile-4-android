@@ -72,4 +72,33 @@ public class MiscUtils {
 		}
 		return true;
 	}
+	
+	public static boolean writeStringToFile(File dstFile, String str) {
+		boolean isOk = false;
+		FileOutputStream fos = null;
+		
+		try {
+			fos = new FileOutputStream(dstFile);
+			fos.write(str.getBytes("UTF-8"));
+			isOk = true;
+		} catch(Exception e) {
+			Log.e(TAG, "Error while saving string to a file", e);
+		} finally {
+			if(fos != null) {
+				try {
+					fos.flush();
+				} catch(Exception e) {
+					Log.w(TAG, e);
+				}
+				
+				try {
+					fos.close();
+				} catch(Exception e) {
+					Log.w(TAG, e);
+				}
+			}
+		}
+		
+		return isOk;
+	}
 }
