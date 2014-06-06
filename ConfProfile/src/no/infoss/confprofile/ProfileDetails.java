@@ -2,7 +2,6 @@ package no.infoss.confprofile;
 
 import no.infoss.confprofile.fragment.ProfileDetailsFragment;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
-import no.infoss.confprofile.vpn.OcpaVpnService;
 import android.app.Activity;
 import android.app.FragmentManager;
 import android.content.Intent;

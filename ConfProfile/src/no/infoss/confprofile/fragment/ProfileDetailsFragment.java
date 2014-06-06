@@ -19,7 +19,6 @@ import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.PayloadsCursorLoader.PayloadInfo;
 import android.app.Activity;
 import android.app.Fragment;
-import android.app.FragmentManager;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.Intent;
 import android.content.Loader;
@@ -213,7 +212,6 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 						android.R.layout.simple_expandable_list_item_2, 
 						new PayloadGroupInfoMapper());
 				ExpandableListView list = (ExpandableListView) getView().findViewById(R.id.list);
-				//list.setEmptyView(findViewById(android.R.id.empty));
 				list.setAdapter(payloadAdapter);
 			}	
 		};
