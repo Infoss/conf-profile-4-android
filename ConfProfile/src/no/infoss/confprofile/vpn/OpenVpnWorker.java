@@ -23,6 +23,7 @@ public class OpenVpnWorker implements Runnable {
     public static final int M_NONFATAL = (1 << 5);
     public static final int M_WARN = (1 << 6);
     public static final int M_DEBUG = (1 << 7);
+    
     private String[] mArgv;
 	private Process mProcess;
 	private OpenVpnTunnel mTunnel;
@@ -45,22 +46,23 @@ public class OpenVpnWorker implements Runnable {
 			startOpenVPNThreadArgs(mArgv, mProcessEnv);
 			Log.i(TAG, "Giving up");
 		} catch (Exception e) {
-            VpnStatus.logException("Starting OpenVPN Thread" ,e);
-			Log.e(TAG, "OpenVPNThread Got " + e.toString(), e);
+			Log.e(TAG, "OpenVPNThread got " + e.toString(), e);
 		} finally {
 			int exitvalue = 0;
+			
 			try {
-				if (mProcess!=null)
+				if(mProcess!=null) {
 					exitvalue = mProcess.waitFor();
-			} catch ( IllegalThreadStateException ite) {
-				VpnStatus.logError("Illegal Thread state: " + ite.getLocalizedMessage());
-			} catch (InterruptedException ie) {
-				VpnStatus.logError("InterruptedException: " + ie.getLocalizedMessage());
+				}
+			} catch (IllegalThreadStateException e) {
+				Log.e(TAG, "Illegal thread state", e);
+			} catch (InterruptedException e) {
+				Log.e(TAG, "Thread interrupted", e);
 			}
-			if( exitvalue != 0)
-				VpnStatus.logError("Process exited with exit value " + exitvalue);
-
-			VpnStatus.updateStateString("NOPROCESS", "No process running.", "R.string.state_noprocess", "ConnectionStatus.LEVEL_NOTCONNECTED");
+			
+			if(exitvalue != 0) {
+				Log.w(TAG, "Process exited with exit value " + exitvalue);
+			}
 
 			mTunnel.processDied();
 			Log.i(TAG, "Exiting");
@@ -125,7 +127,7 @@ public class OpenVpnWorker implements Runnable {
 
 
 		} catch (IOException e) {
-			VpnStatus.logException("Error reading from output of OpenVPN process" , e);
+			Log.e(TAG, "Error reading from output of OpenVPN process" , e);
 			stopProcess();
 		}
 
