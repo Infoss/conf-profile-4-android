@@ -7,7 +7,7 @@
 #ifndef TUN_OPENVPN_H_
 #define TUN_OPENVPN_H_
 
-#include "router.h"
+#include "tun.h"
 
 typedef struct openvpn_tun_ctx_t openvpn_tun_ctx_t;
 

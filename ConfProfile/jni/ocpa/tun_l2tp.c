@@ -1,15 +1,15 @@
 /*
- * tun_openvpn.c
+ * tun_l2tp.c
  *
  *      Author: Dmitry Vorobiev
  */
 
 #include <stdlib.h>
 #include <sys/socket.h>
-#include "tun_openvpn.h"
+#include "tun_l2tp.h"
 
-openvpn_tun_ctx_t* openvpn_tun_init() {
-	openvpn_tun_ctx_t* ctx = malloc(sizeof(openvpn_tun_ctx_t));
+l2tp_tun_ctx_t* l2tp_tun_init() {
+	l2tp_tun_ctx_t* ctx = malloc(sizeof(l2tp_tun_ctx_t));
 	if(ctx == NULL) {
 		return NULL;
 	}
@@ -28,7 +28,7 @@ openvpn_tun_ctx_t* openvpn_tun_init() {
 	return ctx;
 }
 
-void openvpn_tun_deinit(openvpn_tun_ctx_t* ctx) {
+void l2tp_tun_deinit(l2tp_tun_ctx_t* ctx) {
 	if(ctx == NULL) {
 		return;
 	}
@@ -37,3 +37,4 @@ void openvpn_tun_deinit(openvpn_tun_ctx_t* ctx) {
 
 	free(ctx);
 }
+
