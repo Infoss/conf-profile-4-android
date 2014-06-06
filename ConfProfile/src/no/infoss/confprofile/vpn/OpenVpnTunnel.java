@@ -2,7 +2,6 @@ package no.infoss.confprofile.vpn;
 
 import java.io.File;
 import java.io.FileDescriptor;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
@@ -104,42 +103,23 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			Log.e(TAG, "Error writing minivpn");
 		}
 		
-		byte [] buffer = new byte[2048];
-		
-		String pendingInput="";
+		byte[] buffer = new byte[2048];
+		String pendingInput = "";
 		
 		String confFileName = mCfg.configId.concat(".ovpn");
 		File cacheDir = mCtx.getCacheDir();
+		File confFile = new File(cacheDir, confFileName);
 		
 		String[] argv = new String[3];
         argv[0] = cacheDir.getAbsolutePath() + "/" + OpenVpnWorker.MINIVPN;
         argv[1] = "--config";
-        argv[2] = cacheDir.getAbsolutePath() + "/" + confFileName;
+        argv[2] = confFile.getAbsolutePath();
 
-		FileOutputStream fos = null;
-		try {
-			String buildConfig = buildConfig();
-			fos = new FileOutputStream(argv[2]);
-			fos.write(buildConfig.getBytes("UTF-8"));
-		} catch(Exception e) {
-			Log.e(TAG, "Error while saving config", e);
-			terminateConnection();
+        if(!MiscUtils.writeStringToFile(confFile, buildConfig())) {
+        	Log.e(TAG, "Terminating connection");
+        	terminateConnection();
 			return;
-		} finally {
-			if(fos != null) {
-				try {
-					fos.flush();
-				} catch(Exception e) {
-					Log.w(TAG, e);
-				}
-				
-				try {
-					fos.close();
-				} catch(Exception e) {
-					Log.w(TAG, e);
-				}
-			}
-		}
+        }
 		
 		// Could take a while to open connection
         int tries=8;
@@ -233,12 +213,10 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			Method getInt =  FileDescriptor.class.getDeclaredMethod("getInt$");
 			int fdint = (Integer) getInt.invoke(fd);
 
-			// You can even get more evil by parsing toString() and extract the int from that :)
-
 			boolean result = mVpnMgr.protect(fdint);
-            if (!result)
-                VpnStatus.logWarning("Could not protect VPN socket");
-
+            if (!result) {
+                Log.e(TAG, "Can't protect VPN socket");
+            }
 
             ParcelFileDescriptor.adoptFd(fdint).close();
 		} catch (Exception e) {
@@ -263,48 +241,47 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
 
 	private void processCommand(String command) {
-        //Log.i(TAG, "Line from managment" + command);
-
-
+		if(command == null) {
+			return;
+		}
+		
         if (command.startsWith(">") && command.contains(":")) {
 			String[] parts = command.split(":",2);
 			String cmd = parts[0].substring(1);
 			String argument = parts[1];
 
-
-			if(cmd.equals("INFO")) {
+			if("INFO".equals(cmd)) {
 				/* Ignore greeting from management */
                 return;
-			}else if (cmd.equals("PASSWORD")) {
+			}else if ("PASSWORD".equals(cmd)) {
 				processPWCommand(argument);
-			} else if (cmd.equals("HOLD")) {
+			} else if ("HOLD".equals(cmd)) {
 				handleHold();
-			} else if (cmd.equals("NEED-OK")) {
+			} else if ("NEED-OK".equals(cmd)) {
 				processNeedCommand(argument);
-			} else if (cmd.equals("BYTECOUNT")){
+			} else if ("BYTECOUNT".equals(cmd)){
 				processByteCount(argument);
-			} else if (cmd.equals("STATE")) {
+			} else if ("STATE".equals(cmd)) {
 				processState(argument);
-			} else if (cmd.equals("PROXY")) {
+			} else if ("PROXY".equals(cmd)) {
 				processProxyCMD(argument);
-			} else if (cmd.equals("LOG")) {
+			} else if ("LOG".equals(cmd)) {
                  processLogMessage(argument);
-			} else if (cmd.equals("RSA_SIGN")) {
+			} else if ("RSA_SIGN".equals(cmd)) {
 				processSignCommand(argument);
 			} else {
-				VpnStatus.logWarning("MGMT: Got unrecognized command" + command);
-				Log.i(TAG, "Got unrecognized command" + command);
+				Log.i(TAG, "Got unrecognized line from managment " + String.valueOf(command));
 			}
 		} else if (command.startsWith("SUCCESS:")) {
 			/* Ignore this kind of message too */
             return;
         } else if (command.startsWith("PROTECTFD: ")) {
             FileDescriptor fdtoprotect = mFDList.pollFirst();
-            if (fdtoprotect!=null)
+            if (fdtoprotect!=null) {
                 protectFileDescriptor(fdtoprotect);
+            }
 		} else {
-			Log.i(TAG, "Got unrecognized line from managment" + command);
-			VpnStatus.logWarning("MGMT: Got unrecognized line from management:" + command);
+			Log.i(TAG, "Got unrecognized line from managment " + String.valueOf(command));
 		}
 	}
 
@@ -771,23 +748,26 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			Log.e(TAG, "Can't write pem", e);
 		}
 		
-		
-		
 		return builder.toString();
 	}
 	
 	public static String openVpnEscape(String unescaped) {
-        if (unescaped == null)
+        if(unescaped == null) {
             return null;
+        }
+        
         String escapedString = unescaped.replace("\\", "\\\\");
         escapedString = escapedString.replace("\"", "\\\"");
         escapedString = escapedString.replace("\n", "\\n");
 
-        if (escapedString.equals(unescaped) && !escapedString.contains(" ") &&
-                !escapedString.contains("#") && !escapedString.contains(";"))
+        if(escapedString.equals(unescaped) && 
+        		!escapedString.contains(" ") &&
+                !escapedString.contains("#") && 
+                !escapedString.contains(";")) {
             return unescaped;
-        else
+        } else {
             return '"' + escapedString + '"';
+        }
     }
 
 	static class VpnStatus {
