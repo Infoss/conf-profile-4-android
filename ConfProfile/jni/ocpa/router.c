@@ -1,17 +1,11 @@
 
 #include <errno.h>
-#include <linux/tcp.h>
-#include <netinet/ip.h>
-#include <netinet/ip6.h>
 #include <stdbool.h>
 #include "android_log_utils.h"
+#include "protoheaders.h"
 #include "router.h"
 
 #define LOG_TAG "router.c"
-
-typedef struct iphdr ip4_header;
-typedef struct ip6_hdr ip6_header;
-typedef struct tcphdr tcp_header;
 
 uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len);
@@ -65,6 +59,7 @@ router_ctx_t* router_init() {
         ctx->ip4_pkt_buff_size = 1500;
 
         ctx->routes_updated = false;
+        ctx->paused = false;
         ctx->terminate = false;
     }
 
@@ -117,6 +112,7 @@ void router_deinit(router_ctx_t* ctx) {
         ctx->ip4_pkt_buff_size = 0;
 
         ctx->routes_updated = false;
+        ctx->paused = false;
         ctx->terminate = false;
 
         pthread_rwlock_unlock(ctx->rwlock4);
@@ -471,6 +467,31 @@ ssize_t dev_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 	return write(ctx->local_fd, buff, len);
 }
 
+bool router_is_paused(router_ctx_t* ctx) {
+	if(ctx == NULL) {
+		return false;
+	}
+
+	bool result;
+	pthread_rwlock_rdlock(ctx->rwlock4);
+	result = ctx->paused;
+	pthread_rwlock_unlock(ctx->rwlock4);
+	return result;
+}
+
+bool router_pause(router_ctx_t* ctx, bool paused) {
+	if(ctx == NULL) {
+		return false;
+	}
+
+	bool result;
+	pthread_rwlock_wrlock(ctx->rwlock4);
+	result = ctx->paused;
+	ctx->paused = paused;
+	pthread_rwlock_unlock(ctx->rwlock4);
+	return result;
+}
+
 ssize_t dev_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 	if(tun_ctx == (intptr_t) NULL) {
 		errno = EBADF;
@@ -484,75 +505,6 @@ ssize_t dev_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 	}
 
 	res = ipsend(ctx->router_ctx, buff, res);
-	return res;
-}
-
-ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
-		errno = EBADF;
-		return -1;
-	}
-
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
-	return write(ctx->local_fd, buff, len);
-}
-
-ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
-		errno = EBADF;
-		return -1;
-	}
-
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
-
-	int res = read_ip_packet(ctx->local_fd, buff, len);
-	if(res < 0) {
-		return res;
-	}
-
-	pthread_rwlock_rdlock(ctx->router_ctx->rwlock4);
-	if((buff[0] & 0xf0) == 0x40 && ctx->router_ctx->dev_tun_ctx.use_masquerade4) {
-		LOGE(LOG_TAG, "Before masquerading back:");
-		log_dump_packet(LOG_TAG, buff, res);
-
-		ip4_header* hdr = (ip4_header*) buff;
-		hdr->daddr = htonl(ctx->router_ctx->dev_tun_ctx.masquerade4);
-		ip4_calc_ip_checksum(buff, res);
-
-		switch(hdr->protocol) {
-		case IPPROTO_TCP: {
-			ip4_calc_tcp_checksum(buff, res);
-			break;
-		}
-		default: {
-			LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", hdr->protocol);
-			break;
-		}
-		}
-		LOGE(LOG_TAG, "Masquerading back:");
-		log_dump_packet(LOG_TAG, buff, res);
-	} else if((buff[0] & 0xf0) == 0x60 && ctx->router_ctx->dev_tun_ctx.use_masquerade6) {
-
-	}
-	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
-	pthread_rwlock_unlock(ctx->router_ctx->rwlock4);
-	return res;
-}
-
-ssize_t common_tun_pipe(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
-		errno = EBADF;
-		return -1;
-	}
-
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
-
-	int res = read_ip_packet(ctx->local_fd, buff, len);
-	if(res < 0) {
-		return res;
-	}
-
-	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
 	return res;
 }
 

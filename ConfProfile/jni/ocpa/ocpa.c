@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include "android_log_utils.h"
 #include "ocpa.h"
+#include "tun_l2tp.h"
 #include "tun_openvpn.h"
 
 #define LOG_TAG "ocpa.c"
@@ -98,6 +99,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 	ctx->dev_tun_ctx.remote_fd = fd;
 
 	int timeout_msecs = 500;
+	int router_sleep_msecs = 250;
 	int ip_pkt_buff_size = 1500;
 	uint8_t* ip_pkt_buff = malloc(sizeof(uint8_t) * ip_pkt_buff_size);
 
@@ -115,6 +117,11 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 	int i;
 	int res = 0;
 	while(true) {
+
+		while(router_is_paused(ctx)) {
+			usleep(router_sleep_msecs);
+		}
+
 		if(ctx->routes_updated) {
 			rebuild_poll_struct(ctx, poll_struct);
 		}
@@ -305,11 +312,27 @@ JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
 	return list;
 }
 
+JNI_METHOD(RouterLoop, isPausedRouterLoop, jboolean, jlong jrouterctx) {
+	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(router_ctx == NULL) {
+		return false;
+	}
+	return router_is_paused(router_ctx);
+}
+
+JNI_METHOD(RouterLoop, pauseRouterLoop, jboolean, jlong jrouterctx, jboolean jpause) {
+	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(router_ctx == NULL) {
+		return false;
+	}
+	return router_pause(router_ctx, jpause);
+}
+
 JNI_METHOD(RouterLoop, terminateRouterLoop, void, jlong jrouterctx) {
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
-		if(router_ctx == NULL) {
-			return;
-		}
+	if(router_ctx == NULL) {
+		return;
+	}
 	pthread_rwlock_wrlock(router_ctx->rwlock4);
 	router_ctx->terminate = true;
 	pthread_rwlock_unlock(router_ctx->rwlock4);
@@ -333,6 +356,30 @@ JNI_METHOD(RouterLoop, setMasqueradeIp4, void, jlong jrouterctx, jint jip) {
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 
 	ctx->dev_tun_ctx.masquerade4 = jip;
+}
+
+JNI_METHOD(L2tpTunnel, initL2tpTun, jlong) {
+	return (jlong) (intptr_t) l2tp_tun_init();
+}
+
+JNI_METHOD(L2tpTunnel, deinitL2tpTun, void, jlong jtunctx) {
+	l2tp_tun_deinit((l2tp_tun_ctx_t*) (intptr_t) jtunctx);
+}
+
+JNI_METHOD(L2tpTunnel, getLocalFd, jint, jlong jtunctx) {
+	if(((l2tp_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
+		return -1;
+	}
+
+	return ((l2tp_tun_ctx_t*) (intptr_t) jtunctx)->common.local_fd;
+}
+
+JNI_METHOD(L2tpTunnel, getRemoteFd, jint, jlong jtunctx) {
+	if(((l2tp_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
+		return -1;
+	}
+
+	return ((l2tp_tun_ctx_t*) (intptr_t) jtunctx)->common.remote_fd;
 }
 
 JNI_METHOD(OpenVpnTunnel, initOpenVpnTun, jlong) {

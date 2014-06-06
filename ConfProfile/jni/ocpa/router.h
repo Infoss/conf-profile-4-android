@@ -7,25 +7,13 @@
 #include <pthread.h>
 #include <poll.h>
 
-typedef ssize_t (*tun_send_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
-typedef ssize_t (*tun_recv_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
+#include "tun.h"
 
-typedef struct common_tun_ctx_t common_tun_ctx_t;
 typedef struct route4_link_t route4_link_t;
 typedef struct router_ctx_t router_ctx_t;
 typedef struct poll_helper_struct_t poll_helper_struct_t;
 
-struct common_tun_ctx_t {
-	int local_fd;  //router side
-	int remote_fd; //vpn implementation side
-	uint32_t masquerade4;
-	uint8_t masquerade6[16];
-	bool use_masquerade4;
-	bool use_masquerade6;
-	tun_send_func_ptr send_func;
-	tun_recv_func_ptr recv_func;
-	router_ctx_t* router_ctx;
-};
+
 
 struct route4_link_t {
     uint32_t ip4;
@@ -50,6 +38,7 @@ struct router_ctx_t {
     int ip4_pkt_buff_size;
 
     bool routes_updated;
+    bool paused;
     bool terminate;
 };
 
@@ -76,10 +65,10 @@ ssize_t send6(router_ctx_t* ctx, uint8_t* buff, int len);
 ssize_t read_ip_packet(int fd, uint8_t* buff, int len);
 
 void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct);
+bool router_is_paused(router_ctx_t* ctx);
+bool router_pause(router_ctx_t* ctx, bool paused);
 
 ssize_t dev_tun_send(intptr_t tun_ctx, uint8_t* buff, int len);
 ssize_t dev_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len);
-ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len);
-ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len);
 
 #endif // ROUTER_H_INCLUDED
