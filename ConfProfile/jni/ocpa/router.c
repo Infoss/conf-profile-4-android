@@ -9,6 +9,7 @@
 
 uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len);
+uint16_t ip4_calc_udp_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len);
 inline uint32_t ip4_update_sum(uint32_t previous, uint16_t data);
 inline uint16_t ip4_update_checksum(uint16_t old_checksum, uint16_t old_data, uint16_t new_data);
@@ -326,6 +327,10 @@ ssize_t send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 				ip4_calc_tcp_checksum(buff, len);
 				break;
 			}
+			case IPPROTO_UDP: {
+				ip4_calc_udp_checksum(buff, len);
+				break;
+			}
 			default: {
 				LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", hdr->protocol);
 				break;
@@ -580,6 +585,23 @@ uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len) {
 	tcp_hdr->check = htons(checksum);
 
 	return checksum;
+}
+
+uint16_t ip4_calc_udp_checksum(uint8_t* buff, int len) {
+	if(buff == NULL || len < 40) {
+		return 0;
+	}
+	ip4_header* hdr = (ip4_header*) buff;
+	uint16_t udp_len = ntohs(hdr->tot_len) - (hdr->ihl * 4);
+
+	uint16_t* ptr = (uint16_t*) (buff + hdr->ihl * 4);
+	LOGD(LOG_TAG, "UDP frame size is %d, packet address is %p, udp data starts from %p", udp_len, buff, ptr);
+	udp_header* udp_hdr = (udp_header*) ptr;
+
+	//set UDP checksum as 0x0000
+	udp_hdr->check = htons(0x0000);
+
+	return 0;
 }
 
 uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len) {
