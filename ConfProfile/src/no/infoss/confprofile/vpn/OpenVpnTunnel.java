@@ -5,7 +5,6 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
-import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
@@ -415,23 +414,15 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
 		String status = "ok";
 
-
-		if (needed.equals("PROTECTFD")) {
+		if ("PROTECTFD".equals(needed)) {
 			FileDescriptor fdtoprotect = mFDList.pollFirst();
 			protectFileDescriptor(fdtoprotect);
-		} else if (needed.equals("DNSSERVER")) {
+		} else if ("DNSSERVER".equals(needed)) {
 			addDns(extra);
-		}else if (needed.equals("DNSDOMAIN")){
+		}else if ("DNSDOMAIN".equals(needed)){
 			setDomain(extra);
-		} else if (needed.equals("ROUTE")) {
+		} else if ("ROUTE".equals(needed)) {
 			String[] routeparts = extra.split(" ");
-
-            /*
-            buf_printf (&out, "%s %s %s dev %s", network, netmask, gateway, rgi->iface);
-            else
-            buf_printf (&out, "%s %s %s", network, netmask, gateway);
-            */
-
             if(routeparts.length==5) {
                 assert(routeparts[3].equals("dev"));
                 addRoute4(routeparts[0], routeparts[1], routeparts[2], routeparts[4]);
@@ -440,28 +431,24 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
             } else {
                 VpnStatus.logError("Unrecognized ROUTE cmd:" + Arrays.toString(routeparts) + " | " + argument);
             }
-
-		} else if (needed.equals("ROUTE6")) {
+		} else if ("ROUTE6".equals(needed)) {
             String[] routeparts = extra.split(" ");
 			addRoute6(routeparts[0],routeparts[1]);
-		} else if (needed.equals("IFCONFIG")) {
+		} else if ("IFCONFIG".equals(needed)) {
 			String[] ifconfigparts = extra.split(" ");
 			int mtu = Integer.parseInt(ifconfigparts[2]);
 			setLocalIp4(ifconfigparts[0], ifconfigparts[1], mtu, ifconfigparts[3]);
-		} else if (needed.equals("IFCONFIG6")) {
+		} else if ("IFCONFIG6".equals(needed)) {
 			setLocalIp6(extra);
-
-		} else if (needed.equals("PERSIST_TUN_ACTION")) {
+		} else if ("PERSIST_TUN_ACTION".equals(needed)) {
             // check if tun cfg stayed the same
-            //status = mVpnMgr.getTunReopenStatus();
             status = "OPEN_AFTER_CLOSE"; //or OPEN_BEFORE_CLOSE
         } else if (needed.equals("OPENTUN")) {
-			if(sendTunFD(needed,extra))
-				return;
-			else
+			if(sendTunFD(needed,extra)) {
+				return; 
+			} else {
 				status="cancel";
-			// This not nice or anything but setFileDescriptors accepts only FilDescriptor class :(
-
+			}
 		} else {
 			Log.e(TAG,"Unkown needok command " + argument);
 			return;
@@ -472,10 +459,11 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	}
 
 	private boolean sendTunFD (String needed, String extra) {
-		Exception exp;
+		boolean result = false;
 		if(!extra.equals("tun")) {
 			// We only support tun
-			VpnStatus.logError(String.format("Device type %s requested, but only tun is possible with the Android API, sorry!",extra));
+			String logFmt = "Device type %s requested, but only tun is possible with the Android API";
+			Log.e(TAG, String.format(logFmt, extra));
 
 			return false;
 		}
@@ -508,19 +496,13 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 				Log.e(TAG, "Error while closing remote socket from socketpair", e);
 			}
 
-			return true;
-		} catch (NoSuchMethodException e) {
-			exp =e;
-		} catch (IllegalArgumentException e) {
-			exp =e;
-		} catch (IllegalAccessException e) {
-			exp =e;
-		} catch (InvocationTargetException e) {
-			exp =e;
+			result = true;
+		} catch (Exception e) {
+			Log.e(TAG, "Could not send fd over socket", e);
+			result = false;
 		}
-        VpnStatus.logException("Could not send fd over socket" , exp);
 
-        return false;
+        return result;
 	}
 
 	private void processPWCommand(String argument) {
@@ -544,9 +526,9 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
 		String pw=null;
 
-		if(needed.equals("Private Key")) {
+		if("Private Key".equals(needed)) {
 			pw = getPasswordPrivateKey();
-		} else if (needed.equals("Auth")) {
+		} else if ("Auth".equals(needed)) {
 			String usercmd = String.format("username '%s' %s\n", 
 					needed, openVpnEscape((String) mOptions.get("username")));
 			managmentCommand(usercmd);
@@ -556,13 +538,11 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			String cmd = String.format("password '%s' %s\n", needed, openVpnEscape(pw));
 			managmentCommand(cmd);
 		} else {
-			VpnStatus.logError(String.format("Openvpn requires Authentication type '%s' but no password/key information available", needed));
+			String logFmt = "Openvpn requires Authentication type '%s' but no credentials are available";
+			VpnStatus.logError(String.format(logFmt, needed));
 		}
 
 	}
-
-
-
 
 	private void proccessPWFailed(String needed, String args) {
 		VpnStatus.updateStateString("AUTH_FAILED", needed + args, "R.string.state_auth_failed", "ConnectionStatus.LEVEL_AUTH_FAILED");
@@ -570,19 +550,21 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
     @Override
     public void networkChange() {
-        if(!mWaitingForRelease)
+        if(!mWaitingForRelease) {
             managmentCommand("network-change\n");
+        }
     }
 
 	public void signalusr1() {
 		mReleaseHold=false;
 
-		if(!mWaitingForRelease)
+		if(!mWaitingForRelease) {
 			managmentCommand("signal SIGUSR1\n");
-        else
+		} else {
             // If signalusr1 is called update the state string
             // if there is another for stopping
             VpnStatus.updateStatePause(lastPauseReason);
+		}
 	}
 
 	public void reconnect() {
@@ -593,10 +575,10 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	private void processSignCommand(String b64data) {
 
 		String signed_string = getSignedData(b64data);
-        if(signed_string==null) {
+        if(signed_string == null) {
             managmentCommand("rsa-sig\n");
             managmentCommand("\nEND\n");
-            stopVPN();
+            stopVpn();
             return;
         }
         managmentCommand("rsa-sig\n");
@@ -618,13 +600,14 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	}
 
 	@Override
-	public boolean stopVPN() {
+	public boolean stopVpn() {
 		boolean sendCMD=false;
 		managmentCommand("signal SIGINT\n");
 		sendCMD=true;
 		try {
-			if(mSocket !=null)
+			if(mSocket !=null) {
 				mSocket.close();
+			}
 		} catch (IOException e) {
 			// Ignore close error on already closed socket
 		}
@@ -851,7 +834,7 @@ interface OpenVPNManagement {
 
 	void resume();
 
-	boolean stopVPN();
+	boolean stopVpn();
 
     /*
      * Rebind the interface
