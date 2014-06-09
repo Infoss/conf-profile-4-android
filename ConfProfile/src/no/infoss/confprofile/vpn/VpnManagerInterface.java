@@ -1,5 +1,7 @@
 package no.infoss.confprofile.vpn;
 
+import java.net.Socket;
+
 import android.os.IInterface;
 
 public interface VpnManagerInterface extends IInterface {
@@ -12,4 +14,5 @@ public interface VpnManagerInterface extends IInterface {
 	
 	//proxy methods to OcpaVpnService
 	public boolean protect(int socket);
+	public boolean protect(Socket socket);
 }

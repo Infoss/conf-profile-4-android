@@ -1,5 +1,6 @@
 package no.infoss.confprofile.vpn;
 
+import java.net.Socket;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Collections;
@@ -182,6 +183,18 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public boolean protect(int socket) {
+		boolean res = false;
+		synchronized(mVpnServiceLock) {
+			if(mVpnService != null) {
+				res = mVpnService.protect(socket);
+			} else {
+				Log.w(TAG, "Can't protect socket due to unavailable OcpaVpnService");
+			}
+		}
+		return res;
+	}
+	
+	public boolean protect(Socket socket) {
 		boolean res = false;
 		synchronized(mVpnServiceLock) {
 			if(mVpnService != null) {
