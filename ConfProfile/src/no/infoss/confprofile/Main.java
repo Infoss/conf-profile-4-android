@@ -24,14 +24,19 @@ import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
 import no.infoss.confprofile.task.BackupTask;
-import no.infoss.confprofile.vpn.OcpaVpnService;
+import no.infoss.confprofile.util.SimpleServiceBindKit;
+import no.infoss.confprofile.vpn.VpnManagerInterface;
+import no.infoss.confprofile.vpn.VpnManagerService;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
-import android.content.ActivityNotFoundException;
+import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.Loader;
+import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.os.IBinder;
 import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
@@ -47,17 +52,12 @@ import com.litecoding.classkit.view.LazyCursorList;
 import com.litecoding.classkit.view.ObjectAdapter;
 import com.litecoding.classkit.view.ObjectAdapter.ObjectMapper;
 
-public class Main extends Activity implements LoaderCallbacks<Cursor> {
+public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection {
 	public static final String TAG = Main.class.getSimpleName();
-	
-	public static final String ACTION_CALL_PREPARE = Main.class.getSimpleName().concat(".CALL_PREPARE");
-	public static final int REQUEST_CODE_PREPARE = 0;
-	public static final int RESULT_VPN_LOCKED = 2;
-	public static final int RESULT_VPN_UNSUPPORTED = 3;
-	
 	
 	private LazyCursorList<ProfileInfo> mProfileInfoList;
 	private DbOpenHelper mDbHelper;
+	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -66,6 +66,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 		
 		mProfileInfoList = new LazyCursorList<ProfileInfo>(ProfilesCursorLoader.PROFILE_CURSOR_MAPPER);
 		mDbHelper = DbOpenHelper.getInstance(this);
+		mBindKit = new SimpleServiceBindKit<VpnManagerInterface>(this, VpnManagerInterface.TAG);
 		
 		ListAdapter profileAdapter = new ObjectAdapter<ProfileInfo>(
 				getLayoutInflater(), 
@@ -89,8 +90,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 			}
 		});
 		
-		//and prepare VPN!
-		prepareVpn();
+		if(!mBindKit.bind(VpnManagerService.class, this, Context.BIND_AUTO_CREATE)) {
+			Log.e(TAG, "Can't bind VpnManagerService");
+		}
 	}
 	
 	@Override
@@ -98,6 +100,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 		super.onResume();
 		
 		getLoaderManager().restartLoader(0, null, this);
+	}
+	
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		mBindKit.unbind();
 	}
 	
 	@Override
@@ -145,44 +153,20 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 	}
 	
 	@Override
-	protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-		switch (requestCode) {
-		case REQUEST_CODE_PREPARE: {
-			Intent callerIntent = getIntent();
-			
-			if(resultCode == RESULT_OK) {
-				Intent intent = new Intent(this, OcpaVpnService.class);
-				startService(intent);
+	public void onServiceConnected(ComponentName name, IBinder service) {
+		VpnManagerInterface vpnMgr = mBindKit.lock();
+		try {
+			if(vpnMgr != null) {
+				vpnMgr.startVpnService();
 			}
-			
-			if(callerIntent != null && ACTION_CALL_PREPARE.equals(callerIntent.getAction())) {
-				setResult(resultCode, null);
-				finish();
-			}
-			break;
-		}
-		default: {
-			super.onActivityResult(requestCode, resultCode, data);
-			break;
-		}
+		} finally {
+			mBindKit.unlock();
 		}
 	}
-	
-	private void prepareVpn() {
-		try {
-			Intent prepareIntent = OcpaVpnService.prepare(this);
-			if(prepareIntent == null) {
-				onActivityResult(REQUEST_CODE_PREPARE, RESULT_OK, null);
-			} else {
-				startActivityForResult(prepareIntent, REQUEST_CODE_PREPARE);
-			}
-		} catch(IllegalStateException e) {
-			Log.e(TAG, "VPN service is locked by system", e);
-			onActivityResult(REQUEST_CODE_PREPARE, RESULT_VPN_LOCKED, null);
-		} catch(ActivityNotFoundException e) {
-			Log.e(TAG, "VPN service isn't supported by system", e);
-			onActivityResult(REQUEST_CODE_PREPARE, RESULT_VPN_UNSUPPORTED, null);
-		}
+
+	@Override
+	public void onServiceDisconnected(ComponentName name) {
+		// nothing to do here
 	}
 	
 	private void backupData() {
@@ -232,4 +216,5 @@ public class Main extends Activity implements LoaderCallbacks<Cursor> {
 		}
 		
 	}
+
 }
