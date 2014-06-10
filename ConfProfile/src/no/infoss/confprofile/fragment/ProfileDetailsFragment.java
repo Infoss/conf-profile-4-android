@@ -5,7 +5,6 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import no.infoss.confprofile.Main;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.ConfigurationProfile.Payload;
@@ -20,7 +19,6 @@ import no.infoss.confprofile.profile.PayloadsCursorLoader.PayloadInfo;
 import android.app.Activity;
 import android.app.Fragment;
 import android.app.LoaderManager.LoaderCallbacks;
-import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.AsyncTask;
@@ -116,9 +114,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 					int groupPosition, int childPosition, long id) {
 				PayloadInfoEx info = (PayloadInfoEx) parent.getExpandableListAdapter().getChild(groupPosition, childPosition);
 				if(info != null) {
-					Intent intent = new Intent(getActivity(), Main.class);
-					intent.setAction(Main.ACTION_CALL_PREPARE);
-					ProfileDetailsFragment.this.startActivityForResult(intent, Main.REQUEST_CODE_PREPARE);
+					//TODO: use selected profile
 					return true;
 				}
 				return false;
@@ -140,20 +136,6 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 		outState.putString(FSK_NAME, mName);
 		outState.putString(FSK_ORGANIZATION, mOrganization);
 		outState.putString(FSK_DESC, mDescription);
-	}
-	
-	@Override
-	public void onActivityResult(int requestCode, int resultCode, Intent data) {
-		switch (requestCode) {
-		case Main.REQUEST_CODE_PREPARE: {
-			//TODO: show the changed data here
-			break;
-		}
-		default: {
-			super.onActivityResult(requestCode, resultCode, data);
-			break;
-		}
-		}
 	}
 
 	@Override
@@ -203,16 +185,20 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 			
 			@Override
 			protected void onPostExecute(List<List<PayloadInfoEx>> result) {
-				ExpandableListAdapter payloadAdapter = new ExpandableObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>>(
-						getActivity().getLayoutInflater(), 
-						result, 
-						android.R.layout.simple_list_item_2, 
-						new PayloadInfoMapper(), 
-						result, 
-						android.R.layout.simple_expandable_list_item_2, 
-						new PayloadGroupInfoMapper());
-				ExpandableListView list = (ExpandableListView) getView().findViewById(R.id.list);
-				list.setAdapter(payloadAdapter);
+				Activity activity = getActivity();
+				
+				if(activity != null) {
+					ExpandableListAdapter payloadAdapter = new ExpandableObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>>(
+							activity.getLayoutInflater(), 
+							result, 
+							android.R.layout.simple_list_item_2, 
+							new PayloadInfoMapper(), 
+							result, 
+							android.R.layout.simple_expandable_list_item_2, 
+							new PayloadGroupInfoMapper());
+					ExpandableListView list = (ExpandableListView) getView().findViewById(R.id.list);
+					list.setAdapter(payloadAdapter);
+				}
 			}	
 		};
 		convertTask.execute(new Void[0]);
