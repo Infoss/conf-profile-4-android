@@ -29,6 +29,8 @@ public class PayloadInfoExLoader extends AsyncTaskLoader<List<List<PayloadInfoEx
 	protected int mId;
 	protected DbOpenHelper mDbHelper;
 	protected PayloadsPerformance mPerformance;
+	
+	private List<List<PayloadInfoEx>> mData;
 
 	public PayloadInfoExLoader(Context ctx, int id, Bundle params, DbOpenHelper dbHelper) {
 		super(ctx);
@@ -36,6 +38,54 @@ public class PayloadInfoExLoader extends AsyncTaskLoader<List<List<PayloadInfoEx
 		mDbHelper = dbHelper;
 		
 		mPerformance = new PayloadsPerformance(getContext(), mId, params, mDbHelper);
+	}
+
+	@Override
+	public void deliverResult(List<List<PayloadInfoEx>> data) {
+		if(isReset()) {
+			recycle(data);
+		}
+		
+		List<List<PayloadInfoEx>> oldData = mData;
+		mData = data;
+		
+		if(isStarted()) {
+			super.deliverResult(data);
+		}
+		
+		recycle(oldData);
+	}
+	
+	@Override
+	protected void onStartLoading() {
+		if(mData != null) {
+			deliverResult(mData);
+		}
+		
+		if(takeContentChanged() || mData == null) {
+			forceLoad();
+		}
+	}
+	
+	@Override
+	protected void onStopLoading() {
+		cancelLoad();
+	}
+	
+	@Override
+	public void onCanceled(List<List<PayloadInfoEx>> data) {
+		super.onCanceled(data);
+		recycle(data);
+	}
+
+	@Override
+	protected void onReset() {
+		super.onReset();
+		
+		onStopLoading();
+		
+		recycle(mData);
+		mData = null;
 	}
 
 	@Override
@@ -76,4 +126,17 @@ public class PayloadInfoExLoader extends AsyncTaskLoader<List<List<PayloadInfoEx
 		return result;
 	}
 	
+	protected void recycle(List<List<PayloadInfoEx>> data) {
+		if(data == null) {
+			return;
+		}
+		
+		//TODO: handle observers/observables
+		
+		for(List<PayloadInfoEx> sublist : data) {
+			sublist.clear();
+		}
+		
+		data.clear();
+	}
 }
