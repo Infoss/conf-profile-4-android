@@ -20,4 +20,9 @@
 	<string name="error_add_profile_http_failed">Server doesn\'t respond. \nCheck your internet connectivity and try to reinstall profile.</string>
 	<string name="error_add_profile_scep_failed">Can\'t enroll certificate by SCEP. \nTry to reinstall profile later.</string>
 	<string name="error_add_profile_missing_scep">SCEP payload is missed. \nContact your profile provider to retrieve additional information.</string>
+	
+	<string name="notification_title_preparing">Preparing VPN</string>
+	<string name="notification_text_preparing">Please wait</string>
+	<string name="notification_title_error_revoked">Access revoked by another app</string>
+    <string name="notification_text_error_revoked">Please tap here to protect your traffic with VPN.</string>
 </resources>

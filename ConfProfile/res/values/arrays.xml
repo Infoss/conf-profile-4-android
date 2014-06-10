@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <integer-array name="vpn_manager_icons">
+        <item>@drawable/ic_launcher</item> <!-- preparing -->
+        <item>@drawable/ic_launcher</item> <!-- connecting -->
+        <item>@drawable/ic_launcher</item> <!-- connected, no protected connections -->
+        <item>@drawable/ic_launcher</item> <!-- connected, with protected connections -->
+        <item>@drawable/ic_launcher</item> <!-- disconnected -->
+    </integer-array>
+    
+    <integer-array name="vpn_manager_error_icons">
+        <item>@drawable/ic_launcher</item> <!-- generic fatal error (feature is unsupported) -->
+        <item>@drawable/ic_launcher</item> <!-- generic error (user action required) -->
+        <item>@drawable/ic_launcher</item> <!-- access revoked -->
+        <item>@drawable/ic_launcher</item> <!-- wrong credentials -->
+    </integer-array>
+</resources>

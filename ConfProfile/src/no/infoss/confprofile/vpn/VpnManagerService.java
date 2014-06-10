@@ -8,52 +8,34 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import no.infoss.confprofile.R;
+import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.task.ObtainOnDemandVpns;
 import no.infoss.confprofile.task.ObtainOnDemandVpns.ObtainOnDemandVpnsListener;
+import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.app.Service;
-import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
+import android.content.res.TypedArray;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Binder;
 import android.os.IBinder;
+import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
 public class VpnManagerService extends Service implements VpnManagerInterface, ObtainOnDemandVpnsListener {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
 	
+	private NotificationManager mNtfMgr;
 	private Binder mBinder = new Binder();
 	private NetworkStateListener mNetworkListener;
 	
-	private OcpaVpnInterface mVpnService;
-	private final Object mVpnServiceLock = new Object();
-	private final ServiceConnection mVpnServiceConn = new ServiceConnection() {
-		
-		@Override
-		public void onServiceDisconnected(ComponentName name) {
-			Log.d(TAG, "Service disconnected: " + name.flattenToString());
-			synchronized(mVpnServiceLock) {
-				mVpnService = null;
-				if(mRouterLoop != null) {
-					mRouterLoop.terminate();
-				}
-				mRouterLoop = null;
-			}
-		}
-
-		@Override
-		public void onServiceConnected(ComponentName name, IBinder service) {
-			Log.d(TAG, "Service connected: " + name.flattenToString());
-			synchronized(mVpnServiceLock) {
-				mVpnService = (OcpaVpnInterface) service.queryLocalInterface(OcpaVpnInterface.TAG);
-				if(mRouterLoop != null) {
-					mRouterLoop.terminate();
-				}
-				mRouterLoop = new RouterLoop(VpnManagerService.this, mVpnService.createBuilderAdapter("TEST"));
-				mRouterLoop.startLoop();
-			}
-		}
-	};
+	private SimpleServiceBindKit<OcpaVpnInterface> mBindKit;
+	private boolean mIsVpnServiceStarted = false;
 	
 	private RouterLoop mRouterLoop = null;
 	
@@ -66,12 +48,26 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	private NetworkConfig mSavedNetworkConfig;
 	private boolean mSavedFailoverFlag;
 	
+	private int[] mVpnManagerIcons;
+	private int[] mVpnManagerErrorIcons;
+	
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		mNetworkListener = new NetworkStateListener(getApplicationContext(), this);
 		obtainOnDemandVpns();
-		bindService(new Intent(this, OcpaVpnService.class), mVpnServiceConn, Service.BIND_AUTO_CREATE);
+		initIcons();
+		
+		mNtfMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+		String title = getResources().getString(R.string.notification_title_preparing);
+		String text = getResources().getString(R.string.notification_text_preparing);
+		Notification notification = buildNotification(mVpnManagerIcons[0], mVpnManagerIcons[0], title, text);
+		mNtfMgr.notify(R.string.app_name, notification);
+		
+		mBindKit = new SimpleServiceBindKit<OcpaVpnInterface>(this, OcpaVpnInterface.TAG);
+		if(!mBindKit.bind(OcpaVpnService.class, BIND_AUTO_CREATE)) {
+			Log.e(TAG, "Can't bind OcpaVpnService");
+		}
 	}
 	
 	@Override
@@ -103,8 +99,47 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	@Override
-	public void notifyVpnServiceRevoked() {
+	public void startVpnService() {
+		if(!mIsVpnServiceStarted) {
+			Intent intent = new Intent(this, StartVpn.class);
+			intent.setAction(StartVpn.ACTION_CALL_PREPARE);
+			intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+			startActivity(intent);
+		}
+	}
+	
+	@Override
+	public void notifyVpnServiceStarted() {
 		//TODO: show system notification
+		if(mRouterLoop != null) {
+			mRouterLoop.terminate();
+		}
+		
+		OcpaVpnInterface vpnService = mBindKit.lock();
+		try {
+			mRouterLoop = new RouterLoop(VpnManagerService.this, vpnService.createBuilderAdapter("OCPA"));
+			updateCurrentConfiguration();
+			mRouterLoop.startLoop();
+		} finally {
+			mBindKit.unlock();
+		}
+		
+		mIsVpnServiceStarted = true;
+	}
+	
+	@Override
+	public void notifyVpnServiceRevoked() {
+		if(mRouterLoop != null) {
+			mRouterLoop.terminate();
+		}
+		mRouterLoop = null;
+		
+		//TODO: show system notification
+		String title = getResources().getString(R.string.notification_title_error_revoked);
+		String text = getResources().getString(R.string.notification_text_error_revoked);
+		Notification notification = buildNotification(mVpnManagerErrorIcons[2], mVpnManagerErrorIcons[2], title, text);
+		mNtfMgr.notify(R.string.app_name, notification);
+		mIsVpnServiceStarted = false;
 	}
 	
 	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover) {
@@ -128,7 +163,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	private synchronized void updateCurrentConfiguration() {
-		if(mSavedNetworkConfig == null || mConfigInfos == null) {
+		if(mSavedNetworkConfig == null || mConfigInfos == null || mRouterLoop == null) {
 			return;
 		}
 		
@@ -182,27 +217,45 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	@Override
+	public void notifyVpnLockedBySystem() {
+		
+	}
+	
+	@Override
+	public void notifyVpnIsUnsupported() {
+		
+	}
+	
+	@Override
 	public boolean protect(int socket) {
 		boolean res = false;
-		synchronized(mVpnServiceLock) {
-			if(mVpnService != null) {
-				res = mVpnService.protect(socket);
+		OcpaVpnInterface vpnService = mBindKit.lock();
+		try {
+			if(vpnService != null) {
+				res = vpnService.protect(socket);
 			} else {
 				Log.w(TAG, "Can't protect socket due to unavailable OcpaVpnService");
 			}
+		} finally {
+			mBindKit.unlock();
 		}
+
 		return res;
 	}
 	
 	public boolean protect(Socket socket) {
 		boolean res = false;
-		synchronized(mVpnServiceLock) {
-			if(mVpnService != null) {
-				res = mVpnService.protect(socket);
+		OcpaVpnInterface vpnService = mBindKit.lock();
+		try {
+			if(vpnService != null) {
+				res = vpnService.protect(socket);
 			} else {
 				Log.w(TAG, "Can't protect socket due to unavailable OcpaVpnService");
 			}
+		} finally {
+			mBindKit.unlock();
 		}
+		
 		return res;
 	}
 
@@ -238,6 +291,43 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		// TODO Auto-generated method stub
 		mIsRequestActive = false;
 		Log.e(TAG, "Error while getting On-Demand VPN configuration");
+	}
+	
+	private void initIcons() {
+		TypedArray a;
+		a = getResources().obtainTypedArray(R.array.vpn_manager_icons);
+		mVpnManagerIcons = new int[a.length()];
+		for(int i = 0; i < a.length(); i++) {
+			mVpnManagerIcons[i] = a.getResourceId(i, 0);
+		}
+		a.recycle();
+		
+		a = getResources().obtainTypedArray(R.array.vpn_manager_error_icons);
+		mVpnManagerErrorIcons = new int[a.length()];
+		for(int i = 0; i < a.length(); i++) {
+			mVpnManagerErrorIcons[i] = a.getResourceId(i, 0);
+		}
+		a.recycle();
+	}
+	
+	private Notification buildNotification(int smallIconId, int largeIconId, String title, String text) {
+		NotificationCompat.Builder compatBuilder = new NotificationCompat.Builder(this);
+		if(smallIconId > 0) {
+			compatBuilder.setSmallIcon(smallIconId);
+		}
+		
+		if(largeIconId > 0) {
+			Drawable d = getResources().getDrawable(largeIconId);
+			if(d instanceof BitmapDrawable) {
+				compatBuilder.setLargeIcon(((BitmapDrawable) d).getBitmap());
+			}
+		}
+		
+		compatBuilder.setContentTitle(title);
+		compatBuilder.setContentText(text);
+		compatBuilder.setOngoing(true);
+		
+		return compatBuilder.build();
 	}
 	
 	public static class VpnConfigInfo {
