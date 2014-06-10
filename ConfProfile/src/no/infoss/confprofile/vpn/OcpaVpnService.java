@@ -1,12 +1,10 @@
 package no.infoss.confprofile.vpn;
 
 import no.infoss.confprofile.Main;
+import no.infoss.confprofile.util.SimpleServiceBindKit;
 import android.app.PendingIntent;
-import android.app.Service;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.ServiceConnection;
 import android.net.VpnService;
 import android.os.Binder;
 import android.os.Bundle;
@@ -23,59 +21,48 @@ public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 	
 	private Binder mBinder = new Binder();
 	
-	private VpnManagerInterface mVpnMgr;
-	private final Object mVpnMgrLock = new Object();
-	
-	private final ServiceConnection mServiceConnection = new ServiceConnection() {
-		
-		@Override
-		public void onServiceDisconnected(ComponentName name) {
-			Log.d(TAG, "Service disconnected: " + name.flattenToString());
-			synchronized (mVpnMgrLock) {
-				mVpnMgr = null;
-			}
-		}
-
-		@Override
-		public void onServiceConnected(ComponentName name, IBinder service) {
-			Log.d(TAG, "Service connected: " + name.flattenToString());
-			synchronized (mVpnMgrLock) {
-				mVpnMgr = (VpnManagerInterface) service.queryLocalInterface(VpnManagerInterface.TAG);
-			}
-		}
-	};
+	private SimpleServiceBindKit<VpnManagerService> mBindKit;
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-		if (intent != null) {
-			Bundle bundle = intent.getExtras();
-			if (bundle != null) {
-				
+		VpnManagerService vpnMgr = mBindKit.lock();
+		try {
+			if(vpnMgr != null) {
+				vpnMgr.notifyVpnServiceStarted();
+			} else {
+				Log.e(TAG, "Can't call notifyVpnServiceStarted(). VpnManagerService is now bound");
 			}
+		} finally {
+			mBindKit.unlock();
 		}
+		
 		return START_NOT_STICKY;
 	}
 
 	@Override
 	public void onCreate() {
-		bindService(new Intent(this, VpnManagerService.class), mServiceConnection, Service.BIND_AUTO_CREATE);
+		mBindKit = new SimpleServiceBindKit<VpnManagerService>(this, VpnManagerInterface.TAG);
+		if(!mBindKit.bind(VpnManagerService.class, BIND_AUTO_CREATE)) {
+			Log.e(TAG, "Can't bind VpnManagerService");
+		}
 	}
 
 	@Override
 	public void onRevoke() {
 		Log.d(TAG, "onRevoke()");
-		synchronized (mVpnMgrLock) {
-			if (mVpnMgr != null) {
-				mVpnMgr.notifyVpnServiceRevoked();
+		VpnManagerInterface vpnMgr = mBindKit.lock();
+		try {
+			if (vpnMgr != null) {
+				vpnMgr.notifyVpnServiceRevoked();
 			}
+		} finally {
+			mBindKit.unlock();
 		}
 	}
 
 	@Override
 	public void onDestroy() {		
-		if (mVpnMgr != null) {
-			unbindService(mServiceConnection);
-		}
+		mBindKit.unbind();
 	}
 	
 	@Override
