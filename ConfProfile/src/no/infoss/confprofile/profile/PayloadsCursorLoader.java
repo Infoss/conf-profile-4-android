@@ -1,5 +1,6 @@
 package no.infoss.confprofile.profile;
 
+import no.infoss.confprofile.profile.data.PayloadInfo;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -43,12 +44,6 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 	
 	public static PayloadsPerformance create(Context context, int id, Bundle params, DbOpenHelper dbHelper) {
 		return new PayloadsPerformance(context, id, params, dbHelper);
-	}
-	
-	public static class PayloadInfo {
-		public String profileId;
-		public String payloadUuid;
-		public String data;
 	}
 	
 	public static class PayloadsPerformance extends LoaderQueryPerformance {
