@@ -7,12 +7,25 @@
 
 #define LOG_TAG "router.c"
 
+struct payload_info_t {
+	uint8_t proto;
+	uint32_t offs;
+	uint32_t len;
+};
+
+typedef struct payload_info_t payload_info_t;
+
 uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_udp_checksum(uint8_t* buff, int len);
-uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len);
+uint32_t ip4_calc_pseudoheader_sum(uint8_t* buff, int len);
+uint16_t ip6_calc_tcp_checksum(uint32_t common_sum, uint8_t* buff, int len);
+uint16_t ip6_calc_udp_checksum(uint32_t common_sum, uint8_t* buff, int len);
+uint32_t ip6_calc_common_pseudoheader_sum(uint8_t* buff, int len);
+uint32_t ip6_calc_pseudoheader_sum(uint8_t* buff, int len, uint8_t proto, uint32_t pktlen);
 inline uint32_t ip4_update_sum(uint32_t previous, uint16_t data);
 inline uint16_t ip4_update_checksum(uint16_t old_checksum, uint16_t old_data, uint16_t new_data);
+inline uint16_t ip_sum_to_checksum(uint32_t sum);
 
 inline bool ip4_addr_match(uint32_t network, uint8_t netmask, uint32_t test_ip) {
 	uint32_t prepared_test_ip = (test_ip >> (32 - netmask)) << (32 - netmask);
@@ -20,6 +33,70 @@ inline bool ip4_addr_match(uint32_t network, uint8_t netmask, uint32_t test_ip) 
 		return true;
 	}
 	return false;
+}
+
+inline bool ip6_addr_match(uint8_t* network, uint8_t netmask, uint8_t* test_ip) {
+	uint8_t matching_bytes = netmask >> 3;
+	uint8_t partial_matching_bytes = 0;
+
+	// see a comment in route6()
+	uint8_t partial_bitmask_shift = (8 - (netmask - (matching_bytes << 3)));
+	uint8_t partial_bitmask = (0xff >> partial_bitmask_shift) << partial_bitmask_shift;
+	if(partial_bitmask != 0x00) {
+		partial_matching_bytes++;
+	}
+
+	int i = 0;
+	for(i = 0; i < matching_bytes; i++) {
+		if(network[i] != test_ip[i]) {
+			return false;
+		}
+	}
+
+	if(partial_matching_bytes > 0) {
+		if(network[matching_bytes] != (test_ip[matching_bytes] & partial_bitmask)) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
+inline void ip6_find_payload(payload_info_t *payload_info, uint8_t* buff, int len) {
+	uint8_t proto = ((ip6_header*) buff)->ip6_ctlun.ip6_un1.ip6_un1_nxt;
+	uint8_t* ptr = buff + sizeof(ip6_header);
+	uint32_t offs = sizeof(ip6_header);
+	while(true) {
+		if(proto != IPPROTO_HOPOPTS && proto != IPPROTO_ROUTING && proto != IPPROTO_DSTOPTS) {
+			break;
+		}
+
+		if(ptr >= buff + len - 1) {
+			//there is no space for next proto field
+			proto = IPPROTO_NONE; //emulate "No next header"
+			offs = 0;
+			break;
+		}
+
+		proto = ptr[0];
+
+		ptr++;
+		offs++;
+
+		if(ptr >= buff + len - 1) {
+			//there is no space for next len field
+			proto = IPPROTO_NONE; //emulate "No next header"
+			offs = 0;
+			break;
+		}
+
+		ptr += ptr[0];
+		offs += ptr[0];
+	}
+
+	payload_info->proto = proto;
+	payload_info->offs = offs;
+	payload_info->len = ((ip6_header*) buff)->ip6_ctlun.ip6_un1.ip6_un1_plen + sizeof(ip6_header) - offs;
 }
 
 router_ctx_t* router_init() {
@@ -200,8 +277,92 @@ void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, common_tun_ctx_t* tu
 }
 
 void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tun_ctx) {
-	//TODO: implement this
+	if(ctx == NULL) {
+		return;
+	}
+
+	if(mask > 128) {
+		mask = 128;
+	}
+
+	uint8_t netmask = (uint8_t) mask;
+	uint8_t matching_bytes = netmask >> 3;
+	uint8_t partial_matching_bytes = 0;
+	uint8_t blank_bytes = 16 - matching_bytes;
+
+	// mask ::/14 means the following bitmask:
+	// 11111111 11111100 00000000 ...
+	// matching byte (0xff of bitmask) does not change corresponding IP address byte after applying logical AND
+	// blank byte (0x00 of bitmask) changes corresponding IP address byte into 0x00 after applying logical AND
+	// here we have 1 matching byte and 1 partially matching byte which have partial_bitmask bitmask
+	uint8_t partial_bitmask_shift = (8 - (netmask - (matching_bytes << 3)));
+	uint8_t partial_bitmask = (0xff >> partial_bitmask_shift) << partial_bitmask_shift;
+	if(partial_bitmask != 0x00) {
+		partial_matching_bytes++;
+		blank_bytes--;
+	}
+
 	pthread_rwlock_wrlock(ctx->rwlock4);
+
+	route6_link_t* link = (route6_link_t*) malloc(sizeof(route6_link_t));
+	memcpy(link->ip6, ip6, matching_bytes);
+	memset(link->ip6 + (matching_bytes), *(ip6 + matching_bytes) & partial_bitmask, partial_matching_bytes);
+	memset(link->ip6 + (matching_bytes + partial_matching_bytes), 0x00, blank_bytes);
+	link->mask = netmask;
+	link->tun_ctx = tun_ctx;
+	link->next = NULL;
+
+	if(ctx->ip6_routes == NULL) {
+		ctx->ip6_routes = link;
+	} else {
+		route6_link_t* curr = ctx->ip6_routes;
+		route6_link_t* prev = NULL;
+		route6_link_t* next = NULL;
+		while(curr != NULL) {
+			next = curr->next;
+			int cmp_addrs = memcmp(curr->ip6, link->ip6, 16);
+			if(cmp_addrs < 0 || (cmp_addrs == 0 && curr->mask < netmask)) {
+				//insert link before this
+				link->next = curr;
+				if(prev == NULL) {
+					ctx->ip6_routes = link;
+				} else {
+					prev->next = link;
+				}
+
+				ctx->ip6_routes_count++;
+
+				//Our job is done
+				break;
+
+			} else if(cmp_addrs == 0 && curr->mask == netmask) {
+				//replace this link
+				link->next = next;
+				if(prev == NULL) {
+					ctx->ip6_routes = link;
+				} else {
+					prev->next = link;
+				}
+
+				free(curr);
+
+				//Our job is done
+				break;
+			} else if(next == NULL) {
+				//add to the end
+				link->next = NULL;
+				curr->next = link;
+
+				//Our job is done;
+				break;
+			}
+
+			prev = curr;
+			curr = next;
+		}
+	}
+
+	ctx->routes_updated = true;
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
@@ -231,6 +392,7 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask) {
 			free(curr);
 
 			ctx->ip4_routes_count--;
+			ctx->routes_updated = true;
 
 			//Our job is done
 			break;
@@ -244,14 +406,51 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask) {
 		curr = next;
 	}
 
-	ctx->routes_updated = true;
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
 void unroute6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask) {
-	//TODO: implement this
+	if(ctx == NULL) {
+		return;
+	}
 
 	pthread_rwlock_wrlock(ctx->rwlock4);
+
+	route6_link_t* curr = ctx->ip6_routes;
+	route6_link_t* prev = NULL;
+	route6_link_t* next = NULL;
+	while(curr != NULL) {
+		next = curr->next;
+		int cmp_addrs = memcmp(curr->ip6, ip6, 16);
+
+		if(cmp_addrs == 0) {
+			//remove this link
+			if(prev == NULL) {
+				ctx->ip6_routes = next;
+			} else {
+				prev->next = next;
+			}
+
+			memset(curr->ip6, 0x00, 16);
+			curr->next = NULL;
+			curr->tun_ctx = NULL;
+			free(curr);
+
+			ctx->ip6_routes_count--;
+			ctx->routes_updated = true;
+
+			//Our job is done
+			break;
+		} else if(cmp_addrs < 0) {
+			//no such route
+			//Our job is done;
+			break;
+		}
+
+		prev = curr;
+		curr = next;
+	}
+
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
@@ -265,9 +464,12 @@ void default4(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
 }
 
 void default6(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
-	//TODO: implement this
-	pthread_rwlock_wrlock(ctx->rwlock4);
-	pthread_rwlock_unlock(ctx->rwlock4);
+	if(ctx != NULL) {
+		pthread_rwlock_wrlock(ctx->rwlock4);
+		ctx->ip6_default_tun_ctx = tun_ctx;
+		ctx->routes_updated = true;
+		pthread_rwlock_unlock(ctx->rwlock4);
+	}
 }
 
 ssize_t ipsend(router_ctx_t* ctx, uint8_t* buff, int len) {
@@ -350,12 +552,77 @@ ssize_t send4(router_ctx_t* ctx, uint8_t* buff, int len) {
 }
 
 ssize_t send6(router_ctx_t* ctx, uint8_t* buff, int len) {
-	//TODO: implement this
+	tun_send_func_ptr send_func = NULL;
+	common_tun_ctx_t* tun_ctx = NULL;
+
+	if(ctx == NULL) {
+		errno = EBADF;
+		return -1;
+	}
+
 	pthread_rwlock_rdlock(ctx->rwlock4);
+
+	uint8_t* ip6 = buff + 24;
+
+	if(ctx->ip6_routes != NULL) {
+		route6_link_t* curr = ctx->ip6_routes;
+		while(curr != NULL) {
+			int cmp_addrs = memcmp(curr->ip6, ip6, 16);
+			if(ip6_addr_match(curr->ip6, curr->mask, ip6)) {
+				tun_ctx = curr->tun_ctx;
+				//Our job is done
+				break;
+			} else if(cmp_addrs < 0) {
+				//no such route
+				//Our job is done;
+				break;
+			}
+
+			curr = curr->next;
+		}
+	}
+
+	if(tun_ctx == NULL || tun_ctx->send_func == NULL) {
+		LOGD(LOG_TAG, "Using default route6");
+		tun_ctx = ctx->ip6_default_tun_ctx;
+	}
+
+	ssize_t result = 0;
+	if(tun_ctx != NULL && tun_ctx->send_func != NULL) {
+		if(tun_ctx->use_masquerade6) {
+			ip6_header* hdr = (ip6_header*) buff;
+			memcpy(hdr->ip6_src.s6_addr, tun_ctx->masquerade6, 16);
+
+			payload_info_t payload_info;
+			ip6_find_payload(&payload_info, buff, len);
+
+			switch(payload_info.proto) {
+			case IPPROTO_TCP: {
+				uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
+				ip6_calc_tcp_checksum(common_sum, buff + payload_info.offs, payload_info.len);
+				break;
+			}
+			case IPPROTO_UDP: {
+				uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
+				ip6_calc_udp_checksum(common_sum, buff + payload_info.offs, payload_info.len);
+				break;
+			}
+			default: {
+				LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", payload_info.proto);
+				break;
+			}
+			}
+			LOGE(LOG_TAG, "Masquerading:");
+			log_dump_packet(LOG_TAG, buff, len);
+		}
+		result = tun_ctx->send_func((intptr_t) tun_ctx, buff, len);
+	} else {
+		LOGE(LOG_TAG, "Destination tunnel is not ready, dropping a packet");
+		log_dump_packet(LOG_TAG, buff, len);
+	}
 	pthread_rwlock_unlock(ctx->rwlock4);
 
-	errno = EBADF;
-	return -1;
+	return result;
 }
 
 ssize_t read_ip_packet(int fd, uint8_t* buff, int len) {
@@ -541,7 +808,7 @@ uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len) {
 		sum = ip4_update_sum(sum, ntohs(ptr[0]));
 	}
 
-	uint16_t checksum = ~sum;
+	uint16_t checksum = ip_sum_to_checksum(sum);
 	hdr->check = htons(checksum);
 
 	return checksum;
@@ -553,7 +820,7 @@ uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len) {
 	}
 	ip4_header* hdr = (ip4_header*) buff;
 	uint16_t tcp_len = ntohs(hdr->tot_len) - (hdr->ihl * 4);
-	uint32_t sum = ip4_calc_pseudoheader_checksum(buff, len);
+	uint32_t sum = ip4_calc_pseudoheader_sum(buff, len);
 
 	int cycles = tcp_len >> 1; //integer division
 
@@ -581,7 +848,8 @@ uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len) {
 		sum = ip4_update_sum(sum, htons((uint16_t) odd_byte));
 		LOGD(LOG_TAG, "TCP frame size is odd, adding %02x %p to checksum", htons((uint16_t) odd_byte), ptr);
 	}
-	uint16_t checksum = ~sum;
+
+	uint16_t checksum = ip_sum_to_checksum(sum);
 	tcp_hdr->check = htons(checksum);
 
 	return checksum;
@@ -604,7 +872,7 @@ uint16_t ip4_calc_udp_checksum(uint8_t* buff, int len) {
 	return 0;
 }
 
-uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len) {
+uint32_t ip4_calc_pseudoheader_sum(uint8_t* buff, int len) {
 	//packet should be validated before this method call
 	uint32_t sum = 0;
 	ip4_header* hdr = (ip4_header*) buff;
@@ -624,6 +892,135 @@ uint16_t ip4_calc_pseudoheader_checksum(uint8_t* buff, int len) {
 	return sum;
 }
 
+uint16_t ip6_calc_tcp_checksum(uint32_t common_sum, uint8_t* buff, int len) {
+	if(buff == NULL || len < 40) {
+		return 0;
+	}
+	ip6_header* hdr = (ip6_header*) buff;
+	uint32_t sum = common_sum;
+	sum = ip4_update_sum(sum, IPPROTO_TCP);
+	sum = ip4_update_sum(sum, len >> 16);
+	sum = ip4_update_sum(sum, len & 0x0000ffff);
+
+	int cycles = len >> 1; //integer division
+
+	int seq_num = -1;
+	uint16_t* ptr = (uint16_t*) (buff);
+	LOGD(LOG_TAG, "TCP frame size is %d, tcp data starts from %p", len, ptr);
+	tcp_header* tcp_hdr = (tcp_header*) ptr;
+	ptr--; //this is safe due to a following ptr++
+	while(cycles > 0) {
+		cycles--;
+		ptr++;
+		seq_num++;
+		if(seq_num == 8) {
+			//skipping checksum field
+			continue;
+		}
+
+		sum = ip4_update_sum(sum, ntohs(ptr[0]));
+	}
+
+	if((len & 1) == 1) {
+		//adding odd byte
+		ptr++;
+		uint8_t odd_byte = ((uint8_t*) ptr)[0];
+		sum = ip4_update_sum(sum, htons((uint16_t) odd_byte));
+		LOGD(LOG_TAG, "TCP frame size is odd, adding %02x %p to checksum", htons((uint16_t) odd_byte), ptr);
+	}
+
+	uint16_t checksum = ip_sum_to_checksum(sum);
+	tcp_hdr->check = htons(checksum);
+
+	return checksum;
+}
+
+uint16_t ip6_calc_udp_checksum(uint32_t common_sum, uint8_t* buff, int len) {
+	if(buff == NULL || len < 40) {
+		return 0;
+	}
+	ip6_header* hdr = (ip6_header*) buff;
+	uint32_t sum = common_sum;
+	sum = ip4_update_sum(sum, IPPROTO_UDP);
+	sum = ip4_update_sum(sum, len >> 16);
+	sum = ip4_update_sum(sum, len & 0x0000ffff);
+
+	int cycles = len >> 1; //integer division
+
+	int seq_num = -1;
+	uint16_t* ptr = (uint16_t*) (buff);
+	LOGD(LOG_TAG, "UDP frame size is %d, udp data starts from %p", len, ptr);
+	udp_header* udp_hdr = (udp_header*) ptr;
+	ptr--; //this is safe due to a following ptr++
+	while(cycles > 0) {
+		cycles--;
+		ptr++;
+		seq_num++;
+		if(seq_num == 4) {
+			//skipping checksum field
+			continue;
+		}
+
+		sum = ip4_update_sum(sum, ntohs(ptr[0]));
+	}
+
+	if((len & 1) == 1) {
+		//adding odd byte
+		ptr++;
+		uint8_t odd_byte = ((uint8_t*) ptr)[0];
+		sum = ip4_update_sum(sum, htons((uint16_t) odd_byte));
+		LOGD(LOG_TAG, "UDP frame size is odd, adding %02x %p to checksum", htons((uint16_t) odd_byte), ptr);
+	}
+
+	uint16_t checksum = ip_sum_to_checksum(sum);
+	udp_hdr->check = htons(checksum);
+
+	return checksum;
+}
+
+/**
+ * Calculates IPv6 pseudoheader checksum w/o protocol and packet length
+ */
+uint32_t ip6_calc_common_pseudoheader_sum(uint8_t* buff, int len) {
+	//packet should be validated before this method call
+	uint32_t sum = 0;
+	ip6_header* hdr = (ip6_header*) buff;
+	uint16_t* ptr = (uint16_t*) buff;
+
+	//src addr
+	sum = ip4_update_sum(sum, ntohs(ptr[4]));
+	sum = ip4_update_sum(sum, ntohs(ptr[5]));
+	sum = ip4_update_sum(sum, ntohs(ptr[6]));
+	sum = ip4_update_sum(sum, ntohs(ptr[7]));
+	sum = ip4_update_sum(sum, ntohs(ptr[8]));
+	sum = ip4_update_sum(sum, ntohs(ptr[9]));
+	sum = ip4_update_sum(sum, ntohs(ptr[10]));
+	sum = ip4_update_sum(sum, ntohs(ptr[11]));
+
+	//dst addr
+	sum = ip4_update_sum(sum, ntohs(ptr[12]));
+	sum = ip4_update_sum(sum, ntohs(ptr[13]));
+	sum = ip4_update_sum(sum, ntohs(ptr[14]));
+	sum = ip4_update_sum(sum, ntohs(ptr[15]));
+	sum = ip4_update_sum(sum, ntohs(ptr[16]));
+	sum = ip4_update_sum(sum, ntohs(ptr[17]));
+	sum = ip4_update_sum(sum, ntohs(ptr[18]));
+	sum = ip4_update_sum(sum, ntohs(ptr[19]));
+
+	return sum;
+}
+
+uint32_t ip6_calc_pseudoheader_sum(uint8_t* buff, int len, uint8_t proto, uint32_t pktlen) {
+	//packet should be validated before this method call
+	uint32_t sum = ip6_calc_common_pseudoheader_sum(buff, len);
+
+	sum = ip4_update_sum(sum, (uint16_t)(pktlen >> 16));
+	sum = ip4_update_sum(sum, (uint16_t)(pktlen & 0x0000ffff));
+	sum = ip4_update_sum(sum, (uint16_t) proto);
+
+	return sum;
+}
+
 inline uint32_t ip4_update_sum(uint32_t previous, uint16_t data) {
 	uint32_t sum = previous;
 	sum += data;
@@ -636,7 +1033,10 @@ inline uint16_t ip4_update_checksum(uint16_t old_checksum, uint16_t old_data, ui
 	uint32_t sum = (~old_checksum) & 0x0000ffff;
 	sum = ip4_update_sum(sum, old_data);
 	sum = ip4_update_sum(sum, ~new_data);
-	uint16_t checksum = ~sum;
-	return checksum;
+	return ip_sum_to_checksum(sum);
 }
 
+inline uint16_t ip_sum_to_checksum(uint32_t sum) {
+	uint16_t checksum = ~((uint16_t) sum);
+	return (checksum == 0x0000 ? 0xffff : checksum);
+}

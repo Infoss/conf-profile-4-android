@@ -10,6 +10,7 @@
 #include "tun.h"
 
 typedef struct route4_link_t route4_link_t;
+typedef struct route6_link_t route6_link_t;
 typedef struct router_ctx_t router_ctx_t;
 typedef struct poll_helper_struct_t poll_helper_struct_t;
 
@@ -22,6 +23,13 @@ struct route4_link_t {
     route4_link_t* next;
 };
 
+struct route6_link_t {
+    uint8_t ip6[16];
+    uint8_t mask;
+    common_tun_ctx_t* tun_ctx;
+    route6_link_t* next;
+};
+
 struct router_ctx_t {
 	pthread_rwlock_t* rwlock4;
 	common_tun_ctx_t dev_tun_ctx;
@@ -32,6 +40,13 @@ struct router_ctx_t {
 
     //Default IPv4 route fields
     common_tun_ctx_t* ip4_default_tun_ctx;
+
+    //IPv6 route fields
+    route6_link_t* ip6_routes;
+    int ip6_routes_count;
+
+    //Default IPv6 route fields
+    common_tun_ctx_t* ip6_default_tun_ctx;
 
     //internal packet buffer
     uint8_t* ip4_pkt_buff;
