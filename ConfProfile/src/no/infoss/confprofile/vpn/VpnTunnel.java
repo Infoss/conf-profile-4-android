@@ -20,9 +20,16 @@ public abstract class VpnTunnel implements Runnable {
 	}
 	
 	protected abstract String getThreadName();
-	public abstract String getTunnelId();
 	public abstract void establishConnection(Map<String, Object> options);
 	public abstract void terminateConnection();
+	
+	public final String getTunnelId() {
+		if(mCfg == null) {
+			return null;
+		}
+		
+		return mCfg.configId;
+	}
 	
 	public void startLoop() {
 		mThread.setName(getThreadName());

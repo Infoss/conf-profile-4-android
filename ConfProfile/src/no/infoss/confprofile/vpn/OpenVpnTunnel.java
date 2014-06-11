@@ -67,11 +67,6 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	}
 
 	@Override
-	public String getTunnelId() {
-		return VPN_TYPE;
-	}
-
-	@Override
 	protected String getThreadName() {
 		return VPN_TYPE;
 	}

@@ -168,11 +168,6 @@ public class L2tpTunnel extends VpnTunnel {
 	}
 
 	@Override
-	public String getTunnelId() {
-		return VPN_TYPE;
-	}
-
-	@Override
 	public void establishConnection(Map<String, Object> options) {
 		if(mIsTerminating) {
 			return;
