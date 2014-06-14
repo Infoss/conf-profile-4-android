@@ -9,12 +9,21 @@
 
 #include "tun.h"
 
+typedef struct ocpa_ip_packet_t ocpa_ip_packet_t;
 typedef struct route4_link_t route4_link_t;
 typedef struct route6_link_t route6_link_t;
 typedef struct router_ctx_t router_ctx_t;
 typedef struct poll_helper_struct_t poll_helper_struct_t;
 
-
+struct ocpa_ip_packet_t {
+	uint32_t buff_len;
+	uint8_t* buff;
+	uint32_t pkt_len;
+	uint8_t ipver;
+	uint8_t payload_proto;
+	uint32_t payload_offs;
+	uint32_t payload_len;
+};
 
 struct route4_link_t {
     uint32_t ip4;
@@ -49,8 +58,7 @@ struct router_ctx_t {
     common_tun_ctx_t* ip6_default_tun_ctx;
 
     //internal packet buffer
-    uint8_t* ip4_pkt_buff;
-    int ip4_pkt_buff_size;
+    ocpa_ip_packet_t ip_pkt;
 
     bool routes_updated;
     bool paused;
@@ -73,9 +81,9 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask);
 void unroute6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask);
 void default4(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx);
 void default6(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx);
-ssize_t ipsend(router_ctx_t* ctx, uint8_t* buff, int len);
-ssize_t send4(router_ctx_t* ctx, uint8_t* buff, int len);
-ssize_t send6(router_ctx_t* ctx, uint8_t* buff, int len);
+ssize_t ipsend(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet);
+ssize_t send4(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet);
+ssize_t send6(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet);
 
 ssize_t read_ip_packet(int fd, uint8_t* buff, int len);
 

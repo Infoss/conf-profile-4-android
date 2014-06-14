@@ -140,7 +140,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 							LOGD(LOG_TAG, "Read from fd=%d returned 0", poll_struct->poll_fds[i].fd);
 						}
 					} else {
-						LOGE(LOG_TAG, "Tunnel not ready, dropping a packet");
+						LOGE(LOG_TAG, "Tunnel is not ready, dropping a packet");
 						log_dump_packet(LOG_TAG, ip_pkt_buff, ip_pkt_buff_size);
 					}
 
