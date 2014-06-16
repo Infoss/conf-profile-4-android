@@ -180,7 +180,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {
 
 		@Override
-		public View prepareView(int position, View convertView) {
+		public View prepareView(int position, View convertView, ProfileInfo data) {
 			if(convertView == null) {
 				return convertView;
 			}
