@@ -38,7 +38,7 @@ include $(LOCAL_PATH)/Android.common.mk
 strongswan_PATH := $(LOCAL_PATH)
 libcurl_PATH := external/strongswan-support/libcurl/include
 libgmp_PATH := external/strongswan-support/gmp
-openssl_PATH := external/openssl/include
+openssl_PATH := jni/openssl-1.0.1g/include
 
 # some definitions
 strongswan_DIR := "/system/bin"
@@ -94,7 +94,6 @@ strongswan_CFLAGS += \
 	-DHAVE_IN6ADDR_ANY
 
 strongswan_BUILD := \
-	charon \
 	libcharon \
 	libhydra \
 	libstrongswan \
