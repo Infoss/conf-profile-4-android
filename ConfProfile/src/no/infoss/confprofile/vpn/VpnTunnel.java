@@ -31,6 +31,10 @@ public abstract class VpnTunnel implements Runnable {
 		return mCfg.configId;
 	}
 	
+	public final Context getContext() {
+		return mCtx;
+	}
+	
 	public void startLoop() {
 		mThread.setName(getThreadName());
 		mThread.start();
