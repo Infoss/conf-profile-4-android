@@ -14,7 +14,7 @@
  */
 
 #include "android_creds.h"
-#include "../charonservice.h"
+#include "../strongswan.h"
 
 #include <daemon.h>
 #include <library.h>
@@ -202,6 +202,40 @@ METHOD(android_creds_t, load_user_certificate, certificate_t*,
 	return cert;
 }
 
+METHOD(credential_set_t, load_xauth, identification_t*,
+	private_android_creds_t *this)
+{
+	shared_key_t *shared_key;
+	char *xauth_id;
+	char *xauth_key;
+	identification_t *id;
+	chunk_t key;
+
+	xauth_id = charonservice->get_xauth_identity(charonservice);
+	xauth_key = charonservice->get_xauth_key(charonservice);
+	if(!xauth_id || !xauth_key)
+	{
+		return NULL;
+	}
+
+	id = identification_create_from_string(xauth_id);
+	if(!id || id->get_type(id) == ID_ANY)
+	{
+		DESTROY_IF(id);
+		return NULL;
+	}
+
+	key = chunk_from_str(xauth_key);
+
+	shared_key = shared_key_create(SHARED_EAP, chunk_clone(key));
+
+	this->creds->add_shared(this->creds, shared_key, id, NULL);
+
+	DBG1(DBG_CFG, "load xauth config");
+
+	return id;
+}
+
 METHOD(credential_set_t, create_private_enumerator, enumerator_t*,
 	private_android_creds_t *this, key_type_t type, identification_t *id)
 {
@@ -245,12 +279,15 @@ android_creds_t *android_creds_create()
 			},
 			.add_username_password = _add_username_password,
 			.load_user_certificate = _load_user_certificate,
+			.load_xauth = _load_xauth,
 			.clear = _clear,
 			.destroy = _destroy,
 		},
 		.creds = mem_cred_create(),
 		.lock = rwlock_create(RWLOCK_TYPE_DEFAULT),
 	);
+
+	lib->credmgr->add_set(lib->credmgr, &this->creds->set);
 
 	return &this->public;
 }

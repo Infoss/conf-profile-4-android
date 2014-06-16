@@ -15,7 +15,7 @@
  */
 
 #include "android_ipsec.h"
-#include "../charonservice.h"
+#include "../strongswan.h"
 
 #include <utils/debug.h>
 #include <library.h>

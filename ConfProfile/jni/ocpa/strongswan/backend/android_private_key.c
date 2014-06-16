@@ -15,7 +15,7 @@
 
 #include "android_private_key.h"
 
-#include "../android_jni.h"
+#include "../strongswan.h"
 #include <utils/debug.h>
 
 typedef struct private_private_key_t private_private_key_t;
@@ -81,6 +81,9 @@ METHOD(private_key_t, sign, bool,
 			break;
 		case SIGN_RSA_EMSA_PKCS1_SHA512:
 			method = "SHA512withRSA";
+			break;
+		case SIGN_RSA_EMSA_PKCS1_NULL:
+			method = "NONEwithRSA";
 			break;
 		default:
 			DBG1(DBG_LIB, "signature scheme %N not supported via JNI",

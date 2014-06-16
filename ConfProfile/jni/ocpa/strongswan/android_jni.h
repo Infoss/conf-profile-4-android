@@ -20,14 +20,17 @@
  * @{ @ingroup libandroidbridge
  */
 
-#ifndef ANDROID_JNI_H_
-#define ANDROID_JNI_H_
+#ifndef ANDROID_STRONGSWAN_JNI_H_
+#define ANDROID_STRONGSWAN_JNI_H_
 
 #include <jni.h>
 #include <library.h>
 
-#define JNI_PACKAGE org_strongswan_android_logic
-#define JNI_PACKAGE_STRING "org/strongswan/android/logic"
+#define JNI_PACKAGE no_infoss_confprofile_vpn
+#define JNI_PACKAGE_STRING "no/infoss/confprofile/vpn"
+
+#define JNI_IPSEC_PACKAGE no_infoss_confprofile_vpn_ipsec
+#define JNI_IPSEC_PACKAGE_STRING "no/infoss/confprofile/vpn/ipsec"
 
 #define JNI_METHOD_PP(pack, klass, name, ret, ...) \
 	ret Java_##pack##_##klass##_##name(JNIEnv *env, jobject this, ##__VA_ARGS__)
@@ -42,8 +45,8 @@
  * Java classes
  * Initialized in JNI_OnLoad()
  */
-extern jclass *android_charonvpnservice_class;
-extern jclass *android_charonvpnservice_builder_class;
+extern jclass *android_ipsecvpntunnel_class;
+
 
 /**
  * Currently known (supported) SDK versions
@@ -154,4 +157,4 @@ static inline jbyteArray byte_array_from_chunk(JNIEnv *env, chunk_t chunk)
 	return jbytearray;
 }
 
-#endif /** ANDROID_JNI_H_ @}*/
+#endif /** ANDROID_STRONGSWAN_JNI_H_ @}*/

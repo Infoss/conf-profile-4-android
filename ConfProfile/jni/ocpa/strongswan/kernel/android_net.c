@@ -14,7 +14,7 @@
 
 #include "android_net.h"
 
-#include "../charonservice.h"
+#include "../strongswan.h"
 #include <hydra.h>
 #include <processing/jobs/callback_job.h>
 #include <threading/mutex.h>

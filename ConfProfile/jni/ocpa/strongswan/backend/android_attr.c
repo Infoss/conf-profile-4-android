@@ -16,7 +16,7 @@
  */
 
 #include "android_attr.h"
-#include "../charonservice.h"
+#include "../strongswan.h"
 
 #include <hydra.h>
 #include <utils/debug.h>
@@ -39,6 +39,7 @@ METHOD(attribute_handler_t, handle, bool,
 	private_android_attr_t *this, identification_t *server,
 	configuration_attribute_type_t type, chunk_t data)
 {
+/*
 	vpnservice_builder_t *builder;
 	host_t *dns;
 
@@ -63,6 +64,7 @@ METHOD(attribute_handler_t, handle, bool,
 	builder = charonservice->get_vpnservice_builder(charonservice);
 	builder->add_dns(builder, dns);
 	dns->destroy(dns);
+*/
 	return TRUE;
 }
 

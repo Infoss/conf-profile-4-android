@@ -1,40 +1,9 @@
-/*
- * Copyright (C) 2012-2013 Tobias Brunner
- * Copyright (C) 2012 Giuliano Grassi
- * Copyright (C) 2012 Ralf Sager
- * Hochschule fuer Technik Rapperswil
- *
- * This program is free software; you can redistribute it and/or modify it
- * under the terms of the GNU General Public License as published by the
- * Free Software Foundation; either version 2 of the License, or (at your
- * option) any later version.  See <http://www.fsf.org/copyleft/gpl.txt>.
- *
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY
- * or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License
- * for more details.
- */
+#ifndef STRONGSWAN_H_
+#define STRONGSWAN_H_
 
-/**
- * @defgroup libandroidbridge libandroidbridge
- *
- * @defgroup android_backend backend
- * @ingroup libandroidbridge
- *
- * @defgroup android_byod byod
- * @ingroup libandroidbridge
- *
- * @defgroup android_kernel kernel
- * @ingroup libandroidbridge
- *
- * @defgroup charonservice charonservice
- * @{ @ingroup libandroidbridge
- */
+#include "android_jni.h"
+#include "router.h"
 
-#ifndef CHARONSERVICE_H_
-#define CHARONSERVICE_H_
-
-#include "vpnservice_builder.h"
 #include "kernel/network_manager.h"
 
 #include <library.h>
@@ -138,18 +107,27 @@ struct charonservice_t {
 	private_key_t *(*get_user_key)(charonservice_t *this, public_key_t *pubkey);
 
 	/**
-	 * Get the current vpnservice_builder_t object
-	 *
-	 * @return				VpnService.Builder instance
-	 */
-	vpnservice_builder_t *(*get_vpnservice_builder)(charonservice_t *this);
-
-	/**
 	 * Get the current network_manager_t object
 	 *
 	 * @return				NetworkManager instance
 	 */
 	network_manager_t *(*get_network_manager)(charonservice_t *this);
+
+	int (*get_fd)(charonservice_t *this);
+
+	bool (*add_address)(charonservice_t *this, host_t* vip);
+
+	bool (*add_route)(charonservice_t *this, host_t *net, u_int8_t prefix);
+
+	char* (*get_xauth_identity)(charonservice_t *this);
+
+	char* (*get_xauth_key)(charonservice_t *this);
+};
+
+typedef struct ipsec_tun_ctx_t ipsec_tun_ctx_t;
+
+struct ipsec_tun_ctx_t {
+	common_tun_ctx_t common;
 };
 
 /**
@@ -159,4 +137,9 @@ struct charonservice_t {
  */
 extern charonservice_t *charonservice;
 
-#endif /** CHARONSERVICE_H_ @}*/
+bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod);
+void deinitialize_library();
+void initialize_tunnel(char *type, char *gateway, char *username, char *password);
+void notify_library(bool disconnected);
+
+#endif /** STRONGSWAN_H_ @}*/

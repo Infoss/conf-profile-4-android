@@ -21,8 +21,6 @@
 #ifndef NETWORK_MANAGER_H_
 #define NETWORK_MANAGER_H_
 
-#include <jni.h>
-
 #include <library.h>
 #include <networking/host.h>
 
@@ -69,6 +67,8 @@ struct network_manager_t {
 	 * Destroy a network_manager_t instance
 	 */
 	void (*destroy)(network_manager_t *this);
+
+	void (*networkChanged)(network_manager_t *this, bool disconnected);
 };
 
 /**
@@ -77,6 +77,6 @@ struct network_manager_t {
  * @param context				Context object
  * @return						network_manager_t instance
  */
-network_manager_t *network_manager_create(jobject context);
+network_manager_t *network_manager_create();
 
 #endif /** NETWORK_MANAGER_H_ @}*/

@@ -19,8 +19,7 @@
 #include <unistd.h>
 
 #include "android_service.h"
-#include "../charonservice.h"
-#include "../vpnservice_builder.h"
+#include "../strongswan.h"
 
 #include <daemon.h>
 #include <library.h>
@@ -180,6 +179,7 @@ static job_requeue_t handle_plain(private_android_service_t *this)
 	}
 
 	raw = chunk_alloc(TUN_DEFAULT_MTU);
+
 	len = read(tunfd, raw.ptr, raw.len);
 	if (len < 0)
 	{
@@ -204,17 +204,17 @@ static job_requeue_t handle_plain(private_android_service_t *this)
 /**
  * Add a route to the TUN device builder
  */
-static bool add_route(vpnservice_builder_t *builder, host_t *net,
-					  u_int8_t prefix)
+
+static bool add_route(host_t *net, u_int8_t prefix)
 {
-	/* if route is 0.0.0.0/0, split it into two routes 0.0.0.0/1 and
-	 * 128.0.0.0/1 because otherwise it would conflict with the current default
-	 * route.  likewise for IPv6 with ::/0. */
+	// if route is 0.0.0.0/0, split it into two routes 0.0.0.0/1 and
+	// 128.0.0.0/1 because otherwise it would conflict with the current default
+	// route.  likewise for IPv6 with ::/0.
 	if (net->is_anyaddr(net) && prefix == 0)
 	{
 		bool success;
 
-		success = add_route(builder, net, 1);
+		success = add_route(net, 1);
 		if (net->get_family(net) == AF_INET)
 		{
 			net = host_create_from_string("128.0.0.0", 0);
@@ -223,17 +223,19 @@ static bool add_route(vpnservice_builder_t *builder, host_t *net,
 		{
 			net = host_create_from_string("8000::", 0);
 		}
-		success = success && add_route(builder, net, 1);
+		success = success && add_route(net, 1);
 		net->destroy(net);
 		return success;
 	}
-	return builder->add_route(builder, net, prefix);
+
+	return charonservice->add_route(charonservice, net, prefix);
 }
 
 /**
  * Generate and set routes from installed IPsec policies
  */
-static bool add_routes(vpnservice_builder_t *builder, child_sa_t *child_sa)
+
+static bool add_routes(child_sa_t *child_sa)
 {
 	traffic_selector_t *src_ts, *dst_ts;
 	enumerator_t *enumerator;
@@ -246,7 +248,7 @@ static bool add_routes(vpnservice_builder_t *builder, child_sa_t *child_sa)
 		u_int8_t prefix;
 
 		dst_ts->to_subnet(dst_ts, &net, &prefix);
-		success = add_route(builder, net, prefix);
+		success = add_route(net, prefix);
 		net->destroy(net);
 	}
 	enumerator->destroy(enumerator);
@@ -263,23 +265,20 @@ static bool add_routes(vpnservice_builder_t *builder, child_sa_t *child_sa)
 static bool setup_tun_device(private_android_service_t *this,
 							 ike_sa_t *ike_sa, child_sa_t *child_sa)
 {
-	vpnservice_builder_t *builder;
 	enumerator_t *enumerator;
-	bool vip_found = FALSE, already_registered = FALSE;
+	bool vip_found = FALSE;
 	host_t *vip;
 	int tunfd;
 
 	DBG1(DBG_DMN, "setting up TUN device for CHILD_SA %s{%u}",
 		 child_sa->get_name(child_sa), child_sa->get_reqid(child_sa));
 
-	builder = charonservice->get_vpnservice_builder(charonservice);
-
 	enumerator = ike_sa->create_virtual_ip_enumerator(ike_sa, TRUE);
 	while (enumerator->enumerate(enumerator, &vip))
 	{
 		if (!vip->is_anyaddr(vip))
 		{
-			if (!builder->add_address(builder, vip))
+			if (!charonservice->add_address(charonservice, vip))
 			{
 				break;
 			}
@@ -293,42 +292,38 @@ static bool setup_tun_device(private_android_service_t *this,
 		DBG1(DBG_DMN, "setting up TUN device failed, no virtual IP found");
 		return FALSE;
 	}
-	if (!add_routes(builder, child_sa) ||
-		!builder->set_mtu(builder, TUN_DEFAULT_MTU))
+
+	if (!add_routes(child_sa))
 	{
 		return FALSE;
 	}
 
-	tunfd = builder->establish(builder);
+	tunfd = charonservice->get_fd(charonservice);
+
 	if (tunfd == -1)
 	{
+		DBG1(DBG_DMN, "setting up TUN device failed, no FD found");
 		return FALSE;
 	}
 
 	this->lock->write_lock(this->lock);
-	if (this->tunfd > 0)
-	{	/* close previously opened TUN device */
-		close(this->tunfd);
-		already_registered = true;
-	}
+
 	this->tunfd = tunfd;
 	this->lock->unlock(this->lock);
 
 	DBG1(DBG_DMN, "successfully created TUN device");
 
-	if (!already_registered)
-	{
-		charon->receiver->add_esp_cb(charon->receiver,
-								(receiver_esp_cb_t)receiver_esp_cb, NULL);
-		ipsec->processor->register_inbound(ipsec->processor,
-									  (ipsec_inbound_cb_t)deliver_plain, this);
-		ipsec->processor->register_outbound(ipsec->processor,
-									   (ipsec_outbound_cb_t)send_esp, NULL);
+	charon->receiver->add_esp_cb(charon->receiver,
+							(receiver_esp_cb_t)receiver_esp_cb, NULL);
+	ipsec->processor->register_inbound(ipsec->processor,
+								  (ipsec_inbound_cb_t)deliver_plain, this);
+	ipsec->processor->register_outbound(ipsec->processor,
+								   (ipsec_outbound_cb_t)send_esp, NULL);
 
-		lib->processor->queue_job(lib->processor,
-			(job_t*)callback_job_create((callback_job_cb_t)handle_plain, this,
-									NULL, (callback_job_cancel_t)return_false));
-	}
+	lib->processor->queue_job(lib->processor,
+		(job_t*)callback_job_create((callback_job_cb_t)handle_plain, this,
+								NULL, (callback_job_cancel_t)return_false));
+
 	return TRUE;
 }
 
@@ -485,6 +480,27 @@ static void add_auth_cfg_eap(private_android_service_t *this,
 	peer_cfg->add_auth_cfg(peer_cfg, auth, TRUE);
 }
 
+static bool add_auth_cfg_x(private_android_service_t *this,
+		 peer_cfg_t *peer_cfg)
+{
+	identification_t *id;
+	auth_cfg_t *auth;
+
+	id = this->creds->load_xauth(this->creds);
+	if (!id)
+	{
+		return FALSE;
+	}
+
+	auth = auth_cfg_create();
+	auth->add(auth, AUTH_RULE_AUTH_CLASS, AUTH_CLASS_XAUTH);
+	auth->add(auth, AUTH_RULE_XAUTH_IDENTITY, id);
+	//auth->add(auth, AUTH_RULE_XAUTH_BACKEND, "eap");
+
+	peer_cfg->add_auth_cfg(peer_cfg, auth, TRUE);
+	return TRUE;
+}
+
 static bool add_auth_cfg_cert(private_android_service_t *this,
 							  peer_cfg_t *peer_cfg)
 {
@@ -525,14 +541,35 @@ static job_requeue_t initiate(private_android_service_t *this)
 		}
 	};
 
-	ike_cfg = ike_cfg_create(IKEV2, TRUE, TRUE, "0.0.0.0",
-							 charon->socket->get_port(charon->socket, FALSE),
-							 this->gateway, IKEV2_UDP_PORT,
+	u_int16_t local_port, remote_port = IKEV2_UDP_PORT;
+
+	local_port = charon->socket->get_port(charon->socket, FALSE);
+	if (local_port != IKEV2_UDP_PORT)
+	{
+		remote_port = IKEV2_NATT_PORT;
+	}
+
+	ike_cfg = ike_cfg_create(IKEV1, TRUE, FALSE, "0.0.0.0/0,::/0", //"0.0.0.0",
+							 local_port, this->gateway, remote_port,
 							 FRAGMENTATION_NO, 0);
+
 	ike_cfg->add_proposal(ike_cfg, proposal_create_default(PROTO_IKE));
+	//ike_cfg->add_proposal(ike_cfg, proposal_create_default_aead(PROTO_IKE));
+/*
+	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_IKE,
+								"aes128-aes256-sha1-modp1536-modp2048"));
+
+	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_AH,
+								"sha1-sha256-modp1024"));
+*/
+	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_ESP,
+								"aes256-sha1-modp1536"));
+
+	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_IKE,
+								"aes256-sha1-modp1536"));
 
 	peer_cfg = peer_cfg_create("android", ike_cfg, CERT_SEND_IF_ASKED,
-							   UNIQUE_REPLACE, 0, /* keyingtries */
+							   UNIQUE_REPLACE, 1, /* keyingtries */
 							   36000, 0, /* rekey 10h, reauth none */
 							   600, 600, /* jitter, over 10min */
 							   TRUE, FALSE, TRUE, /* mobike, aggressive, pull */
@@ -543,7 +580,8 @@ static job_requeue_t initiate(private_android_service_t *this)
 
 	/* local auth config */
 	if (streq("ikev2-cert", this->type) ||
-		streq("ikev2-cert-eap", this->type))
+		streq("ikev2-cert-eap", this->type) ||
+		streq("ikev1-cert-xauth", this->type))
 	{
 		if (!add_auth_cfg_cert(this, peer_cfg))
 		{
@@ -560,17 +598,28 @@ static job_requeue_t initiate(private_android_service_t *this)
 		add_auth_cfg_eap(this, peer_cfg, strpfx(this->type, "ikev2-byod"));
 	}
 
+	if (streq("ikev1-cert-xauth", this->type) ||
+		streq("ikev1-xauth", this->type))
+	{
+		add_auth_cfg_x(this, peer_cfg);
+	}
+
 	/* remote auth config */
 	auth = auth_cfg_create();
 	auth->add(auth, AUTH_RULE_AUTH_CLASS, AUTH_CLASS_PUBKEY);
-	gateway = identification_create_from_string(this->gateway);
+	gateway = identification_create_from_string(this->gateway);//
 	auth->add(auth, AUTH_RULE_IDENTITY, gateway);
 	auth->add(auth, AUTH_RULE_IDENTITY_LOOSE, TRUE);
 	peer_cfg->add_auth_cfg(peer_cfg, auth, FALSE);
 
-	child_cfg = child_cfg_create("android", &lifetime, NULL, TRUE, MODE_TUNNEL,
-								 ACTION_NONE, ACTION_RESTART, ACTION_RESTART,
+//	child_cfg = child_cfg_create("android", &lifetime, NULL, TRUE, MODE_TUNNEL,
+//								 ACTION_NONE, ACTION_RESTART, ACTION_RESTART,
+//								 FALSE, 0, 0, NULL, NULL, 0);
+
+	child_cfg = child_cfg_create("android", &lifetime, NULL, FALSE, MODE_TUNNEL,
+								 ACTION_NONE, ACTION_NONE, ACTION_NONE,
 								 FALSE, 0, 0, NULL, NULL, 0);
+
 	/* create an ESP proposal with the algorithms currently supported by
 	 * libipsec, no PFS for now */
 	child_cfg->add_proposal(child_cfg, proposal_create_from_string(PROTO_ESP,
@@ -581,6 +630,7 @@ static job_requeue_t initiate(private_android_service_t *this)
 							"aes256-sha384"));
 	child_cfg->add_proposal(child_cfg, proposal_create_from_string(PROTO_ESP,
 							"aes128-aes192-aes256-sha1-sha256-sha384-sha512"));
+
 	ts = traffic_selector_create_from_cidr("0.0.0.0/0", 0, 0, 65535);
 	child_cfg->add_traffic_selector(child_cfg, TRUE, ts);
 	ts = traffic_selector_create_from_cidr("0.0.0.0/0", 0, 0, 65535);

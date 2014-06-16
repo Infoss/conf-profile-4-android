@@ -25,8 +25,7 @@
  */
 static JavaVM *android_jvm;
 
-jclass *android_charonvpnservice_class;
-jclass *android_charonvpnservice_builder_class;
+jclass *android_ipsecvpntunnel_class;
 android_sdk_version_t android_sdk_version;
 
 /**
@@ -89,12 +88,9 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved)
 
 	androidjni_threadlocal = thread_value_create(attached_thread_cleanup);
 
-	android_charonvpnservice_class =
+	android_ipsecvpntunnel_class =
 				(*env)->NewGlobalRef(env, (*env)->FindClass(env,
-						JNI_PACKAGE_STRING "/CharonVpnService"));
-	android_charonvpnservice_builder_class =
-				(*env)->NewGlobalRef(env, (*env)->FindClass(env,
-						JNI_PACKAGE_STRING "/CharonVpnService$BuilderAdapter"));
+						JNI_PACKAGE_STRING "/IpSecVpnTunnel"));
 
 	jversion = (*env)->FindClass(env, "android/os/Build$VERSION");
 	jsdk_int = (*env)->GetStaticFieldID(env, jversion, "SDK_INT", "I");

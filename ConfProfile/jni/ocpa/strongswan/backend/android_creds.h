@@ -53,6 +53,9 @@ struct android_creds_t {
 	 */
 	certificate_t *(*load_user_certificate)(android_creds_t *this);
 
+
+	identification_t *(*load_xauth)(android_creds_t *this);
+
 	/**
 	 * Clear the cached certificates and stored credentials.
 	 */
