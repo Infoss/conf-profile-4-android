@@ -8,3 +8,7 @@ LOCAL_LDLIBS := -llog
 LOCAL_STATIC_LIBRARIES := libocpautils libuip
 
 include $(BUILD_SHARED_LIBRARY)
+
+ocpa_INCLUDES := $(LOCAL_PATH)
+
+include $(LOCAL_PATH)/strongswan/Android.mk
