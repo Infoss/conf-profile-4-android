@@ -32,7 +32,7 @@ LOCAL_LDLIBS := -llog
 LOCAL_C_INCLUDES := \
 	$(LOCAL_PATH)/include
 
-LOCAL_CFLAGS := -DANDROID_CHANGES -DCHAPMS=1 -DMPPE=1 -Ijni/openssl/include
+LOCAL_CFLAGS := -DANDROID_CHANGES -DCHAPMS=1 -DMPPE=1 -Ijni/openssl-1.0.1g/include
 
 LOCAL_MODULE:= ocpapppd
 

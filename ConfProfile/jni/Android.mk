@@ -1,12 +1,12 @@
 LOCAL_PATH := $(call my-dir)
 ocpa_INCLUDES := 
-subproject_PATHS := mtpd \
+subproject_PATHS := openssl-1.0.1g \
+					mtpd \
 					pppd \
 					uip \
 					utils \
 					lzo \
 					snappy \
-					openssl \
 					openvpn \
 					blinkt \
 					ocpa
