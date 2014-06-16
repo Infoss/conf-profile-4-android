@@ -4,7 +4,6 @@ import java.net.Socket;
 import java.security.PrivateKey;
 import java.security.cert.Certificate;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -39,7 +38,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	private RouterLoop mRouterLoop = null;
 	
-	private final Map<String, VpnTunnel> mTuns = new HashMap<String, VpnTunnel>();
+	private VpnTunnel mCurrentTunnel = null;
+	private VpnTunnel mUsernatTunnel = null;
 	
 	private boolean mIsRequestActive = false;
 	private boolean mReevaluateOnRequest = false;
@@ -61,7 +61,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		mNtfMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		String title = getResources().getString(R.string.notification_title_preparing);
 		String text = getResources().getString(R.string.notification_text_preparing);
-		Notification notification = buildNotification(mVpnManagerIcons[0], mVpnManagerIcons[0], title, text);
+		Notification notification = buildNotification(
+				mVpnManagerIcons[0], 
+				mVpnManagerIcons[0], 
+				title, 
+				text);
 		mNtfMgr.notify(R.string.app_name, notification);
 		
 		mBindKit = new SimpleServiceBindKit<OcpaVpnInterface>(this, OcpaVpnInterface.TAG);
@@ -110,7 +114,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnServiceStarted() {
-		//TODO: show system notification
 		if(mRouterLoop != null) {
 			mRouterLoop.terminate();
 		}
@@ -125,6 +128,15 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		}
 		
 		mIsVpnServiceStarted = true;
+		
+		String title = getResources().getString(R.string.notification_title_connecting);
+		String text = getResources().getString(R.string.notification_text_connecting);
+		Notification notification = buildNotification(
+				mVpnManagerIcons[1], 
+				mVpnManagerIcons[1], 
+				title, 
+				text);
+		mNtfMgr.notify(R.string.app_name, notification);
 	}
 	
 	@Override
@@ -134,10 +146,13 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		}
 		mRouterLoop = null;
 		
-		//TODO: show system notification
 		String title = getResources().getString(R.string.notification_title_error_revoked);
 		String text = getResources().getString(R.string.notification_text_error_revoked);
-		Notification notification = buildNotification(mVpnManagerErrorIcons[2], mVpnManagerErrorIcons[2], title, text);
+		Notification notification = buildNotification(
+				mVpnManagerErrorIcons[2], 
+				mVpnManagerErrorIcons[2], 
+				title, 
+				text);
 		mNtfMgr.notify(R.string.app_name, notification);
 		mIsVpnServiceStarted = false;
 	}
@@ -177,36 +192,43 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		VpnTunnel tun = null;
 		
 		for(VpnConfigInfo info : mConfigInfos) {
+			if(info.configId == null || info.configId.isEmpty()) {
+				Log.w(TAG, "Skipping VpnConfigInfo with null or empty configId");
+				continue;
+			}
+			
 			if(mSavedNetworkConfig.match(info.networkConfig)) {
 				Log.d(TAG, "MATCHED==========");
 				Log.d(TAG, mSavedNetworkConfig.toString());
 				Log.d(TAG, info.networkConfig.toString());
 				Log.d(TAG, "=================");
 				//TODO: check routes
-				if(!mTuns.containsKey(info.configId)) {
+				if(mCurrentTunnel != null && info.configId.equals(mCurrentTunnel.getTunnelId())) {
+					//current tunnel is up and matches network configuration
+					String logFmt = "Tunnel with id=%s is up and matches network configuration";
+					Log.d(TAG, String.format(logFmt, info.configId));
+					break;
+				} else {
 					tun = VpnTunnelFactory.getTunnel(getApplicationContext(), this, info);
 					if(tun == null) {
 						Log.d(TAG, "Can't create tun " + info.vpnType + " with id=" + info.configId);
 					} else {
-						mTuns.put(info.configId, tun);
+						VpnTunnel oldTun = mCurrentTunnel;
+						mCurrentTunnel = tun;
 						tun.establishConnection(info.params);
 						mRouterLoop.defaultRoute4(tun);
 						
+						if(oldTun != null) {
+							oldTun.terminateConnection();
+						}
+						
 						routes4 = mRouterLoop.getRoutes4();
-						Log.d(TAG, "IPv4 routes: " + routes4.toString());
+						if(routes4 != null) {
+							Log.d(TAG, "IPv4 routes: " + routes4.toString());
+						}
 						
 						break;
 					}
-				}
-			} else {
-				Log.d(TAG, "UNMATCHED========");
-				Log.d(TAG, mSavedNetworkConfig.toString());
-				Log.d(TAG, info.networkConfig.toString());
-				Log.d(TAG, "=================");
-				
-				if(mTuns.containsKey(info.configId)) {
-					tun = mTuns.remove(info.configId);
-					tun.terminateConnection();
 				}
 			}
 		}
@@ -218,12 +240,26 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnLockedBySystem() {
-		
+		String title = getResources().getString(R.string.notification_title_error_always_on);
+		String text = getResources().getString(R.string.notification_text_error_always_on);
+		Notification notification = buildNotification(
+				mVpnManagerErrorIcons[1], 
+				mVpnManagerErrorIcons[1], 
+				title, 
+				text);
+		mNtfMgr.notify(R.string.app_name, notification);
 	}
 	
 	@Override
 	public void notifyVpnIsUnsupported() {
-		
+		String title = getResources().getString(R.string.notification_title_error_unsupported);
+		String text = getResources().getString(R.string.notification_text_error_unsupported);
+		Notification notification = buildNotification(
+				mVpnManagerErrorIcons[0], 
+				mVpnManagerErrorIcons[0], 
+				title, 
+				text);
+		mNtfMgr.notify(R.string.app_name, notification);
 	}
 	
 	@Override
