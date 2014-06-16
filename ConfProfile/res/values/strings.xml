@@ -23,6 +23,12 @@
 	
 	<string name="notification_title_preparing">Preparing VPN</string>
 	<string name="notification_text_preparing">Please wait</string>
+	<string name="notification_title_connecting">Connecting</string>
+    <string name="notification_text_connecting">Please wait</string>
+    <string name="notification_title_error_unsupported">Feature unsupported</string>
+    <string name="notification_text_error_unsupported">This device doesn\'t support VPN API</string>
+    <string name="notification_title_error_always_on">Feature locked by system</string>
+    <string name="notification_text_error_always_on">Please turn off VPN Always On</string>
 	<string name="notification_title_error_revoked">Access revoked by another app</string>
-    <string name="notification_text_error_revoked">Please tap here to protect your traffic with VPN.</string>
+    <string name="notification_text_error_revoked">Please tap here to protect your traffic with VPN</string>
 </resources>
