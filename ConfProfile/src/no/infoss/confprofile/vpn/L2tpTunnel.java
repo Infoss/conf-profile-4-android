@@ -153,7 +153,7 @@ public class L2tpTunnel extends VpnTunnel {
 					Collections.addAll(mFds, fds);
 				}
 
-				String input = new String(buff,0,numbytesread,"UTF-8");
+				String input = new String(buff, 0, numbytesread, "UTF-8");
 				pendingInput += input;
 				pendingInput = processInput(pendingInput);
 			}
