@@ -214,6 +214,8 @@ ifneq ($(call plugin_enabled, stroke),)
 LOCAL_C_INCLUDES += $(LOCAL_PATH)/../stroke/
 endif
 
+LOCAL_SRC_FILES += $(call add_plugin, xauth-generic)
+
 # build libcharon --------------------------------------------------------------
 
 LOCAL_C_INCLUDES += \
