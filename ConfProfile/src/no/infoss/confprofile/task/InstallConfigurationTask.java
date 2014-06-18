@@ -89,6 +89,12 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 						action.alias = payload.getPayloadUUID();
 						action.certificateMgrId = CertificateManager.MANAGER_ANDROID_RAW;
 						mActions.add(action);
+						
+						action = new InstallCertificate();
+						action.certificate = ((RootCertPayload) payload).getPayloadContent();
+						action.alias = payload.getPayloadUUID();
+						action.certificateMgrId = CertificateManager.MANAGER_INTERNAL;
+						mActions.add(action);
 					} else {
 						Log.d(TAG, payload.toString());
 					}
