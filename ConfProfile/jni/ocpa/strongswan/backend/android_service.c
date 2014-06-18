@@ -480,22 +480,18 @@ static void add_auth_cfg_eap(private_android_service_t *this,
 	peer_cfg->add_auth_cfg(peer_cfg, auth, TRUE);
 }
 
-static bool add_auth_cfg_x(private_android_service_t *this,
-		 peer_cfg_t *peer_cfg)
-{
+static bool add_auth_cfg_xauth(private_android_service_t *this, peer_cfg_t *peer_cfg) {
 	identification_t *id;
 	auth_cfg_t *auth;
 
 	id = this->creds->load_xauth(this->creds);
-	if (!id)
-	{
+	if (!id) {
 		return FALSE;
 	}
 
 	auth = auth_cfg_create();
 	auth->add(auth, AUTH_RULE_AUTH_CLASS, AUTH_CLASS_XAUTH);
 	auth->add(auth, AUTH_RULE_XAUTH_IDENTITY, id);
-	//auth->add(auth, AUTH_RULE_XAUTH_BACKEND, "eap");
 
 	peer_cfg->add_auth_cfg(peer_cfg, auth, TRUE);
 	return TRUE;
@@ -554,6 +550,7 @@ static job_requeue_t initiate(private_android_service_t *this)
 							 FRAGMENTATION_NO, 0);
 
 	ike_cfg->add_proposal(ike_cfg, proposal_create_default(PROTO_IKE));
+
 	//ike_cfg->add_proposal(ike_cfg, proposal_create_default_aead(PROTO_IKE));
 /*
 	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_IKE,
@@ -561,13 +558,13 @@ static job_requeue_t initiate(private_android_service_t *this)
 
 	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_AH,
 								"sha1-sha256-modp1024"));
-*/
+//separator
 	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_ESP,
 								"aes256-sha1-modp1536"));
 
 	ike_cfg->add_proposal(ike_cfg, proposal_create_from_string(PROTO_IKE,
 								"aes256-sha1-modp1536"));
-
+*/
 	peer_cfg = peer_cfg_create("android", ike_cfg, CERT_SEND_IF_ASKED,
 							   UNIQUE_REPLACE, 1, /* keyingtries */
 							   36000, 0, /* rekey 10h, reauth none */
@@ -601,7 +598,7 @@ static job_requeue_t initiate(private_android_service_t *this)
 	if (streq("ikev1-cert-xauth", this->type) ||
 		streq("ikev1-xauth", this->type))
 	{
-		add_auth_cfg_x(this, peer_cfg);
+		add_auth_cfg_xauth(this, peer_cfg);
 	}
 
 	/* remote auth config */
@@ -622,6 +619,8 @@ static job_requeue_t initiate(private_android_service_t *this)
 
 	/* create an ESP proposal with the algorithms currently supported by
 	 * libipsec, no PFS for now */
+	child_cfg->add_proposal(child_cfg, proposal_create_default(PROTO_ESP));
+	/*
 	child_cfg->add_proposal(child_cfg, proposal_create_from_string(PROTO_ESP,
 							"aes128gcm16-aes256gcm16"));
 	child_cfg->add_proposal(child_cfg, proposal_create_from_string(PROTO_ESP,
@@ -630,7 +629,7 @@ static job_requeue_t initiate(private_android_service_t *this)
 							"aes256-sha384"));
 	child_cfg->add_proposal(child_cfg, proposal_create_from_string(PROTO_ESP,
 							"aes128-aes192-aes256-sha1-sha256-sha384-sha512"));
-
+*/
 	ts = traffic_selector_create_from_cidr("0.0.0.0/0", 0, 0, 65535);
 	child_cfg->add_traffic_selector(child_cfg, TRUE, ts);
 	ts = traffic_selector_create_from_cidr("0.0.0.0/0", 0, 0, 65535);
