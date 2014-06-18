@@ -9,7 +9,11 @@ public class VpnTunnelFactory {
 		
 		RouterLoop routerLoop = mgr.getRouterLoop();
 		
-		if(OpenVpnTunnel.VPN_TYPE.equals(cfg.vpnType)) {
+		if(IpSecVpnTunnel.VPN_TYPE.equals(cfg.vpnType)) {
+			if(routerLoop != null) {
+				tunnel = new IpSecVpnTunnel(ctx, routerLoop.getRouterCtx(), mgr, cfg);
+			}
+		} else if(OpenVpnTunnel.VPN_TYPE.equals(cfg.vpnType)) {
 			if(routerLoop != null) {
 				tunnel = new OpenVpnTunnel(ctx, routerLoop.getRouterCtx(), mgr, cfg);
 			}
