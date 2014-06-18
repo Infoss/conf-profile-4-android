@@ -6,13 +6,13 @@
 
 #include "strongswan.h"
 
-JNI_METHOD(IpSecVpnTunnel, initializeCharon, jboolean, jstring jlogfile, jboolean byod) {
-	return initialize_library(env, this, androidjni_convert_jstring(env, jlogfile), byod);
+JNI_METHOD(IpSecVpnTunnel, initializeCharon, jboolean, jstring jlogfile, jboolean byod, jlong jtunctx) {
+	return initialize_library(env, this, androidjni_convert_jstring(env, jlogfile), byod, jtunctx);
 }
 
 JNI_METHOD(IpSecVpnTunnel, deinitializeCharon, void)
 {
-	return deinitialize_library(env);
+	deinitialize_library(env);
 }
 
 JNI_METHOD(IpSecVpnTunnel, initiate, void,
@@ -30,5 +30,13 @@ JNI_METHOD(IpSecVpnTunnel, initiate, void,
 
 JNI_METHOD(IpSecVpnTunnel, networkChanged, void, jboolean jdisconnected)
 {
-	return notify_library(jdisconnected);
+	notify_library(jdisconnected);
+}
+
+JNI_METHOD(IpSecVpnTunnel, initIpSecTun, jlong) {
+	return (jlong) (intptr_t) ipsec_tun_init();
+}
+
+JNI_METHOD(IpSecVpnTunnel, deinitIpSecTun, void, jlong jtunctx) {
+	ipsec_tun_deinit((ipsec_tun_ctx_t*) (intptr_t) jtunctx);
 }
