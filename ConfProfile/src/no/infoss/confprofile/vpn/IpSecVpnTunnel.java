@@ -1,39 +1,36 @@
 package no.infoss.confprofile.vpn;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.security.KeyFactory;
+import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.Security;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
-import java.security.cert.CertificateFactory;
-import java.security.cert.X509Certificate;
-import java.security.spec.InvalidKeySpecException;
-import java.security.spec.KeySpec;
-import java.security.spec.PKCS8EncodedKeySpec;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Map.Entry;
 
+import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.vpn.IpSecVpnStateService.ErrorState;
 import no.infoss.confprofile.vpn.IpSecVpnStateService.State;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import no.infoss.confprofile.vpn.ipsec.imc.ImcState;
 import no.infoss.confprofile.vpn.ipsec.imc.RemediationInstruction;
 
-import org.apache.http.util.ByteArrayBuffer;
+import org.spongycastle.jce.provider.BouncyCastleProvider;
 
 import android.content.Context;
-import android.content.res.AssetManager;
 import android.security.KeyChainException;
 import android.util.Log;
 
 public class IpSecVpnTunnel extends VpnTunnel {
 	
 	public static final String TAG = IpSecVpnTunnel.class.getSimpleName();
-	public static final String VPN_TYPE = "net.strongswan.IpSecVPN-Connect.vpnplugin";
+	public static final String VPN_TYPE = "IPSec";
 
 	private static boolean BYOD = false;
 
@@ -67,29 +64,21 @@ public class IpSecVpnTunnel extends VpnTunnel {
 
 	@Override
 	public void run() {
-		while (true)
-		{
-			synchronized (this)
-			{
-				try
-				{
+		while (true) {
+			synchronized (this) {
+				try {
 					if (!mIsTerminating) {
-
 						startConnection();
 
-						if (initializeCharon(mLogFile, getEnableBYOD()))
-						{
+						if (initializeCharon(mLogFile, getEnableBYOD(), mVpnTunnelCtx)) {
 							Log.i(TAG, "charon started");
-							initiate(getIdentifier(), getGateway(), getUsername(),getPassword());
-						}
-						else
-						{
+							initiate(getIdentifier(), getRemoteAddress(), getUsername(),getPassword());
+						} else {
 							Log.e(TAG, "failed to start charon");
 							setError(ErrorState.GENERIC_ERROR);
 							terminateConnection();
 						}
-					}
-					else {
+					} else {
 						setState(State.DISCONNECTING);
 						deinitializeCharon();
 						
@@ -99,9 +88,7 @@ public class IpSecVpnTunnel extends VpnTunnel {
 					}
 
 					wait();
-				}
-				catch (InterruptedException ex)
-				{
+				} catch (InterruptedException ex) {
 					terminateConnection();
 					setState(State.DISABLED);
 				}
@@ -122,28 +109,20 @@ public class IpSecVpnTunnel extends VpnTunnel {
 
 		mLogFile = getContext().getFilesDir().getAbsolutePath() + File.separator + LOG_FILE;
 		
-		mOptions = options;
-		
-		if(mOptions == null) {
-			mOptions = new HashMap<String, Object>();
-			
-			mOptions.put("xauth-secret", new String("IlrmRRgNg8lffSv1"));
-			mOptions.put("xauth-identity", new String("311@preprod.ruvpn.net"));
-			mOptions.put("gateway", new String("ipsec.ruvpn.mobi"));//ios.ipsec.infoss.no"));
-			mOptions.put("identifier", new String("ikev1-cert-xauth"));
-			mOptions.put("cert", new String("cert_ipsec_test.pem"));
-			mOptions.put("private-key", new String("private_key_ipsec_test.der"));
-			mOptions.put("public-key", new String("public_key_ipsec_test.pem"));
-			mOptions.put("server-certs", new String[]{"cert1.pem", "cert2.pem"});
-
-/*
-			mOptions.put("gateway", new String("litecoding.com"));//"ipsec.ruvpn.mobi"));//ios.ipsec.infoss.no"));
-			mOptions.put("identifier", new String("ikev2-cert"));
-			mOptions.put("cert", new String("remotecert.pem"));
-			mOptions.put("private-key", new String("remotepriv.der"));
-			mOptions.put("server-certs", new String[]{"testca.cert"});
-*/			
+		mOptions = new HashMap<String, Object>(); 
+		if(options.containsKey(VpnConfigInfo.PARAMS_IPSEC)) {
+			@SuppressWarnings("unchecked")
+			Map<String, Object> tmpMap = (Map<String, Object>) options.get(VpnConfigInfo.PARAMS_IPSEC);
+			mOptions.putAll(tmpMap);
 		}
+		
+		//TODO: implement the following
+		//AuthenticationMethod - Certificate or SharedSecret
+		//XAuthEnabled - 0 / 1
+		
+		mOptions.put("identifier", new String("ikev1-cert-xauth"));
+
+		mVpnTunnelCtx = initIpSecTun();
 	
 		startLoop();
 	}
@@ -152,6 +131,10 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	public void terminateConnection() {
 		mIsTerminating = true;
 		notifyAll();
+		if(mVpnTunnelCtx != 0) {
+			deinitIpSecTun(mVpnTunnelCtx);
+			mVpnTunnelCtx = 0;
+		}
 	}
 
 	public void onNetworkChanged(boolean disconnected) {
@@ -164,12 +147,9 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param profile currently active VPN profile
 	 */
-	private void startConnection()
-	{
-		synchronized (mServiceLock)
-		{
-			if (mService != null)
-			{
+	private void startConnection() {
+		synchronized (mServiceLock) {
+			if (mService != null) {
 				mService.startConnection(mOptions);
 			}
 		}
@@ -189,6 +169,7 @@ public class IpSecVpnTunnel extends VpnTunnel {
 		if(mOptions != null) {
 			result = (String)mOptions.get("password");
 		}
+		Log.d(TAG, "password=" + String.valueOf(result));
 		return result;
 	}
 
@@ -197,15 +178,13 @@ public class IpSecVpnTunnel extends VpnTunnel {
 		if(mOptions != null) {
 			result = (String)mOptions.get("user");
 		}
+		Log.d(TAG, "user=" + String.valueOf(result));
 		return result;
 	}
 
-	private String getGateway() {
-		String result = null; 
-		if(mOptions != null) {
-			result = (String)mOptions.get("gateway");
-		}
-		return result;
+	private String getRemoteAddress() {
+		Log.d(TAG, "RemoteAddress=" + String.valueOf(mOptions.get("RemoteAddress")));
+		return (String) mOptions.get("RemoteAddress");
 	}
 
 	private String getIdentifier() {
@@ -222,12 +201,9 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param state current state
 	 */
-	private void setState(State state)
-	{
-		synchronized (mServiceLock)
-		{
-			if (mService != null)
-			{
+	private void setState(State state) {
+		synchronized (mServiceLock) {
+			if (mService != null) {
 				mService.setState(state);
 			}
 		}
@@ -239,12 +215,9 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param error error state
 	 */
-	private void setError(ErrorState error)
-	{
-		synchronized (mServiceLock)
-		{
-			if (mService != null)
-			{
+	private void setError(ErrorState error) {
+		synchronized (mServiceLock) {
+			if (mService != null) {
 				mService.setError(error);
 			}
 		}
@@ -256,12 +229,9 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param state IMC state
 	 */
-	private void setImcState(ImcState state)
-	{
-		synchronized (mServiceLock)
-		{
-			if (mService != null)
-			{
+	private void setImcState(ImcState state) {
+		synchronized (mServiceLock) {
+			if (mService != null) {
 				mService.setImcState(state);
 			}
 		}
@@ -274,14 +244,10 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param error error state
 	 */
-	private void setErrorDisconnect(ErrorState error)
-	{
-		synchronized (mServiceLock)
-		{
-			if (mService != null)
-			{
-				if (!mIsTerminating)
-				{
+	private void setErrorDisconnect(ErrorState error) {
+		synchronized (mServiceLock) {
+			if (mService != null) {
+				if (!mIsTerminating) {
 					mService.setError(error);
 					terminateConnection();
 				}
@@ -295,10 +261,8 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param status new state
 	 */
-	public void updateStatus(int status)
-	{
-		switch (status)
-		{
+	public void updateStatus(int status) {
+		switch (status) {
 			case STATE_CHILD_SA_DOWN:
 				/* we ignore this as we use closeaction=restart */
 				break;
@@ -332,11 +296,9 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param value new state
 	 */
-	public void updateImcState(int value)
-	{
+	public void updateImcState(int value) {
 		ImcState state = ImcState.fromValue(value);
-		if (state != null)
-		{
+		if (state != null) {
 			setImcState(state);
 		}
 	}
@@ -347,21 +309,17 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 *
 	 * @param xml XML text
 	 */
-	public void addRemediationInstruction(String xml)
-	{
-		for (RemediationInstruction instruction : RemediationInstruction.fromXml(xml))
-		{
-			synchronized (mServiceLock)
-			{
-				if (mService != null)
-				{
+	public void addRemediationInstruction(String xml) {
+		for (RemediationInstruction instruction : RemediationInstruction.fromXml(xml)) {
+			synchronized (mServiceLock) {
+				if (mService != null) {
 					mService.addRemediationInstruction(instruction);
 				}
 			}
 		}
 	}
 	
-	public boolean protect (int socket) {
+	public boolean protect(int socket) {
 		return mVpnMgr.protect(socket);
 	}
 
@@ -372,29 +330,16 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 * @param hash optional alias (only hash part), if given matching certificates are returned
 	 * @return a list of DER encoded CA certificates
 	 */
-	private byte[][] getTrustedCertificates(String hash)
-	{
+	private byte[][] getTrustedCertificates(String hash) {
 		ArrayList<byte[]> certs = new ArrayList<byte[]>();
-		
-		if (mOptions.containsKey("server-certs") == true)
-		{
-			AssetManager assetMgr = getContext().getAssets();
-			String[] files = (String[])mOptions.get("server-certs");
-			for(String file: files) {
-				X509Certificate cert;
-				CertificateFactory cf;
-				try {
-					cf = CertificateFactory.getInstance("X509");
-					InputStream is = assetMgr.open("certs/" + file);
-					cert = (X509Certificate) cf.generateCertificate(is);
-					certs.add(cert.getEncoded());
-				} catch (CertificateException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
+		CertificateManager certMan = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_INTERNAL);
+		Map<String, Certificate> cas = certMan.getCertificates();
+		for(Entry<String, Certificate> certEntry: cas.entrySet()) {
+			Log.d(TAG, "Fetching certificate " + certEntry.getKey());
+			try {
+				certs.add(certEntry.getValue().getEncoded());
+			} catch(Exception e) {
+				Log.e(TAG, "Error while fetching certificate", e);
 			}
 		}
 		
@@ -413,24 +358,21 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 * @throws KeyChainException
 	 * @throws CertificateEncodingException
 	 */
-	private byte[][] getUserCertificate() throws KeyChainException, InterruptedException, CertificateEncodingException
-	{
-		if (!mOptions.containsKey("cert")) return null;
+	private byte[][] getUserCertificate() throws KeyChainException, InterruptedException, CertificateEncodingException {
+		String userCertUuid = (String) mOptions.get("PayloadCertificateUUID");
 		
+		CertificateManager certMgr = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_INTERNAL);
 		ArrayList<byte[]> encodings = new ArrayList<byte[]>();
 		
-		AssetManager assetMgr = getContext().getAssets();
-
-		CertificateFactory cf;
 		try {
-			cf = CertificateFactory.getInstance("X509");
-			InputStream is = assetMgr.open("certs/" + (String) mOptions.get("cert"));
-			X509Certificate cert = (X509Certificate) cf.generateCertificate(is);
-			encodings.add(cert.getEncoded());
-		} catch (CertificateException e) {
+			Certificate[] certs = certMgr.getCertificateChain(userCertUuid);
+			for(Certificate cert : certs) {
+				encodings.add(cert.getEncoded());
+			}
+		} catch (KeyStoreException e) {
 			e.printStackTrace();
 			throw new InterruptedException();	
-		} catch (IOException e) {
+		} catch (CertificateException e) {
 			e.printStackTrace();
 			throw new InterruptedException();	
 		}
@@ -449,37 +391,24 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	 * @throws KeyChainException
 	 * @throws CertificateEncodingException
 	 */
-	private PrivateKey getUserKey() throws InterruptedException
-	{
-		if (!mOptions.containsKey("private-key")) return null;
+	private PrivateKey getUserKey() throws InterruptedException {
+		String userCertUuid = (String) mOptions.get("PayloadCertificateUUID");
+		
+		CertificateManager certMgr = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_INTERNAL);
 		
 		PrivateKey result = null;
-		AssetManager assetMgr = getContext().getAssets();
-	
-		ByteArrayBuffer bb = new ByteArrayBuffer(1024);
+
 		try {
-			int av = 0;
-			int off = 0;
-			InputStream stream = assetMgr.open("certs/" + (String) mOptions.get("private-key"));
-			while((av = stream.available())>0) {
-				byte[] buffer = new byte[av];
-				int len = stream.read(buffer);
-				bb.append(buffer, off, len);
-				off += len;
-			}
-		
-			KeySpec p_key = new PKCS8EncodedKeySpec(bb.buffer());
-		
-			KeyFactory kf = KeyFactory.getInstance("RSA");
-			result = kf.generatePrivate(p_key);
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-			throw new InterruptedException();
+			result = (PrivateKey) certMgr.getKey(userCertUuid);
 		} catch (NoSuchAlgorithmException e) {
 			e.printStackTrace();
 			throw new InterruptedException();
-		} catch (InvalidKeySpecException e) {
+		} catch (UnrecoverableKeyException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			throw new InterruptedException();
+		} catch (KeyStoreException e) {
+			// TODO Auto-generated catch block
 			e.printStackTrace();
 			throw new InterruptedException();
 		}
@@ -487,48 +416,48 @@ public class IpSecVpnTunnel extends VpnTunnel {
 		return result;
 	}
 	
-	private synchronized boolean addAddress(String address, int prefixLength)
-	{
+	private synchronized boolean addAddress(String address, int prefixLength) {
+		Log.d(TAG, "addAddress(): " + address + "/" + prefixLength);
 		//TODO
-		try
-		{
+		try {
 			//mBuilder.addAddress(address, prefixLength);
-		}
-		catch (IllegalArgumentException ex)
-		{
+		} catch (IllegalArgumentException ex) {
 			return false;
 		}
 		return true;
 	}
 	
-	private synchronized boolean addRoute(String address, int prefixLength)
-	{
+	private synchronized boolean addRoute(String address, int prefixLength) {
+		Log.d(TAG, "addRoute(): " + address + "/" + prefixLength);
 		//TODO
-		try
-		{
+		try {
 			//mBuilder.addRoute(address, prefixLength);
-		}
-		catch (IllegalArgumentException ex)
-		{
+		} catch (IllegalArgumentException ex) {
 			return false;
 		}
 		return true;
 	}
 	
-	private String getXAuthIdentity() {
-		return (String)mOptions.get("xauth-identity");
+	private String getXAuthName() {
+		return (String) mOptions.get("XAuthName");
 	}
 
-	private String getXAuthSecret() {
-		return (String)mOptions.get("xauth-secret");
+	private String getXAuthPassword() {
+		return (String) mOptions.get("XAuthPassword");
 	}
 	
-	private native boolean initializeCharon(String logfile, boolean byod);
+	private native boolean initializeCharon(String logfile, boolean byod, long tunCtx);
 	private native void deinitializeCharon();
-	private native void initiate(String type, String gateway, String username, String password);	
+	private native void initiate(String type, String remoteAddr, String username, String password);	
 	private native void networkChanged(boolean disconnected);
+	private native long initIpSecTun();
+	private native void deinitIpSecTun(long tunCtx);
 	
 	static {
+		if(Security.getProvider("SC") == null) {
+			Security.addProvider(new BouncyCastleProvider());
+		}
+		
 		System.loadLibrary("strongswan");
 
 		if(BYOD) {
