@@ -59,8 +59,12 @@ METHOD(private_key_t, sign, bool,
 	jmethodID method_id;
 	const char *method;
 	jstring jmethod;
+	jstring jprovider;
 	jobject jsignature;
 	jbyteArray jdata, jsigarray;
+
+	DBG1(DBG_LIB, "Trying signature scheme %N via JNI",
+					 signature_scheme_names, scheme);
 
 	switch (scheme)
 	{
@@ -95,18 +99,19 @@ METHOD(private_key_t, sign, bool,
 	/* we use java.security.Signature to create the signature without requiring
 	 * access to the actual private key */
 	method_id = (*env)->GetStaticMethodID(env, this->signature_class,
-				"getInstance", "(Ljava/lang/String;)Ljava/security/Signature;");
+				"getInstance", "(Ljava/lang/String;Ljava/lang/String;)Ljava/security/Signature;");
 	if (!method_id)
 	{
 		goto failed;
 	}
 	jmethod = (*env)->NewStringUTF(env, method);
-	if (!jmethod)
+	jprovider = (*env)->NewStringUTF(env, "SC"); //Using SpongyCastle here to support NONEwithRSA
+	if (!jmethod || !jprovider)
 	{
 		goto failed;
 	}
 	jsignature = (*env)->CallStaticObjectMethod(env, this->signature_class,
-												method_id, jmethod);
+												method_id, jmethod, jprovider);
 	if (!jsignature)
 	{
 		goto failed;
