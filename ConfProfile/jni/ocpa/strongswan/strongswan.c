@@ -23,7 +23,7 @@
 #include <library.h>
 #include <threading/thread.h>
 
-#define ANDROID_DEBUG_LEVEL 1
+#define ANDROID_DEBUG_LEVEL 2
 
 #define ANDROID_RETRASNMIT_TRIES 3
 #define ANDROID_RETRANSMIT_TIMEOUT 2.0
@@ -535,7 +535,7 @@ METHOD(charonservice_t, get_xauth_identity, char *,
 
 	method_id = (*env)->GetMethodID(env,
 						android_ipsecvpntunnel_class,
-						"getXAuthIdentity", "()Ljava/lang/String;");
+						"getXAuthName", "()Ljava/lang/String;");
 	if (!method_id)
 	{
 		goto failed;
@@ -570,7 +570,7 @@ METHOD(charonservice_t, get_xauth_key, char *,
 
 	method_id = (*env)->GetMethodID(env,
 						android_ipsecvpntunnel_class,
-						"getXAuthSecret", "()Ljava/lang/String;");
+						"getXAuthPassword", "()Ljava/lang/String;");
 	if (!method_id)
 	{
 		goto failed;
@@ -690,7 +690,7 @@ static void set_options(char *logfile)
 /**
  * Initialize the charonservice object
  */
-static void charonservice_init(JNIEnv *env, jobject tunnel, jboolean byod)
+static void charonservice_init(JNIEnv *env, jobject tunnel, jboolean byod, ipsec_tun_ctx_t* tun_ctx)
 {
 	private_charonservice_t *this;
 
@@ -723,7 +723,7 @@ static void charonservice_init(JNIEnv *env, jobject tunnel, jboolean byod)
 		.network_manager = network_manager_create(),
 		.sockets = linked_list_create(),
 		.jtunnel = (*env)->NewGlobalRef(env, tunnel),
-		.tunnel_ctx = ipsec_tun_init(),
+		.tunnel_ctx = tun_ctx,
 	);
 
 	charonservice = &this->public;
@@ -776,7 +776,7 @@ static void segv_handler(int signal)
 	exit(1);
 }
 
-bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod)
+bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlong jtunctx)
 {
 	struct sigaction action;
 	struct utsname utsname;
@@ -822,7 +822,8 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod)
 
 	charon->load_loggers(charon, NULL, FALSE);
 
-	charonservice_init(env, this, byod);
+	ipsec_tun_ctx_t* tun_ctx = (ipsec_tun_ctx_t*) (intptr_t) jtunctx;
+	charonservice_init(env, this, byod, tun_ctx);
 
 	if (uname(&utsname) != 0)
 	{
@@ -854,7 +855,8 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod)
 	}
 
 	lib->plugins->status(lib->plugins, LEVEL_CTRL);
-
+	//TODO: uncomment after debugging
+/*
 	// add handler for SEGV and ILL etc.
 	action.sa_handler = segv_handler;
 	action.sa_flags = 0;
@@ -864,7 +866,7 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod)
 	sigaction(SIGBUS, &action, NULL);
 	action.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &action, NULL);
-
+*/
 	// start daemon (i.e. the threads in the thread-pool)
 	charon->start(charon);
 

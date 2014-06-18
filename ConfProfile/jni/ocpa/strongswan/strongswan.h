@@ -137,7 +137,7 @@ struct ipsec_tun_ctx_t {
  */
 extern charonservice_t *charonservice;
 
-bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod);
+bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlong jtunctx);
 void deinitialize_library();
 void initialize_tunnel(char *type, char *gateway, char *username, char *password);
 void notify_library(bool disconnected);
