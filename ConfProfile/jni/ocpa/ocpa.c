@@ -358,6 +358,27 @@ JNI_METHOD(RouterLoop, setMasqueradeIp4, void, jlong jrouterctx, jint jip) {
 	ctx->dev_tun_ctx.masquerade4 = jip;
 }
 
+JNI_METHOD(RouterLoop, setMasqueradeIp6Mode, void, jlong jrouterctx, jboolean jison) {
+	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+			return;
+		}
+
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+
+	ctx->dev_tun_ctx.use_masquerade6 = jison;
+}
+
+JNI_METHOD(RouterLoop, setMasqueradeIp6, void, jlong jrouterctx, jbyteArray jip) {
+	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+		return;
+	}
+
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	uint8_t* ip6 = (*env)->GetByteArrayElements(env, jip, JNI_FALSE);
+	memcpy(ctx->dev_tun_ctx.masquerade6, ip6, 16);
+	(*env)->ReleaseByteArrayElements(env, jip, ip6, JNI_ABORT);
+}
+
 JNI_METHOD(L2tpTunnel, initL2tpTun, jlong) {
 	return (jlong) (intptr_t) l2tp_tun_init();
 }

@@ -56,6 +56,19 @@ public abstract class VpnTunnel implements Runnable {
 		setMasqueradeIp4(mVpnTunnelCtx, ip4);
 	}
 	
+	protected void setMasqueradeIp6Mode(boolean isOn) {
+		setMasqueradeIp6Mode(mVpnTunnelCtx, isOn);
+	}
+	
+	protected void setMasqueradeIp6(byte[] ip6) {
+		if(ip6 == null || ip6.length != 16) {
+			return;
+		}
+		setMasqueradeIp6(mVpnTunnelCtx, ip6);
+	}
+	
 	private native void setMasqueradeIp4Mode(long vpnTunnelCtx, boolean isOn);
 	private native void setMasqueradeIp4(long vpnTunnelCtx, int ip4);
+	private native void setMasqueradeIp6Mode(long vpnTunnelCtx, boolean isOn);
+	private native void setMasqueradeIp6(long vpnTunnelCtx, byte[] ip6);
 }
