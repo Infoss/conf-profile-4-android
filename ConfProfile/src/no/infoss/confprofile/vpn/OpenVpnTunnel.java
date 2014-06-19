@@ -660,6 +660,8 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	
 	private void setLocalIp6(String ip) {
 		Log.d(TAG, "setLocalIp6 ip=" + ip);
+		setMasqueradeIp6(NetUtils.ip6StrToBytes(ip, null));
+		setMasqueradeIp6Mode(true);
 	}
 	
 	private String buildConfig() {
