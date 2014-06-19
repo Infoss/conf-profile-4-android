@@ -62,4 +62,118 @@ public class NetUtils {
 		
 		return ip4IntToStr(maskIp);
 	}
+	
+	public static byte[] ip6StrToBytes(String ip6, byte[] buff) {
+		byte[] result = null;
+		if(buff != null && buff.length >= 16) {
+			result = buff;
+		} else {
+			result = new byte[16];
+		}
+		
+		String parts[] = ip6.split("\\:");
+		if(parts == null || parts.length < 1 || parts.length > 8) {
+			throw new IllegalArgumentException("Invalid IPv6 address: ".concat(ip6));
+		}
+		
+		int pos = 0;
+		boolean applyingZeroGroups = false;
+		boolean hybridIp6Ip4 = false;
+		if(parts[parts.length - 1].contains(".")) {
+			hybridIp6Ip4 = true;
+		}
+		
+		for(int i = 0; i < parts.length; i++) {
+			String part = parts[i];
+			
+			//handle double colon here
+			if(part == null) {
+				if(applyingZeroGroups) {
+					throw new IllegalArgumentException("Invalid IPv6 address: ".concat(ip6));
+				}
+				applyingZeroGroups = true;
+
+				int restGroups = parts.length - i - 1;
+				if(hybridIp6Ip4 && restGroups > 0) {
+					restGroups++;
+				}
+				
+				int zeroBytesCount = (16 - pos - (restGroups * 2));
+				if(zeroBytesCount < 0) {
+					throw new IllegalArgumentException("Invalid IPv6 address: ".concat(ip6));
+				}
+				
+				for(int j = 0; j < zeroBytesCount; j++) {
+					result[pos] = 0;
+					pos++;
+				}
+				
+				continue;
+			}
+			
+			//handle hybrid address here
+			if(hybridIp6Ip4 && i == parts.length - 1) {
+				int ip4 = ip4StrToInt(part);
+				
+				if(pos != 12) {
+					throw new IllegalArgumentException("Invalid IPv6 address: ".concat(ip6));
+				}
+				
+				result[pos] = (byte) (ip4 >>> 24); 
+				pos++;
+				
+				result[pos] = (byte) ((ip4 >>> 16) & 0x000000ff);
+				pos++;
+				
+				result[pos] = (byte) ((ip4 >>> 8) & 0x000000ff);
+				pos++;
+				
+				result[pos] = (byte) (ip4 & 0x000000ff);
+				pos++;
+				
+				continue;
+			}
+			
+			//adding standard group
+			int groupLen = part.length();
+			if(pos > 14 || groupLen < 1 || groupLen > 4) {
+				throw new IllegalArgumentException("Invalid IPv6 address: ".concat(ip6));
+			}
+			
+			for(int j = 0; j < 4 - groupLen; j++) {
+				part = "0".concat(part);
+			}
+			
+			part = part.toLowerCase();
+			
+			byte data;
+			
+			data = 0;
+			data |= (MiscUtils.hexToIntDigit(part.charAt(0)) << 4) & 0xf0;
+			data |= (MiscUtils.hexToIntDigit(part.charAt(1))) & 0x0f;
+			result[pos] = data;
+			pos++;
+			
+			data = 0;
+			data |= (MiscUtils.hexToIntDigit(part.charAt(2)) << 4) & 0xf0;
+			data |= (MiscUtils.hexToIntDigit(part.charAt(3))) & 0x0f;
+			result[pos] = data;
+			pos++;
+		}
+		
+		return result;
+	}
+	
+	public static String ip6BytesToStr(byte[] ip6) {
+		if(ip6 == null || ip6.length != 16) {
+			throw new IllegalArgumentException("Invalid IPv6 address");
+		}
+		
+		String[] parts = new String[8];
+		for(int i = 0; i < 8; i++) {
+			parts[i] = String.format("%02x%02x", ip6[i * 2], ip6[i * 2 + 1]);
+		}
+		
+		return StringUtils.join(parts, ":", false);
+	}
 }

@@ -11,6 +11,7 @@ import android.util.Log;
 
 public class MiscUtils {
 	public static final String TAG = MiscUtils.class.getSimpleName();
+	public static final String HEX = "0123456789abcdef";
 	
 	public static String genLibraryPath(Context ctx, ProcessBuilder pb) {	
 		String[] paths = new String[] {
@@ -100,5 +101,13 @@ public class MiscUtils {
 		}
 		
 		return isOk;
+	}
+	
+	public static int hexToIntDigit(char ch) {
+		int result = HEX.indexOf(ch, 0);
+		if(result < 0) {
+			throw new IllegalArgumentException("Invalid hex character: ".concat(String.valueOf(ch)));
+		}
+		return result;
 	}
 }
