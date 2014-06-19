@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import no.infoss.confprofile.crypto.CertificateManager;
+import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.vpn.IpSecVpnStateService.ErrorState;
 import no.infoss.confprofile.vpn.IpSecVpnStateService.State;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
@@ -417,13 +418,26 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	}
 	
 	private synchronized boolean addAddress(String address, int prefixLength) {
-		Log.d(TAG, "addAddress(): " + address + "/" + prefixLength);
-		//TODO
-		try {
-			//mBuilder.addAddress(address, prefixLength);
-		} catch (IllegalArgumentException ex) {
+		if(address == null) {
+			Log.e(TAG, "Error in addAddress(): trying to add null");
 			return false;
 		}
+		
+		Log.d(TAG, "addAddress(): " + address + "/" + prefixLength);
+		try {
+			if(address.contains(":")) {
+				//IPv6
+				setMasqueradeIp6(NetUtils.ip6StrToBytes(address, null));
+				setMasqueradeIp6Mode(true);
+			} else {
+				setMasqueradeIp4(NetUtils.ip4StrToInt(address));
+				setMasqueradeIp4Mode(true);
+			}
+		} catch(Exception e) {
+			Log.e(TAG, "Error while adding address", e);
+			return false;
+		}
+		
 		return true;
 	}
 	
