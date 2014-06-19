@@ -89,64 +89,8 @@ charonservice_t *charonservice;
  */
 extern void (*dbg)(debug_t group, level_t level, char *fmt, ...);
 
-static int tun_init(common_tun_ctx_t* ctx) {
-
-	int res = -1;
-	int fds[2];
-	if((res = socketpair(AF_UNIX, SOCK_DGRAM, PF_UNSPEC, fds)) != 0) {
-		return 0;
-	}
-
-	ctx->local_fd = fds[0];
-	ctx->remote_fd = fds[1];
-	ctx->send_func = common_tun_send;
-	ctx->recv_func = common_tun_recv;
-
-	return res;
-}
-
-static void tun_deinit(common_tun_ctx_t* ctx) {
-	if(ctx == NULL) {
-		return;
-	}
-
-	if(ctx->local_fd != -1) {
-		shutdown(ctx->local_fd, SHUT_RDWR);
-	}
-
-	if(ctx->remote_fd != -1) {
-		shutdown(ctx->remote_fd, SHUT_RDWR);
-	}
-
-	ctx->send_func = NULL;
-	ctx->recv_func = NULL;
-}
-
 int get_remotefd(common_tun_ctx_t* ctx) {
 	return ctx->remote_fd;
-}
-
-ipsec_tun_ctx_t* ipsec_tun_init() {
-
-	ipsec_tun_ctx_t* ctx = malloc(sizeof(ipsec_tun_ctx_t));
-	if(ctx == NULL) {
-		return NULL;
-	}
-
-	if(tun_init(&ctx->common) != 0)
-		return NULL;
-
-	return ctx;
-}
-
-void ipsec_tun_deinit(ipsec_tun_ctx_t* ctx) {
-	if(ctx == NULL) {
-		return;
-	}
-
-	tun_deinit(&ctx->common);
-
-	free(ctx);
 }
 
 /**
