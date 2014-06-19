@@ -25,12 +25,12 @@ public class PcapOutputStream extends FileOutputStream {
 		writePcapHeader(mtu, linkType);
 	}
 	
-	public void writePacket(byte[] buff, int offs, int len) 
+	public synchronized void writePacket(byte[] buff, int offs, int len) 
 			throws IOException {
 		writePacket(buff, offs, len, len);
 	}
 	
-	public void writePacket(byte[] buff, int offs, int len, int origLen) 
+	public synchronized void writePacket(byte[] buff, int offs, int len, int origLen) 
 			throws IOException {
 		long ts = System.currentTimeMillis();
 		int ts_sec = (int) (ts / 1000L);
@@ -38,14 +38,14 @@ public class PcapOutputStream extends FileOutputStream {
 		writePacket(buff, offs, len, origLen, ts_sec, ts_usec);
 	}
 	
-	public void writePacket(byte[] buff, int offs, int len, int origLen, int ts_sec, int ts_usec) 
+	public synchronized void writePacket(byte[] buff, int offs, int len, int origLen, int ts_sec, int ts_usec) 
 			throws IOException {
 		byte[] hdr = valuesAsByteArray(ts_sec, ts_usec, len, origLen);
 		write(hdr);
 		write(buff, offs, len);
 	}
 	
-	private void writePcapHeader(int mtu, int linkType) throws IOException {
+	private synchronized void writePcapHeader(int mtu, int linkType) throws IOException {
 		byte[] hdr = valuesAsByteArray(MAGIC, VER_MAJOR, VER_MINOR, (Integer) 0, (Integer) 0, mtu, linkType);
 		write(hdr);
 	}
