@@ -3,7 +3,6 @@ ocpa_INCLUDES :=
 subproject_PATHS := openssl-1.0.1g \
 					mtpd \
 					pppd \
-					utils \
 					lzo \
 					snappy \
 					openvpn \
