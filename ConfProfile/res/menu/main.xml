@@ -4,5 +4,8 @@
         android:title="@string/main_menu_backup" />
     <item android:id="@+id/menu_item_restore_all" 
         android:title="@string/main_menu_restore" />
-
+    <item android:id="@+id/menu_item_start_capture" 
+        android:title="@string/main_menu_restore" />
+    <item android:id="@+id/menu_item_stop_capture" 
+        android:title="@string/main_menu_restore" />
 </menu>

@@ -47,6 +47,7 @@ import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.ListAdapter;
 import android.widget.TextView;
+import android.widget.Toast;
 
 import com.litecoding.classkit.view.LazyCursorList;
 import com.litecoding.classkit.view.ObjectAdapter;
@@ -58,6 +59,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private LazyCursorList<ProfileInfo> mProfileInfoList;
 	private DbOpenHelper mDbHelper;
 	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
+	private boolean mDebugPcapEnabled = false;
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -113,6 +115,20 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		if(BuildConfig.DEBUG) {
 			MenuInflater inflater = getMenuInflater();
 			inflater.inflate(R.menu.main, menu);
+			
+			MenuItem item;
+			
+			item = menu.findItem(R.id.menu_item_start_capture);
+			if(item != null) {
+				item.setEnabled(!mDebugPcapEnabled);
+			}
+			
+			item = menu.findItem(R.id.menu_item_stop_capture);
+			if(item != null) {
+				item.setEnabled(mDebugPcapEnabled);
+			}
+			
+			
 			return true;
 		}
 		
@@ -123,14 +139,22 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	public boolean onOptionsItemSelected(MenuItem item) {
 	    if(BuildConfig.DEBUG) {
 		    switch (item.getItemId()) {
-		        case R.id.menu_item_backup_all:
+		        case R.id.menu_item_backup_all: {
 		            backupData();
 		            return true;
-		        case R.id.menu_item_restore_all:
+		        }
+		        case R.id.menu_item_restore_all: {
 		            restoreData();
 		            return true;
-		        default:
+		        }
+		        case R.id.menu_item_start_capture:
+		        case R.id.menu_item_stop_capture: {
+		        	startStopDebugPcap();
+		        	return true;
+		        }
+		        default: {
 		            return super.onOptionsItemSelected(item);
+		        }
 		    }
 	    }
 	    
@@ -174,7 +198,25 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	}
 	
 	private void restoreData() {
+		Toast.makeText(this, "Feature is not implemented yet", Toast.LENGTH_SHORT).show();
+	}
+	
+	private void startStopDebugPcap() {
+		VpnManagerInterface vpnMgr = mBindKit.lock();
+		if(vpnMgr == null) {
+			Toast.makeText(this, "Service is busy, try again later",  Toast.LENGTH_SHORT).show();
+		} else {
+			if(mDebugPcapEnabled) {
+				//stop
+			} else {
+				//start
+			}
+			
+			mDebugPcapEnabled = !mDebugPcapEnabled;
+			invalidateOptionsMenu();
+		}
 		
+		mBindKit.unlock();
 	}
 	
 	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {
