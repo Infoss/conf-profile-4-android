@@ -379,6 +379,32 @@ JNI_METHOD(RouterLoop, setMasqueradeIp6, void, jlong jrouterctx, jbyteArray jip)
 	(*env)->ReleaseByteArrayElements(env, jip, ip6, JNI_ABORT);
 }
 
+JNI_METHOD(RouterLoop, debugRestartPcap, void, jlong jrouterctx, jobject jos) {
+	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+		return;
+	}
+
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(ctx->dev_tun_ctx.pcap_output != NULL) {
+		pcap_output_reset(ctx->dev_tun_ctx.pcap_output, jos);
+	} else {
+		ctx->dev_tun_ctx.pcap_output = pcap_output_init(jos);
+	}
+
+}
+
+JNI_METHOD(RouterLoop, debugStopPcap, void, jlong jrouterctx) {
+	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+		return;
+	}
+
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(ctx->dev_tun_ctx.pcap_output != NULL) {
+		pcap_output_destroy(ctx->dev_tun_ctx.pcap_output);
+		ctx->dev_tun_ctx.pcap_output = NULL;
+	}
+}
+
 JNI_METHOD(L2tpTunnel, initL2tpTun, jlong) {
 	return (jlong) (intptr_t) l2tp_tun_init();
 }
@@ -441,4 +467,30 @@ JNI_METHOD(VpnTunnel, setMasqueradeIp4, void, jlong jtunctx, jint jip) {
 	}
 
 	((common_tun_ctx_t*) (intptr_t) jtunctx)->masquerade4 = jip;
+}
+
+JNI_METHOD(VpnTunnel, debugRestartPcap, void, jlong jtunctx, jobject jos) {
+	if(((common_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
+		return;
+	}
+
+	common_tun_ctx_t* ctx = ((common_tun_ctx_t*) (intptr_t) jtunctx);
+	if(ctx->pcap_output != NULL) {
+		pcap_output_reset(ctx->pcap_output, jos);
+	} else {
+		ctx->pcap_output = pcap_output_init(jos);
+	}
+
+}
+
+JNI_METHOD(VpnTunnel, debugStopPcap, void, jlong jtunctx) {
+	if(((common_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
+		return;
+	}
+
+	common_tun_ctx_t* ctx = ((common_tun_ctx_t*) (intptr_t) jtunctx);
+	if(ctx->pcap_output != NULL) {
+		pcap_output_destroy(ctx->pcap_output);
+		ctx->pcap_output = NULL;
+	}
 }

@@ -29,6 +29,7 @@ void common_tun_set(common_tun_ctx_t* ctx) {
 	ctx->send_func = common_tun_send;
 	ctx->recv_func = common_tun_recv;
 	ctx->router_ctx = NULL;
+	ctx->pcap_output = NULL;
 }
 
 void common_tun_free(common_tun_ctx_t* ctx) {
@@ -51,6 +52,9 @@ void common_tun_free(common_tun_ctx_t* ctx) {
 	ctx->send_func = NULL;
 	ctx->recv_func = NULL;
 	ctx->router_ctx = NULL;
+
+	pcap_output_destroy(ctx->pcap_output);
+	ctx->pcap_output = NULL;
 }
 
 ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {

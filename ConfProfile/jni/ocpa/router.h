@@ -8,7 +8,6 @@
 #include <poll.h>
 #include <jni.h>
 
-#include "pcap_output.h"
 #include "tun.h"
 
 typedef struct ocpa_ip_packet_t ocpa_ip_packet_t;
@@ -65,9 +64,6 @@ struct router_ctx_t {
     bool routes_updated;
     bool paused;
     bool terminate;
-
-    //Debug features
-    pcap_output_t* pcap_output;
 };
 
 struct poll_helper_struct_t {

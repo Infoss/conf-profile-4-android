@@ -10,6 +10,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#include "pcap_output.h"
+
 struct router_ctx_t;
 typedef struct router_ctx_t router_ctx_t;
 
@@ -26,6 +28,9 @@ struct common_tun_ctx_t {
 	tun_send_func_ptr send_func;
 	tun_recv_func_ptr recv_func;
 	router_ctx_t* router_ctx;
+
+	//Debug features
+	pcap_output_t* pcap_output;
 };
 
 typedef struct common_tun_ctx_t common_tun_ctx_t;

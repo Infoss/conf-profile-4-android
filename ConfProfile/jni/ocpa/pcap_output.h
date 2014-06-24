@@ -17,6 +17,7 @@ struct pcap_output_t {
 };
 
 pcap_output_t* pcap_output_init(jobject jpcap);
+void pcap_output_reset(pcap_output_t* output, jobject jpcap_new);
 void pcap_output_write(pcap_output_t* output, uint8_t* buff, int32_t offs, int32_t len);
 void pcap_output_flush(pcap_output_t* output);
 void pcap_output_close(pcap_output_t* output);
