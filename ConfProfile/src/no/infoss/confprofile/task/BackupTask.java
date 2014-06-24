@@ -9,10 +9,10 @@ import java.io.OutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import no.infoss.confprofile.util.MiscUtils;
 import android.content.Context;
 import android.content.SharedPreferences;
 import android.os.AsyncTask;
-import android.os.Environment;
 import android.util.Log;
 
 import com.google.gson.Gson;
@@ -28,15 +28,8 @@ public class BackupTask extends AsyncTask<Void, Void, Void> {
 	
 	@Override
 	protected Void doInBackground(Void... params) {
-		String state = Environment.getExternalStorageState();
-		if(!Environment.MEDIA_MOUNTED.equals(state)) {
-			if(Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
-				//error: ro
-				return null;
-			} else {
-				//error: no storage
-				return null;
-			}
+		if(!MiscUtils.isExternalStorageWriteable()) {
+			return null;
 		}
 		
 		File externalFilesDir = mCtx.getExternalFilesDir(null);

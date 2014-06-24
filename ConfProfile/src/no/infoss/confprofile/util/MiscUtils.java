@@ -7,6 +7,7 @@ import java.io.InputStream;
 
 import android.content.Context;
 import android.os.Build;
+import android.os.Environment;
 import android.util.Log;
 
 public class MiscUtils {
@@ -109,5 +110,19 @@ public class MiscUtils {
 			throw new IllegalArgumentException("Invalid hex character: ".concat(String.valueOf(ch)));
 		}
 		return result;
+	}
+	
+	public static boolean isExternalStorageWriteable() {
+		String state = Environment.getExternalStorageState();
+		if(!Environment.MEDIA_MOUNTED.equals(state)) {
+			if(Environment.MEDIA_MOUNTED_READ_ONLY.equals(state)) {
+				//error: ro
+				return false;
+			} else {
+				//error: no storage
+				return false;
+			}
+		}
+		return true;
 	}
 }
