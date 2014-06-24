@@ -1,18 +1,34 @@
 package no.infoss.confprofile.vpn;
 
+import java.io.File;
 import java.net.Socket;
+import java.security.AlgorithmParameters;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.PrivateKey;
+import java.security.Provider;
+import java.security.Security;
+import java.security.Signature;
 import java.security.cert.Certificate;
+import java.security.spec.AlgorithmParameterSpec;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 
+import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.task.ObtainOnDemandVpns;
 import no.infoss.confprofile.task.ObtainOnDemandVpns.ObtainOnDemandVpnsListener;
+import no.infoss.confprofile.util.CryptoUtils;
+import no.infoss.confprofile.util.MiscUtils;
+import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
+import no.infoss.jni.jca.InfossJcaProvider;
+
+import org.spongycastle.jce.provider.BouncyCastleProvider;
+
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.Service;
@@ -72,6 +88,39 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		if(!mBindKit.bind(OcpaVpnService.class, BIND_AUTO_CREATE)) {
 			Log.e(TAG, "Can't bind OcpaVpnService");
 		}
+		
+		//TODO: remove this
+		int pos = Security.addProvider(new InfossJcaProvider(getApplicationContext()));
+		Log.d(TAG, String.format("InfossJceProvider was added at pos=%d", pos));
+		
+		if(Security.getProvider("SC") == null) {
+			Security.addProvider(new BouncyCastleProvider());
+		}
+		
+		Provider[] providers = Security.getProviders();
+		for(Provider provider : providers) {
+			Log.d(TAG, provider.getName() + " v" + provider.getVersion() + " " + provider.getInfo());
+		}
+		
+		try {
+			byte[] msg = "123456".getBytes();
+			Signature scSig = Signature.getInstance("NONEwithRSA", "SC");
+			Signature infossSig = Signature.getInstance("NONEwithRSA", InfossJcaProvider.NAME);
+			KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
+			gen.initialize(1024);
+			KeyPair pair = gen.genKeyPair();
+			
+			scSig.initSign(pair.getPrivate());
+			scSig.update(msg);
+			infossSig.initSign(pair.getPrivate());
+			infossSig.update(msg);
+			Log.d(TAG, "SC:     " + CryptoUtils.formatFingerprint(scSig.sign()));
+			Log.d(TAG, "Infoss: " + CryptoUtils.formatFingerprint(infossSig.sign()));
+			
+		} catch(Exception e) {
+			Log.e(TAG, "", e);
+		}
+		//END of TODO: remove this
 	}
 	
 	@Override
@@ -293,6 +342,130 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		}
 		
 		return res;
+	}
+	
+	@Override
+	public boolean debugStartPcap() {
+		if(BuildConfig.DEBUG) {
+			if(!MiscUtils.isExternalStorageWriteable()) {
+				return false;
+			}
+			
+			File externalFilesDir = getExternalFilesDir(null);
+			if(externalFilesDir == null) {
+				//error: storage error
+				return false;
+			}
+			
+			String pcapFileName;
+			PcapOutputStream os = null;
+			
+			int mtu = 1500;
+			
+			//capture from router loop
+			if(mRouterLoop != null) {
+				try {
+					pcapFileName = String.format("router-%d.pcap", System.currentTimeMillis());
+					mtu = mRouterLoop.getMtu();
+					os = new PcapOutputStream(
+							new File(externalFilesDir, pcapFileName), 
+							mtu, 
+							PcapOutputStream.LINKTYPE_RAW);
+					mRouterLoop.debugRestartPcap(os);
+				} catch(Exception e) {
+					Log.e(TAG, "Restart pcap error", e);
+				} finally {
+					if(os != null) {
+						try {
+							os.close();
+						} catch(Exception e) {
+							//nothing to do here
+						}
+					}
+				}
+			}
+			
+			//capture from tunnel
+			if(mCurrentTunnel != null) {
+				try {
+					pcapFileName = String.format(
+							"tun(%s)-%d.pcap", 
+							mCurrentTunnel.getTunnelId(), 
+							System.currentTimeMillis());
+					os = new PcapOutputStream(
+							new File(externalFilesDir, pcapFileName), 
+							mtu, 
+							PcapOutputStream.LINKTYPE_RAW);
+					mCurrentTunnel.debugRestartPcap(os);
+				} catch(Exception e) {
+					Log.e(TAG, "Restart pcap error", e);
+				} finally {
+					if(os != null) {
+						try {
+							os.close();
+						} catch(Exception e) {
+							//nothing to do here
+						}
+					}
+				}
+			}
+			
+			//capture from usernat
+			if(mUsernatTunnel != null) {
+				try {
+					pcapFileName = String.format(
+							"usernat(%s)-%d.pcap", 
+							mUsernatTunnel.getTunnelId(), 
+							System.currentTimeMillis());
+					os = new PcapOutputStream(
+							new File(externalFilesDir, pcapFileName), 
+							mtu, 
+							PcapOutputStream.LINKTYPE_RAW);
+					mUsernatTunnel.debugRestartPcap(os);
+				} catch(Exception e) {
+					Log.e(TAG, "Restart pcap error", e);
+				} finally {
+					if(os != null) {
+						try {
+							os.close();
+						} catch(Exception e) {
+							//nothing to do here
+						}
+					}
+				}
+			}
+		}
+		return true;
+	}
+	
+	@Override
+	public boolean debugStopPcap() {
+		if(BuildConfig.DEBUG) {
+			if(mRouterLoop != null) {
+				try {
+					mRouterLoop.debugStopPcap();
+				} catch(Exception e) {
+					Log.e(TAG, "Stop pcap error", e);
+				}
+			}
+			
+			if(mCurrentTunnel != null) {
+				try {
+					mCurrentTunnel.debugStopPcap();
+				} catch(Exception e) {
+					Log.e(TAG, "Stop pcap error", e);
+				}
+			}
+			
+			if(mUsernatTunnel != null) {
+				try {
+					mUsernatTunnel.debugStopPcap();
+				} catch(Exception e) {
+					Log.e(TAG, "Stop pcap error", e);
+				}
+			}
+		}
+		return true;
 	}
 
 	/*package*/ RouterLoop getRouterLoop() {

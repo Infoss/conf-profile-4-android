@@ -30,4 +30,8 @@ public interface VpnManagerInterface extends IInterface {
 	//proxy methods to OcpaVpnService
 	public boolean protect(int socket);
 	public boolean protect(Socket socket);
+	
+	//debug methods
+	public boolean debugStartPcap();
+	public boolean debugStopPcap();
 }

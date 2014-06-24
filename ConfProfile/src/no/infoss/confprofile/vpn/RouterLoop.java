@@ -3,12 +3,14 @@ package no.infoss.confprofile.vpn;
 import java.util.List;
 
 import no.infoss.confprofile.util.NetUtils;
+import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.vpn.OcpaVpnService.BuilderAdapter;
 import android.util.Log;
 
 /*package*/ class RouterLoop implements Runnable {
 	public static final String TAG = RouterLoop.class.getSimpleName();
 	
+	private int mMtu;
 	private VpnManagerInterface mVpnMgr;
 	private BuilderAdapter mBuilder;
 	private long mRouterCtx; //native
@@ -16,6 +18,7 @@ import android.util.Log;
 	private Thread mThread;
 	
 	public RouterLoop(VpnManagerInterface vpnMgr, BuilderAdapter builder) {
+		mMtu = 1500;
 		mVpnMgr = vpnMgr;
 		mBuilder = builder;
 		mThread = new Thread(this, TAG);
@@ -41,7 +44,7 @@ import android.util.Log;
 		pause(true);
 		
 		synchronized (this) {
-			if(!mBuilder.setMtu(1500)) {
+			if(!mBuilder.setMtu(mMtu)) {
 				Log.d(TAG, "Can't set MTU=".concat(String.valueOf(1500)));
 			}
 			
@@ -86,11 +89,22 @@ import android.util.Log;
 	public List<Route4> getRoutes4() {
 		return getRoutes4(mRouterCtx);
 	}
+	
+	public int getMtu() {
+		return mMtu;
+	}
 
 	/*package*/ long getRouterCtx() {
 		return mRouterCtx;
 	}
 	
+	/*package*/ void debugRestartPcap(PcapOutputStream pos) {
+		debugRestartPcap(mRouterCtx, pos);
+	}
+	
+	/*package*/ void debugStopPcap() {
+		debugStopPcap(mRouterCtx);
+	}
 
 	private void closeConnection() {
 		synchronized (this) {
@@ -117,6 +131,11 @@ import android.util.Log;
 	/*package*/ native boolean isPausedRouterLoop(long routerCtx);
 	/*package*/ native boolean pauseRouterLoop(long routerCtx, boolean pause);
 	/*package*/ native void terminateRouterLoop(long routerCtx);
+	
+	//BEGIN debug methods
+	/*package*/ native void debugRestartPcap(long routerCtx, PcapOutputStream pos);
+	/*package*/ native void debugStopPcap(long routerCtx);
+	//END debug methods
 	
 	private native void setMasqueradeIp4Mode(long routerCtx, boolean isOn);
 	private native void setMasqueradeIp4(long routerCtx, int ip4);
