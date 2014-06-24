@@ -14,9 +14,10 @@ import java.util.Map;
 
 import javax.crypto.Cipher;
 
+import android.util.Log;
+
 public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigurator {
-	private static final String RSA_TRANSFORM = "RSA/ECB/PKCS1Padding";
-	private static final String PROVIDER = "BC";
+	private static final String RSA_TRANSFORM = "RSA";
 	
 	private static final int MODE_UNINITIALIZED = 0;
 	private static final int MODE_SIGN = 1;
@@ -88,9 +89,17 @@ public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigur
 		
 		byte[] result = null;
 		try {
-			Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORM, PROVIDER);
+			//TODO: this native implementation should be probably removed
+			/*
+			Log.d(this.getClass().getSimpleName(), mPrivateKey.getFormat());
+			byte[] encodedKey = mPrivateKey.getEncoded();
+			result = nativeSignNoneWithRsa(encodedKey, mOutputStream.toByteArray());
+			*/
+			Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORM);
 			rsaCipher.init(Cipher.DECRYPT_MODE, mPrivateKey);
-			result = rsaCipher.doFinal(mOutputStream.toByteArray());
+			int blockSize = rsaCipher.getBlockSize();
+			Pkcs1Padding padding = new Pkcs1Padding(null);
+			result = rsaCipher.doFinal(padding.wrap(mOutputStream.toByteArray(), blockSize));
 		} catch(Exception e) {
 			throw new SignatureException(e);
 		}
@@ -107,9 +116,11 @@ public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigur
 		boolean result = false;
 		byte[] sigCalcBytes = null;
 		try {
-			Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORM, PROVIDER);
+			Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORM);
 			rsaCipher.init(Cipher.ENCRYPT_MODE, mPublicKey);
-			sigCalcBytes = rsaCipher.doFinal(mOutputStream.toByteArray());
+			int blockSize = rsaCipher.getBlockSize();
+			Pkcs1Padding padding = new Pkcs1Padding(null);
+			sigCalcBytes = rsaCipher.doFinal(padding.wrap(mOutputStream.toByteArray(), blockSize));
 			
 			if(sigBytes.length == sigCalcBytes.length) {
 				result = true;
@@ -130,14 +141,12 @@ public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigur
 	@Override
 	protected void engineSetParameter(String param, Object value)
 			throws InvalidParameterException {
-		// TODO Auto-generated method stub
 		throw new InvalidParameterException("No parameters are allowed");
 	}
 
 	@Override
 	protected Object engineGetParameter(String param)
 			throws InvalidParameterException {
-		// TODO Auto-generated method stub
 		throw new InvalidParameterException("No parameters are allowed");
 	}
 
@@ -147,5 +156,7 @@ public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigur
 		result.put("Signature.NONEwithRSA", getClass().getCanonicalName());
 		return result;
 	}
+	
+	private native byte[] nativeSignNoneWithRsa(byte[] derKey, byte[] data);
 
 }
