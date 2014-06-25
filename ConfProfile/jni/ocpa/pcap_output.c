@@ -4,9 +4,9 @@
  *      Author: Dmitry Vorobiev
  */
 
+#include "android_log_utils.h"
 #include "android_jni.h"
 #include "pcap_output.h"
-#include "android_log_utils.h"
 
 #define LOG_TAG "pcap_output.c"
 #define JNI_UTIL_PACKAGE no_infoss_confprofile_util

@@ -19,10 +19,10 @@
 #ifndef ANDROID_JNI_H_
 #define ANDROID_JNI_H_
 
-#include <stdlib.h>
-#include <stdbool.h>
 #include <jni.h>
 #include <library.h>
+#include <stdlib.h>
+#include <stdbool.h>
 
 #define JNI_PACKAGE no_infoss_confprofile_vpn
 #define JNI_PACKAGE_STRING "no/infoss/confprofile/vpn"

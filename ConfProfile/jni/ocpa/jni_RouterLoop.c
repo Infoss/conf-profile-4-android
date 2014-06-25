@@ -4,11 +4,11 @@
  *      Author: Dmitry Vorobiev
  */
 
+#include "android_log_utils.h"
+#include "android_jni.h"
 #include <stdio.h>
 #include <errno.h>
 #include "ocpa.h"
-#include "android_jni.h"
-#include "android_log_utils.h"
 #include "router.h"
 
 #define LOG_TAG "jni_RouterLoop.c"
