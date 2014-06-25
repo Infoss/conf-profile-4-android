@@ -13,6 +13,11 @@
 typedef struct pcap_output_t pcap_output_t;
 
 struct pcap_output_t {
+	jobject _jclass;
+	jmethodID _jwriteID;
+	jmethodID _jflushID;
+	jmethodID _jcloseID;
+
 	jobject jpcap;
 };
 
