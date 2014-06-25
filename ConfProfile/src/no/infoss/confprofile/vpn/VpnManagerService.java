@@ -335,14 +335,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 					mRouterLoop.debugRestartPcap(os);
 				} catch(Exception e) {
 					Log.e(TAG, "Restart pcap error", e);
-				} finally {
-					if(os != null) {
-						try {
-							os.close();
-						} catch(Exception e) {
-							//nothing to do here
-						}
-					}
 				}
 			}
 			
@@ -360,14 +352,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 					mCurrentTunnel.debugRestartPcap(os);
 				} catch(Exception e) {
 					Log.e(TAG, "Restart pcap error", e);
-				} finally {
-					if(os != null) {
-						try {
-							os.close();
-						} catch(Exception e) {
-							//nothing to do here
-						}
-					}
 				}
 			}
 			
@@ -385,14 +369,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 					mUsernatTunnel.debugRestartPcap(os);
 				} catch(Exception e) {
 					Log.e(TAG, "Restart pcap error", e);
-				} finally {
-					if(os != null) {
-						try {
-							os.close();
-						} catch(Exception e) {
-							//nothing to do here
-						}
-					}
 				}
 			}
 		}
