@@ -119,8 +119,6 @@ import android.util.Log;
 	
 	private native long initIpRouter();
 	private native void deinitIpRouter(long routerCtx);
-	private native long createVpnServiceContext();
-	private native void freeVpnServiceContext(long ctx);
 	
 	private native int routerLoop(long routerCtx, BuilderAdapter builder);
 	
