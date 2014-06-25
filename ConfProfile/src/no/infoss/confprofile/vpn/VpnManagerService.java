@@ -3,6 +3,7 @@ package no.infoss.confprofile.vpn;
 import java.io.File;
 import java.net.Socket;
 import java.security.PrivateKey;
+import java.security.Security;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.List;
@@ -17,6 +18,7 @@ import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
+import no.infoss.jcajce.InfossJcaProvider;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.Service;
@@ -32,6 +34,10 @@ import android.util.Log;
 
 public class VpnManagerService extends Service implements VpnManagerInterface, ObtainOnDemandVpnsListener {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
+	
+	static {
+		Security.addProvider(new InfossJcaProvider());
+	}
 	
 	private NotificationManager mNtfMgr;
 	private Binder mBinder = new Binder();

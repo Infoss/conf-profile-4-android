@@ -4,6 +4,14 @@ import java.lang.reflect.Constructor;
 import java.security.GeneralSecurityException;
 import java.security.Provider;
 
+/**
+ * This provider is useful on Android prior to 4.2.1 due to known bug with absent NONEwithRSA 
+ * signature scheme
+ * 
+ * @author Dmitry Vorobiev
+ * @see <a href="https://code.google.com/p/android/issues/detail?id=36545">Related AOSP bug report #36545</a>
+ * @see <a href="https://android-review.googlesource.com/#/c/40352/">Android reviewed change #40352</a>
+ */
 public final class InfossJcaProvider extends Provider {
 	/**
 	 * 
