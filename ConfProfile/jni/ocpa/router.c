@@ -24,12 +24,7 @@ router_ctx_t* router_init() {
     		return NULL;
     	}
 
-    	ctx->dev_tun_ctx.local_fd = -1;
-    	ctx->dev_tun_ctx.remote_fd = -1;
-    	ctx->dev_tun_ctx.masquerade4 = 0;
-    	memset(ctx->dev_tun_ctx.masquerade6, 0, sizeof(ctx->dev_tun_ctx.masquerade6));
-    	ctx->dev_tun_ctx.use_masquerade4 = false;
-    	ctx->dev_tun_ctx.use_masquerade6 = false;
+    	common_tun_set(&ctx->dev_tun_ctx);
     	ctx->dev_tun_ctx.send_func = dev_tun_send;
     	ctx->dev_tun_ctx.recv_func = dev_tun_recv;
     	ctx->dev_tun_ctx.router_ctx = ctx;
@@ -87,11 +82,7 @@ void router_deinit(router_ctx_t* ctx) {
 			ctx->dev_tun_ctx.remote_fd = -1;
 		}
 
-        ctx->dev_tun_ctx.local_fd = -1;
-		ctx->dev_tun_ctx.remote_fd = -1;
-		ctx->dev_tun_ctx.send_func = NULL;
-		ctx->dev_tun_ctx.recv_func = NULL;
-		ctx->dev_tun_ctx.router_ctx = NULL;
+        common_tun_free(&ctx->dev_tun_ctx);
 
         ctx->ip4_routes = NULL;
         ctx->ip4_routes_count = 0;
@@ -392,7 +383,7 @@ void default6(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
 }
 
 ssize_t ipsend(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
-	ssize_t result;
+	ssize_t result = 0;
 	if(ip_packet->ipver == 0) {
 		ip_detect_ipver(ip_packet);
 	}
@@ -401,6 +392,8 @@ ssize_t ipsend(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 		result = send4(ctx, ip_packet);
 	} else if(ip_packet->ipver == 6) {
 		result = send6(ctx, ip_packet);
+	} else {
+
 	}
 	return result;
 }
@@ -463,13 +456,10 @@ ssize_t send4(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 				break;
 			}
 			}
-			LOGE(LOG_TAG, "Masquerading:");
-			log_dump_packet(LOG_TAG, buff, len);
 		}
 		result = tun_ctx->send_func((intptr_t) tun_ctx, buff, len);
 	} else {
 		LOGE(LOG_TAG, "Destination tunnel is not ready, dropping a packet");
-		log_dump_packet(LOG_TAG, buff, len);
 	}
 	pthread_rwlock_unlock(ctx->rwlock4);
 
@@ -539,13 +529,10 @@ ssize_t send6(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 				break;
 			}
 			}
-			LOGE(LOG_TAG, "Masquerading:");
-			log_dump_packet(LOG_TAG, buff, len);
 		}
 		result = tun_ctx->send_func((intptr_t) tun_ctx, buff, len);
 	} else {
 		LOGE(LOG_TAG, "Destination tunnel is not ready, dropping a packet");
-		log_dump_packet(LOG_TAG, buff, len);
 	}
 	pthread_rwlock_unlock(ctx->rwlock4);
 
@@ -663,6 +650,11 @@ ssize_t dev_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 	}
 
 	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
+
+	//start capture
+	pcap_output_write(ctx->pcap_output, buff, 0, len);
+	//end capture
+
 	return write(ctx->local_fd, buff, len);
 }
 
@@ -681,6 +673,10 @@ ssize_t dev_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 	}
 
 	ip_packet->pkt_len = res;
+
+	//start capture
+	pcap_output_write(ctx->pcap_output, ip_packet->buff, 0, ip_packet->pkt_len);
+	//end capture
 
 	res = ipsend(ctx->router_ctx, ip_packet);
 	return res;
