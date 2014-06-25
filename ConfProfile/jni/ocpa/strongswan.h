@@ -3,6 +3,7 @@
 
 #include "android_jni.h"
 #include "router.h"
+#include "tun_ipsec.h"
 
 #include "kernel/network_manager.h"
 
@@ -122,12 +123,6 @@ struct charonservice_t {
 	char* (*get_xauth_identity)(charonservice_t *this);
 
 	char* (*get_xauth_key)(charonservice_t *this);
-};
-
-typedef struct ipsec_tun_ctx_t ipsec_tun_ctx_t;
-
-struct ipsec_tun_ctx_t {
-	common_tun_ctx_t common;
 };
 
 /**

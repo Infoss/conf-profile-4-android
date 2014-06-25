@@ -4,6 +4,7 @@
  *      Author: Dmitry Vorobiev
  */
 
+#include <unistd.h>
 #include <errno.h>
 #include <stdlib.h>
 #include <sys/socket.h>
@@ -12,6 +13,7 @@
 #include "protoheaders.h"
 #include "tun.h"
 #include "router.h"
+#include "iputils.h"
 
 #define LOG_TAG "tun.c"
 

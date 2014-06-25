@@ -128,7 +128,7 @@ uint16_t ip6_calc_tcp_checksum(uint32_t common_sum, uint8_t* buff, int len) {
 	if(buff == NULL || len < 40) {
 		return 0;
 	}
-	ip6_header* hdr = (ip6_header*) buff;
+
 	uint32_t sum = common_sum;
 	sum = ip4_update_sum(sum, IPPROTO_TCP);
 	sum = ip4_update_sum(sum, len >> 16);
@@ -171,7 +171,7 @@ uint16_t ip6_calc_udp_checksum(uint32_t common_sum, uint8_t* buff, int len) {
 	if(buff == NULL || len < 40) {
 		return 0;
 	}
-	ip6_header* hdr = (ip6_header*) buff;
+
 	uint32_t sum = common_sum;
 	sum = ip4_update_sum(sum, IPPROTO_UDP);
 	sum = ip4_update_sum(sum, len >> 16);
@@ -216,7 +216,6 @@ uint16_t ip6_calc_udp_checksum(uint32_t common_sum, uint8_t* buff, int len) {
 uint32_t ip6_calc_common_pseudoheader_sum(uint8_t* buff, int len) {
 	//packet should be validated before this method call
 	uint32_t sum = 0;
-	ip6_header* hdr = (ip6_header*) buff;
 	uint16_t* ptr = (uint16_t*) buff;
 
 	//src addr

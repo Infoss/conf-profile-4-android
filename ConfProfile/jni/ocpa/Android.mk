@@ -8,8 +8,13 @@ LOCAL_SRC_FILES := \
 	router.c \
 	iputils.c \
 	tun.c \
+	tun_ipsec.c \
 	tun_l2tp.c \
 	tun_openvpn.c \
+	jni_L2tpTunnel.c \
+	jni_OpenVpnTunnel.c \
+	jni_RouterLoop.c \
+	jni_VpnTunnel.c \
 	pcap_output.c \
 	android_log_utils.c \
 	jni_tunnel.c \

@@ -1,4 +1,10 @@
+/*
+ * router.c
+ *
+ *      Author: Dmitry Vorobiev
+ */
 
+#include <unistd.h>
 #include <errno.h>
 #include <stdbool.h>
 #include "android_log_utils.h"
@@ -399,7 +405,6 @@ ssize_t ipsend(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 }
 
 ssize_t send4(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
-	tun_send_func_ptr send_func = NULL;
 	common_tun_ctx_t* tun_ctx = NULL;
 
 	if(ctx == NULL) {
@@ -467,7 +472,6 @@ ssize_t send4(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 }
 
 ssize_t send6(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
-	tun_send_func_ptr send_func = NULL;
 	common_tun_ctx_t* tun_ctx = NULL;
 
 	if(ctx == NULL) {
