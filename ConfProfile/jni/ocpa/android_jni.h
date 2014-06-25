@@ -46,7 +46,7 @@
 extern jclass *android_ocpavpnservice_class;
 extern jclass *android_ocpavpnservice_builder_class;
 extern jclass *android_routerloop_class;
-extern jclass *android_ipsecvpntunnel_class;
+extern jclass *android_ipsectunnel_class;
 
 /**
  * Currently known (supported) SDK versions

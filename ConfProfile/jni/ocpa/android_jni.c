@@ -28,7 +28,7 @@ static JavaVM *android_jvm;
 jclass *android_ocpavpnservice_class;
 jclass *android_ocpavpnservice_builder_class;
 jclass *android_routerloop_class;
-jclass *android_ipsecvpntunnel_class;
+jclass *android_ipsectunnel_class;
 android_sdk_version_t android_sdk_version;
 
 /**
@@ -94,9 +94,9 @@ jint JNI_OnLoad(JavaVM *vm, void *reserved) {
 	android_routerloop_class =
 				(*env)->NewGlobalRef(env, (*env)->FindClass(env,
 						JNI_PACKAGE_STRING "/RouterLoop"));
-	android_ipsecvpntunnel_class =
+	android_ipsectunnel_class =
 				(*env)->NewGlobalRef(env, (*env)->FindClass(env,
-						JNI_PACKAGE_STRING "/IpSecVpnTunnel"));
+						JNI_PACKAGE_STRING "/IpSecTunnel"));
 
 	jversion = (*env)->FindClass(env, "android/os/Build$VERSION");
 	jsdk_int = (*env)->GetStaticFieldID(env, jversion, "SDK_INT", "I");

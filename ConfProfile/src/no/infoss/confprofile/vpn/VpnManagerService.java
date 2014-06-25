@@ -38,7 +38,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	static {
 		System.loadLibrary("strongswan");
 
-		if(IpSecVpnTunnel.BYOD) {
+		if(IpSecTunnel.BYOD) {
 			System.loadLibrary("tncif");
 			System.loadLibrary("tnccs");
 			System.loadLibrary("imcv");

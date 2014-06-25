@@ -132,7 +132,7 @@ METHOD(charonservice_t, update_status, bool,
 
 	bool need_detach = androidjni_attach_thread(&env);
 
-	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
+	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
 									"updateStatus", "(I)V");
 	if (!method_id)
 	{
@@ -158,7 +158,7 @@ METHOD(charonservice_t, update_imc_state, bool,
 
 	bool need_detach = androidjni_attach_thread(&env);
 
-	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
+	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
 									"updateImcState", "(I)V");
 	if (!method_id)
 	{
@@ -185,7 +185,7 @@ METHOD(charonservice_t, add_remediation_instr, bool,
 
 	bool need_detach = androidjni_attach_thread(&env);
 
-	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
+	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
 									"addRemediationInstruction",
 									"(Ljava/lang/String;)V");
 	if (!method_id)
@@ -218,7 +218,7 @@ static bool bypass_single_socket(intptr_t fd, private_charonservice_t *this)
 
 	bool need_detach = androidjni_attach_thread(&env);
 
-	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
+	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
 									"protect", "(I)Z");
 	if (!method_id)
 	{
@@ -294,7 +294,7 @@ METHOD(charonservice_t, get_trusted_certificates, linked_list_t*,
 	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
-						android_ipsecvpntunnel_class,
+						android_ipsectunnel_class,
 						"getTrustedCertificates", "(Ljava/lang/String;)[[B");
 	if (!method_id)
 	{
@@ -330,7 +330,7 @@ METHOD(charonservice_t, get_user_certificate, linked_list_t*,
 	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
-						android_ipsecvpntunnel_class,
+						android_ipsectunnel_class,
 						"getUserCertificate", "()[[B");
 	if (!method_id)
 	{
@@ -366,7 +366,7 @@ METHOD(charonservice_t, get_user_key, private_key_t*,
 	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
-						android_ipsecvpntunnel_class,
+						android_ipsectunnel_class,
 						"getUserKey", "()Ljava/security/PrivateKey;");
 	if (!method_id)
 	{
@@ -423,7 +423,7 @@ METHOD(charonservice_t, add_address, bool,
 		goto failed;
 	}
 
-	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
+	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
 									"addAddress", "(Ljava/lang/String;I)Z");
 	if (!method_id)
 	{
@@ -469,7 +469,7 @@ METHOD(charonservice_t, add_route, bool,
 		goto failed;
 	}
 
-	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
+	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
 									"addRoute", "(Ljava/lang/String;I)Z");
 	if (!method_id)
 	{
@@ -510,7 +510,7 @@ METHOD(charonservice_t, get_xauth_identity, char *,
 	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
-						android_ipsecvpntunnel_class,
+						android_ipsectunnel_class,
 						"getXAuthName", "()Ljava/lang/String;");
 	if (!method_id)
 	{
@@ -549,7 +549,7 @@ METHOD(charonservice_t, get_xauth_key, char *,
 	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
-						android_ipsecvpntunnel_class,
+						android_ipsectunnel_class,
 						"getXAuthPassword", "()Ljava/lang/String;");
 	if (!method_id)
 	{

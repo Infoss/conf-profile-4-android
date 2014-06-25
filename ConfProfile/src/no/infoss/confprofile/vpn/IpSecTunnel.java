@@ -24,9 +24,9 @@ import android.content.Context;
 import android.security.KeyChainException;
 import android.util.Log;
 
-public class IpSecVpnTunnel extends VpnTunnel {
+public class IpSecTunnel extends VpnTunnel {
 	
-	public static final String TAG = IpSecVpnTunnel.class.getSimpleName();
+	public static final String TAG = IpSecTunnel.class.getSimpleName();
 	public static final String VPN_TYPE = "IPSec";
 
 	public static final boolean BYOD = false;
@@ -52,7 +52,7 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	static final int STATE_UNREACHABLE_ERROR = 6;
 	static final int STATE_GENERIC_ERROR = 7;
 	
-	public IpSecVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
+	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg);
 		mVpnServiceCtx = vpnServiceCtx;
 		mVpnMgr = vpnMgr;
