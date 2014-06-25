@@ -144,6 +144,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	
 	@Override
 	public void onDetach() {
+		super.onDetach();
 		mInfoMapper.setLayoutInflater(null);
 		mPayloadAdapter.setLayoutInflater(null);
 	}
