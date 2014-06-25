@@ -59,7 +59,6 @@ METHOD(private_key_t, sign, bool,
 	jmethodID method_id;
 	const char *method;
 	jstring jmethod;
-	jstring jprovider;
 	jobject jsignature;
 	jbyteArray jdata, jsigarray;
 
@@ -99,19 +98,18 @@ METHOD(private_key_t, sign, bool,
 	/* we use java.security.Signature to create the signature without requiring
 	 * access to the actual private key */
 	method_id = (*env)->GetStaticMethodID(env, this->signature_class,
-				"getInstance", "(Ljava/lang/String;Ljava/lang/String;)Ljava/security/Signature;");
+				"getInstance", "(Ljava/lang/String;)Ljava/security/Signature;");
 	if (!method_id)
 	{
 		goto failed;
 	}
 	jmethod = (*env)->NewStringUTF(env, method);
-	jprovider = (*env)->NewStringUTF(env, "SC"); //Using SpongyCastle here to support NONEwithRSA
-	if (!jmethod || !jprovider)
+	if (!jmethod)
 	{
 		goto failed;
 	}
 	jsignature = (*env)->CallStaticObjectMethod(env, this->signature_class,
-												method_id, jmethod, jprovider);
+												method_id, jmethod);
 	if (!jsignature)
 	{
 		goto failed;

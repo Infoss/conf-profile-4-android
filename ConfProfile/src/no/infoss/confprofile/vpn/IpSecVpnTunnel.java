@@ -4,7 +4,6 @@ import java.io.File;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.Security;
 import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
@@ -21,9 +20,6 @@ import no.infoss.confprofile.vpn.IpSecVpnStateService.State;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import no.infoss.confprofile.vpn.ipsec.imc.ImcState;
 import no.infoss.confprofile.vpn.ipsec.imc.RemediationInstruction;
-
-import org.spongycastle.jce.provider.BouncyCastleProvider;
-
 import android.content.Context;
 import android.security.KeyChainException;
 import android.util.Log;
@@ -468,10 +464,6 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	private native void deinitIpSecTun(long tunCtx);
 	
 	static {
-		if(Security.getProvider("SC") == null) {
-			Security.addProvider(new BouncyCastleProvider());
-		}
-		
 		System.loadLibrary("strongswan");
 
 		if(BYOD) {
