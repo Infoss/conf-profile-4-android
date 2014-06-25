@@ -1,12 +1,15 @@
 package no.infoss.confprofile.util;
 
+import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
-public class PcapOutputStream extends FileOutputStream {
+import android.util.Log;
+
+public class PcapOutputStream extends BufferedOutputStream {
 	public static final String TAG = PcapOutputStream.class.getSimpleName();
 	
 	public static final int LINKTYPE_RAW = 101; //raw IPv4 & IPv6 packets
@@ -16,17 +19,23 @@ public class PcapOutputStream extends FileOutputStream {
 	public static final short VER_MINOR = 4;
 	
 	public PcapOutputStream(String filename, int mtu, int linkType) throws IOException {
-		super(filename);
-		writePcapHeader(mtu, linkType);
+		this(new File(filename), mtu, linkType);
 	}
 	
 	public PcapOutputStream(File file, int mtu, int linkType) throws IOException {
-		super(file);
+		super(new FileOutputStream(file));
 		writePcapHeader(mtu, linkType);
+	}
+	
+	@Override
+	public synchronized void close() throws IOException {
+		super.close();
 	}
 	
 	public synchronized void writePacket(byte[] buff, int offs, int len) 
 			throws IOException {
+		Log.d(TAG, "Packet: " + CryptoUtils.formatFingerprint(buff));
+		Log.d(TAG, "Offs=" + offs + ", Len=" + len);
 		writePacket(buff, offs, len, len);
 	}
 	
@@ -40,6 +49,7 @@ public class PcapOutputStream extends FileOutputStream {
 	
 	public synchronized void writePacket(byte[] buff, int offs, int len, int origLen, int ts_sec, int ts_usec) 
 			throws IOException {
+		
 		byte[] hdr = valuesAsByteArray(ts_sec, ts_usec, len, origLen);
 		write(hdr);
 		write(buff, offs, len);
