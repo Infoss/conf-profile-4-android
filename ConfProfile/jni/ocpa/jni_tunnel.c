@@ -1,7 +1,14 @@
 /*
- * tun_ipsec.c
+ * jni_tunnel.c
  *
- *      Author: S. Martyanov
+ * This file is part of Profile provisioning for Android
+ * Copyright (C) 2012 Tobias Brunner
+ * Copyright (C) 2012 Giuliano Grassi
+ * Copyright (C) 2012 Ralf Sager
+ * Hochschule fuer Technik Rapperswil
+ * Modifications (C) 2014 S. Martyanov
+ * Modifications (C) 2014 Dmitry Vorobiev
+ * Copyright (C) 2014  Infoss AS, https://infoss.no, info@infoss.no
  */
 
 #include "strongswan.h"
@@ -11,14 +18,12 @@ JNI_METHOD(IpSecVpnTunnel, initializeCharon, jboolean, jstring jlogfile, jboolea
 	return initialize_library(env, this, androidjni_convert_jstring(env, jlogfile), byod, jtunctx);
 }
 
-JNI_METHOD(IpSecVpnTunnel, deinitializeCharon, void)
-{
+JNI_METHOD(IpSecVpnTunnel, deinitializeCharon, void) {
 	deinitialize_library(env);
 }
 
 JNI_METHOD(IpSecVpnTunnel, initiate, void,
-	jstring jtype, jstring jgateway, jstring jusername, jstring jpassword)
-{
+	jstring jtype, jstring jgateway, jstring jusername, jstring jpassword) {
 	char *type, *gateway, *username, *password;
 
 	type = androidjni_convert_jstring(env, jtype);
@@ -29,8 +34,7 @@ JNI_METHOD(IpSecVpnTunnel, initiate, void,
 	initialize_tunnel(type, gateway, username, password);
 }
 
-JNI_METHOD(IpSecVpnTunnel, networkChanged, void, jboolean jdisconnected)
-{
+JNI_METHOD(IpSecVpnTunnel, networkChanged, void, jboolean jdisconnected) {
 	notify_library(jdisconnected);
 }
 
