@@ -400,6 +400,8 @@ JNI_METHOD(RouterLoop, debugStopPcap, void, jlong jrouterctx) {
 
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(ctx->dev_tun_ctx.pcap_output != NULL) {
+		pcap_output_flush(ctx->dev_tun_ctx.pcap_output);
+		pcap_output_close(ctx->dev_tun_ctx.pcap_output);
 		pcap_output_destroy(ctx->dev_tun_ctx.pcap_output);
 		ctx->dev_tun_ctx.pcap_output = NULL;
 	}
