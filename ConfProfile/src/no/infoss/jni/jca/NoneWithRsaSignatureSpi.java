@@ -14,8 +14,6 @@ import java.util.Map;
 
 import javax.crypto.Cipher;
 
-import android.util.Log;
-
 public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigurator {
 	private static final String RSA_TRANSFORM = "RSA";
 	
@@ -89,12 +87,6 @@ public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigur
 		
 		byte[] result = null;
 		try {
-			//TODO: this native implementation should be probably removed
-			/*
-			Log.d(this.getClass().getSimpleName(), mPrivateKey.getFormat());
-			byte[] encodedKey = mPrivateKey.getEncoded();
-			result = nativeSignNoneWithRsa(encodedKey, mOutputStream.toByteArray());
-			*/
 			Cipher rsaCipher = Cipher.getInstance(RSA_TRANSFORM);
 			rsaCipher.init(Cipher.DECRYPT_MODE, mPrivateKey);
 			int blockSize = rsaCipher.getBlockSize();
