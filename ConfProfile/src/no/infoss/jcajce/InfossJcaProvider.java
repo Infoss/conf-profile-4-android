@@ -1,4 +1,4 @@
-package no.infoss.jni.jca;
+package no.infoss.jcajce;
 
 import java.lang.reflect.Constructor;
 import java.security.GeneralSecurityException;

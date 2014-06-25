@@ -1,4 +1,4 @@
-package no.infoss.jni.jca;
+package no.infoss.jcajce;
 
 import java.io.ByteArrayOutputStream;
 import java.security.InvalidKeyException;
@@ -148,7 +148,5 @@ public class NoneWithRsaSignatureSpi extends SignatureSpi implements JcaConfigur
 		result.put("Signature.NONEwithRSA", getClass().getCanonicalName());
 		return result;
 	}
-	
-	private native byte[] nativeSignNoneWithRsa(byte[] derKey, byte[] data);
 
 }
