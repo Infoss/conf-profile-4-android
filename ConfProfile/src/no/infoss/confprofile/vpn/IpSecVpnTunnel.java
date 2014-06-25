@@ -29,7 +29,7 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	public static final String TAG = IpSecVpnTunnel.class.getSimpleName();
 	public static final String VPN_TYPE = "IPSec";
 
-	private static boolean BYOD = false;
+	public static final boolean BYOD = false;
 
 	private boolean mIsTerminating;
 	private Map<String, Object> mOptions;
@@ -462,21 +462,4 @@ public class IpSecVpnTunnel extends VpnTunnel {
 	private native void networkChanged(boolean disconnected);
 	private native long initIpSecTun();
 	private native void deinitIpSecTun(long tunCtx);
-	
-	static {
-		System.loadLibrary("strongswan");
-
-		if(BYOD) {
-			System.loadLibrary("tncif");
-			System.loadLibrary("tnccs");
-			System.loadLibrary("imcv");
-			System.loadLibrary("pts");
-		}
-		
-		System.loadLibrary("hydra");
-		System.loadLibrary("charon");
-		System.loadLibrary("ipsec");
-		
-		System.loadLibrary("strongswanbridge");
-	}
 }

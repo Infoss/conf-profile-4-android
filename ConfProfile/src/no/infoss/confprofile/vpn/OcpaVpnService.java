@@ -7,17 +7,12 @@ import android.content.Context;
 import android.content.Intent;
 import android.net.VpnService;
 import android.os.Binder;
-import android.os.Bundle;
 import android.os.IBinder;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 	public static final String TAG = OcpaVpnService.class.getSimpleName();
-
-	static {
-		System.loadLibrary("ocpa");
-	}
 	
 	private Binder mBinder = new Binder();
 	

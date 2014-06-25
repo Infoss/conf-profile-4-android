@@ -25,7 +25,7 @@ bool bypass_socket(vpn_service_ctx_t* ctx, int fd) {
 	JNIEnv *env;
 	jmethodID method_id;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	if (!ctx->routerloop_protect) {
 		goto failed;
@@ -35,12 +35,17 @@ bool bypass_socket(vpn_service_ctx_t* ctx, int fd) {
 		//DBG2(DBG_KNL, "VpnService.protect() failed");
 		goto failed;
 	}
-	androidjni_detach_thread();
+
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return true;
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return false;
 }
 

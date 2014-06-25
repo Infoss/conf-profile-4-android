@@ -130,7 +130,7 @@ METHOD(charonservice_t, update_status, bool,
 	jmethodID method_id;
 	bool success = FALSE;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
 									"updateStatus", "(I)V");
@@ -143,7 +143,9 @@ METHOD(charonservice_t, update_status, bool,
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return success;
 }
 
@@ -154,7 +156,7 @@ METHOD(charonservice_t, update_imc_state, bool,
 	jmethodID method_id;
 	bool success = FALSE;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
 									"updateImcState", "(I)V");
@@ -167,7 +169,9 @@ METHOD(charonservice_t, update_imc_state, bool,
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return success;
 }
 
@@ -179,7 +183,7 @@ METHOD(charonservice_t, add_remediation_instr, bool,
 	jstring jinstr;
 	bool success = FALSE;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
 									"addRemediationInstruction",
@@ -198,7 +202,9 @@ METHOD(charonservice_t, add_remediation_instr, bool,
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return success;
 }
 
@@ -210,7 +216,7 @@ static bool bypass_single_socket(intptr_t fd, private_charonservice_t *this)
 	JNIEnv *env;
 	jmethodID method_id;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env, android_ipsecvpntunnel_class,
 									"protect", "(I)Z");
@@ -223,12 +229,17 @@ static bool bypass_single_socket(intptr_t fd, private_charonservice_t *this)
 		DBG2(DBG_KNL, "VpnService.protect() failed");
 		goto failed;
 	}
-	androidjni_detach_thread();
+
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return TRUE;
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return FALSE;
 }
 
@@ -280,7 +291,7 @@ METHOD(charonservice_t, get_trusted_certificates, linked_list_t*,
 	jobjectArray jcerts;
 	linked_list_t *list;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
 						android_ipsecvpntunnel_class,
@@ -295,12 +306,16 @@ METHOD(charonservice_t, get_trusted_certificates, linked_list_t*,
 		goto failed;
 	}
 	list = convert_array_of_byte_arrays(env, jcerts);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return list;
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return NULL;
 }
 
@@ -312,7 +327,7 @@ METHOD(charonservice_t, get_user_certificate, linked_list_t*,
 	jobjectArray jencodings;
 	linked_list_t *list;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
 						android_ipsecvpntunnel_class,
@@ -327,12 +342,16 @@ METHOD(charonservice_t, get_user_certificate, linked_list_t*,
 		goto failed;
 	}
 	list = convert_array_of_byte_arrays(env, jencodings);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return list;
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return NULL;
 }
 
@@ -344,7 +363,7 @@ METHOD(charonservice_t, get_user_key, private_key_t*,
 	private_key_t *key;
 	jobject jkey;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
 						android_ipsecvpntunnel_class,
@@ -359,13 +378,17 @@ METHOD(charonservice_t, get_user_key, private_key_t*,
 		goto failed;
 	}
 	key = android_private_key_create(jkey, pubkey);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return key;
 
 failed:
 	DESTROY_IF(pubkey);
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return NULL;
 }
 
@@ -390,7 +413,7 @@ METHOD(charonservice_t, add_address, bool,
 	char buf[INET6_ADDRSTRLEN];
 	int prefix;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	DBG2(DBG_LIB, "tunnel: adding interface address %H", addr);
 
@@ -415,13 +438,17 @@ METHOD(charonservice_t, add_address, bool,
 	{
 		goto failed;
 	}
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return TRUE;
 
 failed:
 	DBG1(DBG_LIB, "tunnel: failed to add address");
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return FALSE;
 }
 
@@ -433,7 +460,7 @@ METHOD(charonservice_t, add_route, bool,
 	jstring str;
 	char buf[INET6_ADDRSTRLEN];
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	DBG2(DBG_LIB, "tunnel: adding route %+H/%d", net, prefix);
 
@@ -457,13 +484,18 @@ METHOD(charonservice_t, add_route, bool,
 	{
 		goto failed;
 	}
-	androidjni_detach_thread();
+
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return TRUE;
 
 failed:
 	DBG1(DBG_LIB, "tunnel: failed to add route");
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return FALSE;
 }
 
@@ -475,7 +507,7 @@ METHOD(charonservice_t, get_xauth_identity, char *,
 	jstring jstr;
 	char *str;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
 						android_ipsecvpntunnel_class,
@@ -492,13 +524,17 @@ METHOD(charonservice_t, get_xauth_identity, char *,
 	}
 
 	str = androidjni_convert_jstring(env, jstr);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return str;
 
 failed:
 	DBG1(DBG_LIB, "tunnel: failed to get xauth identity");
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return NULL;
 }
 
@@ -510,7 +546,7 @@ METHOD(charonservice_t, get_xauth_key, char *,
 	jstring jstr;
 	char *str;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env,
 						android_ipsecvpntunnel_class,
@@ -527,13 +563,17 @@ METHOD(charonservice_t, get_xauth_key, char *,
 	}
 
 	str = androidjni_convert_jstring(env, jstr);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return str;
 
 failed:
 	DBG1(DBG_LIB, "tunnel: failed to get xauth key");
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return NULL;
 }
 

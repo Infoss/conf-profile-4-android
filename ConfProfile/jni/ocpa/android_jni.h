@@ -22,9 +22,13 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <jni.h>
+#include <library.h>
 
 #define JNI_PACKAGE no_infoss_confprofile_vpn
 #define JNI_PACKAGE_STRING "no/infoss/confprofile/vpn"
+
+#define JNI_IPSEC_PACKAGE no_infoss_confprofile_vpn_ipsec
+#define JNI_IPSEC_PACKAGE_STRING "no/infoss/confprofile/vpn/ipsec"
 
 #define JNI_METHOD_PP(pack, klass, name, ret, ...) \
 	ret Java_##pack##_##klass##_##name(JNIEnv *env, jobject this, ##__VA_ARGS__)
@@ -42,6 +46,7 @@
 extern jclass *android_ocpavpnservice_class;
 extern jclass *android_ocpavpnservice_builder_class;
 extern jclass *android_routerloop_class;
+extern jclass *android_ipsecvpntunnel_class;
 
 /**
  * Currently known (supported) SDK versions
@@ -86,10 +91,9 @@ void androidjni_detach_thread();
  * @param env		JNIEnv
  * @return			TRUE if an exception was thrown
  */
-static inline bool androidjni_exception_occurred(JNIEnv *env)
-{
-	if ((*env)->ExceptionOccurred(env))
-	{	/* clear any exception, otherwise the VM is terminated */
+static inline bool androidjni_exception_occurred(JNIEnv *env) {
+	if ((*env)->ExceptionOccurred(env)) {
+		/* clear any exception, otherwise the VM is terminated */
 		(*env)->ExceptionDescribe(env);
 		(*env)->ExceptionClear(env);
 		return true;
@@ -104,13 +108,11 @@ static inline bool androidjni_exception_occurred(JNIEnv *env)
  * @param jstr		Java string
  * @return			native C string (allocated)
  */
-static inline char *androidjni_convert_jstring(JNIEnv *env, jstring jstr)
-{
+static inline char *androidjni_convert_jstring(JNIEnv *env, jstring jstr) {
 	char *str = NULL;
 	jsize bytes, chars;
 
-	if (jstr)
-	{
+	if (jstr) {
 		chars = (*env)->GetStringLength(env, jstr);
 		bytes = (*env)->GetStringUTFLength(env, jstr);
 		str = malloc(bytes + 1);
@@ -118,6 +120,36 @@ static inline char *androidjni_convert_jstring(JNIEnv *env, jstring jstr)
 		str[bytes] = '\0';
 	}
 	return str;
+}
+
+/**
+ * Converts the given Java byte array to a chunk
+ *
+ * @param env			JNIEnv
+ * @param jbytearray	Java byte array
+ * @return				allocated chunk
+ */
+static inline chunk_t chunk_from_byte_array(JNIEnv *env, jbyteArray jbytearray) {
+	chunk_t chunk;
+
+	chunk = chunk_alloc((*env)->GetArrayLength(env, jbytearray));
+	(*env)->GetByteArrayRegion(env, jbytearray, 0, chunk.len, chunk.ptr);
+	return chunk;
+}
+
+/**
+ * Converts the given chunk to a Java byte array
+ *
+ * @param env			JNIEnv
+ * @param chunk			native chunk
+ * @return				allocated Java byte array
+ */
+static inline jbyteArray byte_array_from_chunk(JNIEnv *env, chunk_t chunk) {
+	jbyteArray jbytearray;
+
+	jbytearray = (*env)->NewByteArray(env, chunk.len);
+	(*env)->SetByteArrayRegion(env, jbytearray, 0, chunk.len, chunk.ptr);
+	return jbytearray;
 }
 
 

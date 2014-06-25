@@ -220,7 +220,7 @@ static pa_tnc_attr_t *get_measurement(pen_type_t attr_type, enumerator_t *args)
 	jobjectArray jargs = NULL;
 	chunk_t data;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 	if (args)
 	{
 		jargs = string_array_create(env, args);
@@ -257,12 +257,16 @@ static pa_tnc_attr_t *get_measurement(pen_type_t attr_type, enumerator_t *args)
 										  attr_type.vendor_id, attr_type.type,
 										  data);
 	(*env)->ReleaseByteArrayElements(env, jmeasurement, data.ptr, JNI_ABORT);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return attr;
 
 failed:
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return NULL;
 }
 
@@ -673,7 +677,7 @@ bool imc_android_register(plugin_t *plugin, plugin_feature_t *feature,
 	jclass cls;
 	bool success = TRUE;
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 	if (reg)
 	{
 		cls = (*env)->FindClass(env, JNI_PACKAGE_STRING "/imc/AndroidImc");
@@ -694,7 +698,9 @@ bool imc_android_register(plugin_t *plugin, plugin_feature_t *feature,
 			goto failed;
 		}
 		android_imc = (*env)->NewGlobalRef(env, obj);
-		androidjni_detach_thread();
+		if(need_detach) {
+			androidjni_detach_thread();
+		}
 
 		if (tnc->imcs->load_from_functions(tnc->imcs, "Android",
 							tnc_imc_initialize, tnc_imc_notifyconnectionchange,
@@ -720,6 +726,8 @@ failed:
 		(*env)->DeleteGlobalRef(env, android_imc_cls);
 		android_imc_cls = NULL;
 	}
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return success;
 }

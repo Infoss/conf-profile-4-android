@@ -36,6 +36,21 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public static final String TAG = VpnManagerService.class.getSimpleName();
 	
 	static {
+		System.loadLibrary("strongswan");
+
+		if(IpSecVpnTunnel.BYOD) {
+			System.loadLibrary("tncif");
+			System.loadLibrary("tnccs");
+			System.loadLibrary("imcv");
+			System.loadLibrary("pts");
+		}
+		
+		System.loadLibrary("hydra");
+		System.loadLibrary("charon");
+		System.loadLibrary("ipsec");
+		
+		System.loadLibrary("ocpa");
+		
 		Security.addProvider(new InfossJcaProvider());
 	}
 	
