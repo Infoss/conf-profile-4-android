@@ -1,7 +1,6 @@
 LOCAL_PATH := $(call my-dir)
 ocpa_INCLUDES := 
 subproject_PATHS := openssl-1.0.1g \
-					infossjca \
 					mtpd \
 					pppd \
 					lzo \
