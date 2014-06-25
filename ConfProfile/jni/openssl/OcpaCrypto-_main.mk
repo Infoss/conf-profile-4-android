@@ -358,13 +358,13 @@ common_src_files := \
   crypto/x509v3/v3err.c \
 
 common_c_includes := \
-  jni/openssl-1.0.1g/. \
-  jni/openssl-1.0.1g/crypto \
-  jni/openssl-1.0.1g/crypto/asn1 \
-  jni/openssl-1.0.1g/crypto/evp \
-  jni/openssl-1.0.1g/crypto/modes \
-  jni/openssl-1.0.1g/include \
-  jni/openssl-1.0.1g/include/openssl \
+  jni/openssl/. \
+  jni/openssl/crypto \
+  jni/openssl/crypto/asn1 \
+  jni/openssl/crypto/evp \
+  jni/openssl/crypto/modes \
+  jni/openssl/include \
+  jni/openssl/include/openssl \
 
 arm_cflags := \
   -DAES_ASM \

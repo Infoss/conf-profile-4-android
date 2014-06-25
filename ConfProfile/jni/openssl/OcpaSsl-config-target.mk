@@ -64,9 +64,9 @@ common_src_files := \
   ssl/tls_srp.c \
 
 common_c_includes := \
-  jni/openssl-1.0.1g/. \
-  jni/openssl-1.0.1g/crypto \
-  jni/openssl-1.0.1g/include \
+  jni/openssl/. \
+  jni/openssl/crypto \
+  jni/openssl/include \
 
 arm_cflags :=
 

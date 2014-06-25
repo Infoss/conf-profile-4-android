@@ -19,7 +19,7 @@ include jni/strongswan/Android.common.mk
 
 # includes
 strongswan_PATH := jni/strongswan
-openssl_PATH := jni/openssl-1.0.1g/include
+openssl_PATH := jni/openssl/include
 
 # CFLAGS (partially from a configure run using droid-gcc)
 strongswan_CFLAGS := \
