@@ -7,8 +7,6 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
-import android.util.Log;
-
 public class PcapOutputStream extends BufferedOutputStream {
 	public static final String TAG = PcapOutputStream.class.getSimpleName();
 	
@@ -34,8 +32,6 @@ public class PcapOutputStream extends BufferedOutputStream {
 	
 	public synchronized void writePacket(byte[] buff, int offs, int len) 
 			throws IOException {
-		Log.d(TAG, "Packet: " + CryptoUtils.formatFingerprint(buff));
-		Log.d(TAG, "Offs=" + offs + ", Len=" + len);
 		writePacket(buff, offs, len, len);
 	}
 	
