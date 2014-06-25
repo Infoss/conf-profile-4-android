@@ -11,13 +11,13 @@ LOCAL_SRC_FILES := \
 	tun_ipsec.c \
 	tun_l2tp.c \
 	tun_openvpn.c \
+	jni_IpSecTunnel.c \
 	jni_L2tpTunnel.c \
 	jni_OpenVpnTunnel.c \
 	jni_RouterLoop.c \
 	jni_VpnTunnel.c \
 	pcap_output.c \
 	android_log_utils.c \
-	jni_tunnel.c \
     strongswan.c \
     backend/android_attr.c \
     backend/android_creds.c \

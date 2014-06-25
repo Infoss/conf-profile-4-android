@@ -1,5 +1,5 @@
 /*
- * jni_tunnel.c
+ * jni_IpSecTunnel.c
  *
  * This file is part of Profile provisioning for Android
  * Copyright (C) 2012 Tobias Brunner
