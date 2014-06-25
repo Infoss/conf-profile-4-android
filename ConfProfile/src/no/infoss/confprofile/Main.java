@@ -208,8 +208,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		} else {
 			if(mDebugPcapEnabled) {
 				//stop
+				vpnMgr.debugStopPcap();
 			} else {
 				//start
+				vpnMgr.debugStartPcap();
 			}
 			
 			mDebugPcapEnabled = !mDebugPcapEnabled;
