@@ -39,14 +39,15 @@ static void attached_thread_cleanup(void *arg)
 /*
  * Described in header
  */
-void androidjni_attach_thread(JNIEnv **env)
+bool androidjni_attach_thread(JNIEnv **env)
 {
 	if ((*android_jvm)->GetEnv(android_jvm, (void**)env,
 							   JNI_VERSION_1_6) == JNI_OK)
 	{	/* already attached or even a Java thread */
-		return;
+		return false;
 	}
 	(*android_jvm)->AttachCurrentThread(android_jvm, env, NULL);
+	return true;
 }
 
 /*

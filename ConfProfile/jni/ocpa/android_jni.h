@@ -71,7 +71,7 @@ extern android_sdk_version_t android_sdk_version;
  *
  * @param env		JNIEnv
  */
-void androidjni_attach_thread(JNIEnv **env);
+bool androidjni_attach_thread(JNIEnv **env);
 
 /**
  * Detach the current thread from the JVM
