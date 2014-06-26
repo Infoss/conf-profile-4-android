@@ -31,7 +31,7 @@ import android.net.LocalSocketAddress;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
-public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
+public class OpenVpnTunnel extends VpnTunnel {
 	public static final String TAG = OpenVpnTunnel.class.getSimpleName();
 	
 	public static final String VPN_TYPE = "net.openvpn.OpenVPN-Connect.vpnplugin";
@@ -52,6 +52,14 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 
     private LocalSocket mServerSocketLocal;
 
+    enum pauseReason {
+        noNetwork,
+        userPause,
+        screenOff
+    }
+
+	int mBytecountInterval = 2;
+    
     private pauseReason lastPauseReason = pauseReason.noNetwork;
 	
 	
@@ -62,8 +70,9 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		mIsTerminating = false;
 		
 		boolean managemeNetworkState = true;
-		if(managemeNetworkState)
-			mReleaseHold=false;
+		if(managemeNetworkState) {
+			mReleaseHold = false;
+		}
 	}
 
 	@Override
@@ -219,16 +228,15 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	}
 
 	private String processInput(String pendingInput) {
-
-
 		while(pendingInput.contains("\n")) {
 			String[] tokens = pendingInput.split("\\r?\\n", 2);
 			processCommand(tokens[0]);
-			if(tokens.length == 1)
+			if(tokens.length == 1) {
 				// No second part, newline was at the end
-				pendingInput="";
-			else
-				pendingInput=tokens[1];
+				pendingInput = "";
+			} else {
+				pendingInput = tokens[1];
+			}
 		}
 		return pendingInput;
 	}
@@ -239,7 +247,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			return;
 		}
 		
-        if (command.startsWith(">") && command.contains(":")) {
+        if(command.startsWith(">") && command.contains(":")) {
 			String[] parts = command.split(":",2);
 			String cmd = parts[0].substring(1);
 			String argument = parts[1];
@@ -247,21 +255,21 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			if("INFO".equals(cmd)) {
 				/* Ignore greeting from management */
                 return;
-			}else if ("PASSWORD".equals(cmd)) {
+			}else if("PASSWORD".equals(cmd)) {
 				processPWCommand(argument);
-			} else if ("HOLD".equals(cmd)) {
+			} else if("HOLD".equals(cmd)) {
 				handleHold();
-			} else if ("NEED-OK".equals(cmd)) {
+			} else if("NEED-OK".equals(cmd)) {
 				processNeedCommand(argument);
-			} else if ("BYTECOUNT".equals(cmd)){
+			} else if("BYTECOUNT".equals(cmd)){
 				processByteCount(argument);
-			} else if ("STATE".equals(cmd)) {
+			} else if("STATE".equals(cmd)) {
 				processState(argument);
-			} else if ("PROXY".equals(cmd)) {
+			} else if("PROXY".equals(cmd)) {
 				processProxyCMD(argument);
-			} else if ("LOG".equals(cmd)) {
+			} else if("LOG".equals(cmd)) {
                  processLogMessage(argument);
-			} else if ("RSA_SIGN".equals(cmd)) {
+			} else if("RSA_SIGN".equals(cmd)) {
 				processSignCommand(argument);
 			} else {
 				Log.i(TAG, "Got unrecognized line from managment " + String.valueOf(command));
@@ -283,29 +291,27 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
         String[] args = argument.split(",",4);
         // 0 unix time stamp
         // 1 log level N,I,E etc.
-                /*
-                  (b) zero or more message flags in a single string:
+        /*
+         (b) zero or more message flags in a single string:
           I -- informational
           F -- fatal error
           N -- non-fatal error
           W -- warning
           D -- debug, and
-                 */
+        */
         // 2 log message
 
-        Log.d(TAG, argument);
-
-        VpnStatus.LogLevel level;
-        if (args[1].equals("I")) {
-            level = VpnStatus.LogLevel.INFO;
-        } else if (args[1].equals("W")) {
-            level = VpnStatus.LogLevel.WARNING;
-        } else if (args[1].equals("D")) {
-            level = VpnStatus.LogLevel.VERBOSE;
-        } else if (args[1].equals("F")) {
-            level = VpnStatus.LogLevel.ERROR;
+        int level;
+        if("I".equals(args[1])) {
+            level = LOG_INFO;
+        } else if("W".equals(args[1])) {
+            level = LOG_WARN;
+        } else if("D".equals(args[1])) {
+            level = LOG_VERBOSE;
+        } else if("F".equals(args[1])) {
+            level = LOG_ERROR;
         } else {
-            level = VpnStatus.LogLevel.INFO;
+            level = LOG_INFO;
         }
 
         int ovpnlevel = Integer.parseInt(args[2]) & 0x0F;
@@ -314,7 +320,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
         if (msg.startsWith("MANAGEMENT: CMD"))
             ovpnlevel = Math.max(4, ovpnlevel);
 
-        VpnStatus.logMessageOpenVPN(level,ovpnlevel, msg);
+        mLogger.log(level, msg);
     }
 
     private void handleHold() {
@@ -361,7 +367,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		if(args.length >= 2) {
 			String proto = args[1];
 			if(proto.equals("UDP")) {
-				proxyaddr=null;
+				proxyaddr = null;
 			}
 		}
 
@@ -387,18 +393,15 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 			VpnStatus.updateStateString(currentstate, args[2]);
 	}
 
-
 	private void processByteCount(String argument) {
 		//   >BYTECOUNT:{BYTES_IN},{BYTES_OUT}
 		int comma = argument.indexOf(',');
 		long in = Long.parseLong(argument.substring(0, comma));
-		long out = Long.parseLong(argument.substring(comma+1));
+		long out = Long.parseLong(argument.substring(comma + 1));
 
 		VpnStatus.updateByteCount(in, out);
 		
 	}
-
-
 
 	private void processNeedCommand(String argument) {
 		int p1 =argument.indexOf('\'');
@@ -458,7 +461,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		if(!extra.equals("tun")) {
 			// We only support tun
 			String logFmt = "Device type %s requested, but only tun is possible with the Android API";
-			Log.e(TAG, String.format(logFmt, extra));
+			mLogger.log(LOG_ERROR, String.format(logFmt, extra));
 
 			return false;
 		}
@@ -543,7 +546,6 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		VpnStatus.updateStateString("AUTH_FAILED", needed + args, "R.string.state_auth_failed", "ConnectionStatus.LEVEL_AUTH_FAILED");
 	}
 
-    @Override
     public void networkChange() {
         if(!mWaitingForRelease) {
             managmentCommand("network-change\n");
@@ -581,20 +583,17 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
         managmentCommand("\nEND\n");
 	}
 
-	@Override
 	public void pause(pauseReason reason) {
         lastPauseReason = reason;
 		signalusr1();
 	}
 
-	@Override
 	public void resume() {
 		releaseHold();
         /* Reset the reason why we are disconnected */
         lastPauseReason = pauseReason.noNetwork;
 	}
 
-	@Override
 	public boolean stopVpn() {
 		boolean sendCMD=false;
 		managmentCommand("signal SIGINT\n");
@@ -751,14 +750,6 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
     }
 
 	static class VpnStatus {
-		
-		enum LogLevel {
-			INFO,
-			WARNING,
-			VERBOSE,
-			ERROR
-		}
-
 		public static void logError(String format) {
 			Log.e(TAG, format);
 		}
@@ -774,7 +765,7 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 		}
 
 		public static void logMessageOpenVPN(
-				no.infoss.confprofile.vpn.OpenVpnTunnel.VpnStatus.LogLevel level,
+				int level,
 				int ovpnlevel, String msg) {
 			Log.d(TAG, String.format("[level=%d] %s", ovpnlevel, msg));
 		}
@@ -816,25 +807,3 @@ public class OpenVpnTunnel extends VpnTunnel implements OpenVPNManagement {
 	}
 }
 
-interface OpenVPNManagement {
-    enum pauseReason {
-        noNetwork,
-        userPause,
-        screenOff
-    }
-
-	int mBytecountInterval = 2;
-
-	void reconnect();
-
-	void pause(pauseReason reason);
-
-	void resume();
-
-	boolean stopVpn();
-
-    /*
-     * Rebind the interface
-     */
-    void networkChange();
-}
