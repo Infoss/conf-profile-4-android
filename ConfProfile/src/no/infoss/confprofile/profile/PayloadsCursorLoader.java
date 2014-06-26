@@ -99,13 +99,13 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 			if(mSelectBy != null) {
 				if(COL_PROFILE_ID.equals(mSelectBy)) {
 					Expression expr = Expressions.column(mSelectBy).eq(Expressions.literal(mNewProfileId[0]));
-					result = QueryBuilder.select().from(TABLE).where(expr, new Object[0]).perform(db).getResult();
+					result = QueryBuilder.select().from(TABLE).where(expr, new Object[0]).perform(db).getCursor();
 					return result;
 				}
 			}
 			
 			//finally always do select to show changes in the UI
-			result = QueryBuilder.select().from(TABLE).all().perform(db).getResult();
+			result = QueryBuilder.select().from(TABLE).all().perform(db).getCursor();
 			
 			return result;
 		}

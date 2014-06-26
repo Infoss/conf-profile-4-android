@@ -9,7 +9,7 @@ import android.database.sqlite.SQLiteDatabase;
 
 public class Select extends Request {
 	private boolean mSelectAll = false;
-	private Cursor mResult = null;
+	private Cursor mCursor = null;
 	
 	private String mSql;
 	private Expression mWhereExpression;
@@ -44,17 +44,17 @@ public class Select extends Request {
 		}
 		
 		buildQuery();
-		mResult = db.rawQuery(mSql, mSelectionArgs.toArray(new String[mSelectionArgs.size()]));
+		mCursor = db.rawQuery(mSql, mSelectionArgs.toArray(new String[mSelectionArgs.size()]));
 		
 		return this;
 	}
 	
-	public Cursor getResult() {
-		return mResult;
+	public Cursor getCursor() {
+		return mCursor;
 	}
 	
 	private void buildQuery() {
-		String sqlFmt = "SELECT % FROM % WHERE %";
+		String sqlFmt = "SELECT %s FROM %s WHERE %s";
 		String fields;
 		String where;
 		if(mSelectAll) {

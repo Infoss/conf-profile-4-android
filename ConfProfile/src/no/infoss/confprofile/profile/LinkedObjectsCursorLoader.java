@@ -90,7 +90,7 @@ public class LinkedObjectsCursorLoader extends BaseQueryCursorLoader {
 					from(TABLE).
 					all().
 					perform(mDbHelper.getWritableDatabase()).
-					getResult();
+					getCursor();
 			
 			return result;
 		}

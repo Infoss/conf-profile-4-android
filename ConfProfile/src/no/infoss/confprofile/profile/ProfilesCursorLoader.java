@@ -1,16 +1,16 @@
 package no.infoss.confprofile.profile;
 
+import no.infoss.confprofile.db.Delete;
+import no.infoss.confprofile.db.Expressions;
+import no.infoss.confprofile.db.Expressions.Expression;
+import no.infoss.confprofile.db.Insert;
+import no.infoss.confprofile.db.QueryBuilder;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 
-import com.getbase.android.db.fluentsqlite.Delete;
-import com.getbase.android.db.fluentsqlite.Expressions.Expression;
-import com.getbase.android.db.fluentsqlite.Expressions;
-import com.getbase.android.db.fluentsqlite.Insert;
-import com.getbase.android.db.fluentsqlite.QueryBuilder;
 import com.litecoding.classkit.view.LazyCursorList.CursorMapper;
 
 public class ProfilesCursorLoader extends BaseQueryCursorLoader {
@@ -110,7 +110,7 @@ public class ProfilesCursorLoader extends BaseQueryCursorLoader {
 			}
 			
 			//finally always do select to show changes in the UI
-			result = QueryBuilder.select().from(TABLE).all().perform(db);
+			result = QueryBuilder.select().from(TABLE).all().perform(db).getCursor();
 			
 			return result;
 		}
