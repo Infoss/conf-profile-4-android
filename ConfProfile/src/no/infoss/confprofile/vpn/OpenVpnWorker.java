@@ -12,7 +12,6 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import no.infoss.confprofile.util.MiscUtils;
-import no.infoss.confprofile.vpn.OpenVpnTunnel.VpnStatus;
 import android.util.Log;
 
 public class OpenVpnWorker implements Runnable {
@@ -92,8 +91,9 @@ public class OpenVpnWorker implements Runnable {
 
 			while(true) {
 				String logline = br.readLine();
-				if(logline==null)
+				if(logline == null) {
 					return;
+				}
 
                 // 1380308330.240114 18000002 Send to HTTP proxy: 'X-Online-Host: bla.blabla.com'
 
@@ -104,28 +104,28 @@ public class OpenVpnWorker implements Runnable {
                     String msg = m.group(4);
                     int logLevel = flags & 0x0F;
 
-                    VpnStatus.LogLevel logStatus = VpnStatus.LogLevel.INFO;
+                    int logStatus = VpnTunnel.LOG_INFO;
 
-                    if ((flags & M_FATAL) != 0)
-                        logStatus = VpnStatus.LogLevel.ERROR;
-                    else if ((flags & M_NONFATAL)!=0)
-                        logStatus = VpnStatus.LogLevel.WARNING;
-                    else if ((flags & M_WARN)!=0)
-                        logStatus = VpnStatus.LogLevel.WARNING;
-                    else if ((flags & M_DEBUG)!=0)
-                        logStatus = VpnStatus.LogLevel.VERBOSE;
-
-                    if (msg.startsWith("MANAGEMENT: CMD"))
+                    if((flags & M_FATAL) != 0) {
+                        logStatus = VpnTunnel.LOG_ERROR;
+                    } else if((flags & M_NONFATAL) != 0) {
+                        logStatus = VpnTunnel.LOG_WARN;
+                    } else if((flags & M_WARN) != 0) {
+                        logStatus = VpnTunnel.LOG_WARN;  
+                    } else if((flags & M_DEBUG) != 0) {
+                        logStatus = VpnTunnel.LOG_DEBUG;
+                    }
+                    
+                    if(msg.startsWith("MANAGEMENT: CMD")) {
                         logLevel = Math.max(4, logLevel);
+                    }
 
-
-                    VpnStatus.logMessageOpenVPN(logStatus,logLevel,msg);
+                    //TODO: print OpenVPN log level if needed 
+                    mTunnel.mLogger.log(logStatus, logline);
                 } else {
-                    VpnStatus.logInfo("P:" + logline);
+                    mTunnel.mLogger.log(VpnTunnel.LOG_INFO, logline);
                 }
 			}
-
-
 		} catch (IOException e) {
 			Log.e(TAG, "Error reading from output of OpenVPN process" , e);
 			stopProcess();
