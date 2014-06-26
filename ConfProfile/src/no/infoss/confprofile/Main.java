@@ -182,6 +182,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		try {
 			if(vpnMgr != null) {
 				vpnMgr.startVpnService();
+				mDebugPcapEnabled = vpnMgr.isDebugPcapEnabled();
+				invalidateOptionsMenu();
 			}
 		} finally {
 			mBindKit.unlock();
@@ -206,15 +208,18 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		if(vpnMgr == null) {
 			Toast.makeText(this, "Service is busy, try again later",  Toast.LENGTH_SHORT).show();
 		} else {
+			boolean changed = false;
 			if(mDebugPcapEnabled) {
 				//stop
-				vpnMgr.debugStopPcap();
+				changed = vpnMgr.debugStopPcap();
 			} else {
 				//start
-				vpnMgr.debugStartPcap();
+				changed = vpnMgr.debugStartPcap();
 			}
 			
-			mDebugPcapEnabled = !mDebugPcapEnabled;
+			if(changed) {
+				mDebugPcapEnabled = vpnMgr.isDebugPcapEnabled();
+			}
 			invalidateOptionsMenu();
 		}
 		

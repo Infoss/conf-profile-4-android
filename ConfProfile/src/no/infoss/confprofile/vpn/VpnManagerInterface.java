@@ -32,6 +32,7 @@ public interface VpnManagerInterface extends IInterface {
 	public boolean protect(Socket socket);
 	
 	//debug methods
+	public boolean isDebugPcapEnabled();
 	public boolean debugStartPcap();
 	public boolean debugStopPcap();
 }

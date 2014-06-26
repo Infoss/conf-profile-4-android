@@ -35,6 +35,9 @@ import android.util.Log;
 public class VpnManagerService extends Service implements VpnManagerInterface, ObtainOnDemandVpnsListener {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
 	
+	private static final String PCAP_TUN_FILENAME_FMT = "tun(%s)-%d.pcap";
+	private static final String PCAP_NAT_FILENAME_FMT = "usernat(%s)-%d.pcap";
+	
 	static {
 		System.loadLibrary("strongswan");
 
@@ -72,6 +75,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	private NetworkConfig mSavedNetworkConfig;
 	private boolean mSavedFailoverFlag;
+	private boolean mDebugPcapEnabled = false;
 	
 	private int[] mVpnManagerIcons;
 	private int[] mVpnManagerErrorIcons;
@@ -241,6 +245,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 						VpnTunnel oldTun = mCurrentTunnel;
 						mCurrentTunnel = tun;
 						tun.establishConnection(info.params);
+						
+						if(mDebugPcapEnabled) {
+							debugStartTunnelPcap(PCAP_TUN_FILENAME_FMT, tun);
+						}
+						
 						mRouterLoop.defaultRoute4(tun);
 						
 						if(oldTun != null) {
@@ -321,15 +330,22 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	@Override
+	public boolean isDebugPcapEnabled() {
+		return mDebugPcapEnabled;
+	}
+	
+	@Override
 	public boolean debugStartPcap() {
 		if(BuildConfig.DEBUG) {
 			if(!MiscUtils.isExternalStorageWriteable()) {
+				mDebugPcapEnabled = false;
 				return false;
 			}
 			
 			File externalFilesDir = getExternalFilesDir(null);
 			if(externalFilesDir == null) {
 				//error: storage error
+				mDebugPcapEnabled = false;
 				return false;
 			}
 			
@@ -354,45 +370,20 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			}
 			
 			//capture from tunnel
-			if(mCurrentTunnel != null) {
-				try {
-					pcapFileName = String.format(
-							"tun(%s)-%d.pcap", 
-							mCurrentTunnel.getTunnelId(), 
-							System.currentTimeMillis());
-					os = new PcapOutputStream(
-							new File(externalFilesDir, pcapFileName), 
-							mtu, 
-							PcapOutputStream.LINKTYPE_RAW);
-					mCurrentTunnel.debugRestartPcap(os);
-				} catch(Exception e) {
-					Log.e(TAG, "Restart pcap error", e);
-				}
-			}
+			debugStartTunnelPcap(PCAP_TUN_FILENAME_FMT, mCurrentTunnel);
+			debugStartTunnelPcap(PCAP_NAT_FILENAME_FMT, mUsernatTunnel);
 			
-			//capture from usernat
-			if(mUsernatTunnel != null) {
-				try {
-					pcapFileName = String.format(
-							"usernat(%s)-%d.pcap", 
-							mUsernatTunnel.getTunnelId(), 
-							System.currentTimeMillis());
-					os = new PcapOutputStream(
-							new File(externalFilesDir, pcapFileName), 
-							mtu, 
-							PcapOutputStream.LINKTYPE_RAW);
-					mUsernatTunnel.debugRestartPcap(os);
-				} catch(Exception e) {
-					Log.e(TAG, "Restart pcap error", e);
-				}
-			}
+			mDebugPcapEnabled = true;
+			return true;
 		}
-		return true;
+		return false;
 	}
 	
 	@Override
 	public boolean debugStopPcap() {
 		if(BuildConfig.DEBUG) {
+			mDebugPcapEnabled = false;
+			
 			if(mRouterLoop != null) {
 				try {
 					mRouterLoop.debugStopPcap();
@@ -416,8 +407,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 					Log.e(TAG, "Stop pcap error", e);
 				}
 			}
+			
+			return true;
 		}
-		return true;
+		return false;
 	}
 
 	/*package*/ RouterLoop getRouterLoop() {
@@ -489,6 +482,52 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		compatBuilder.setOngoing(true);
 		
 		return compatBuilder.build();
+	}
+	
+	private boolean debugStartTunnelPcap(String fileNameFmt, VpnTunnel tunnel) {
+		if(BuildConfig.DEBUG) {
+			if(tunnel == null || fileNameFmt == null || fileNameFmt.isEmpty()) {
+				return false;
+			}
+			
+			if(!MiscUtils.isExternalStorageWriteable()) {
+				return false;
+			}
+			
+			File externalFilesDir = getExternalFilesDir(null);
+			if(externalFilesDir == null) {
+				//error: storage error
+				return false;
+			}
+			
+			
+			PcapOutputStream os = null;
+			try {
+				String pcapFileName = String.format(
+						fileNameFmt, 
+						mCurrentTunnel.getTunnelId(), 
+						System.currentTimeMillis());
+				os = new PcapOutputStream(
+						new File(externalFilesDir, pcapFileName), 
+						mRouterLoop.getMtu(), 
+						PcapOutputStream.LINKTYPE_RAW);
+				mCurrentTunnel.debugRestartPcap(os);
+			} catch(Exception e) {
+				Log.e(TAG, "Restart pcap error", e);
+				if(os != null) {
+					try {
+						os.close();
+					} catch(Exception ex) {
+						//nothing to do here
+					}
+				}
+				return false;
+			}
+			
+			return true;
+		}
+		
+		return false; //BuildConfig.DEBUG is false
 	}
 	
 	public static class VpnConfigInfo {
