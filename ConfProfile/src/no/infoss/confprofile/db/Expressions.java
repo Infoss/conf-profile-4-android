@@ -53,7 +53,7 @@ public class Expressions {
 			if(mRightExpression instanceof ColumnExpression) {
 				return String.format("%s %s %s", mLiteral, mComparator, mRightExpression.mLiteral);
 			}
-			return String.format("%s %s ?s", mLiteral, mComparator);
+			return String.format("%s %s ?", mLiteral, mComparator);
 		}
 		
 		@Override

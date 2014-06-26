@@ -37,7 +37,7 @@ public class Delete extends Request {
 		
 		String where;
 		if(mWhereExpression == null) {
-			where = "TRUE";
+			where = "1";
 		} else {
 			where = mWhereExpression.getLiteral();
 		}

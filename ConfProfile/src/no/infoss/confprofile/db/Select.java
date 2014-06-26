@@ -8,7 +8,7 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 
 public class Select extends Request {
-	private boolean mSelectAll = false;
+	private boolean mSelectAll = true;
 	private Cursor mCursor = null;
 	
 	private String mSql;
@@ -64,7 +64,7 @@ public class Select extends Request {
 		}
 		
 		if(mWhereExpression == null) {
-			where = "TRUE";
+			where = "1";
 		} else {
 			where = mWhereExpression.getLiteral();
 		}
