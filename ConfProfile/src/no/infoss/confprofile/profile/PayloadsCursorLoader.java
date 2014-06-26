@@ -1,5 +1,9 @@
 package no.infoss.confprofile.profile;
 
+import no.infoss.confprofile.db.Expressions;
+import no.infoss.confprofile.db.Expressions.Expression;
+import no.infoss.confprofile.db.Insert;
+import no.infoss.confprofile.db.QueryBuilder;
 import no.infoss.confprofile.profile.data.PayloadInfo;
 import android.content.ContentValues;
 import android.content.Context;
@@ -7,10 +11,6 @@ import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.os.Bundle;
 
-import com.getbase.android.db.fluentsqlite.Expressions;
-import com.getbase.android.db.fluentsqlite.Expressions.Expression;
-import com.getbase.android.db.fluentsqlite.Insert;
-import com.getbase.android.db.fluentsqlite.QueryBuilder;
 import com.litecoding.classkit.view.LazyCursorList.CursorMapper;
 
 public class PayloadsCursorLoader extends BaseQueryCursorLoader {
@@ -99,13 +99,13 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 			if(mSelectBy != null) {
 				if(COL_PROFILE_ID.equals(mSelectBy)) {
 					Expression expr = Expressions.column(mSelectBy).eq(Expressions.literal(mNewProfileId[0]));
-					result = QueryBuilder.select().from(TABLE).where(expr, new Object[0]).perform(db);
+					result = QueryBuilder.select().from(TABLE).where(expr, new Object[0]).perform(db).getResult();
 					return result;
 				}
 			}
 			
 			//finally always do select to show changes in the UI
-			result = QueryBuilder.select().from(TABLE).all().perform(db);
+			result = QueryBuilder.select().from(TABLE).all().perform(db).getResult();
 			
 			return result;
 		}

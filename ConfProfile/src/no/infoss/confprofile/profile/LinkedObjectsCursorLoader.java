@@ -1,12 +1,12 @@
 package no.infoss.confprofile.profile;
 
+import no.infoss.confprofile.db.Insert;
+import no.infoss.confprofile.db.QueryBuilder;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
 import android.os.Bundle;
 
-import com.getbase.android.db.fluentsqlite.Insert;
-import com.getbase.android.db.fluentsqlite.QueryBuilder;
 import com.litecoding.classkit.view.LazyCursorList.CursorMapper;
 
 public class LinkedObjectsCursorLoader extends BaseQueryCursorLoader {
@@ -86,7 +86,11 @@ public class LinkedObjectsCursorLoader extends BaseQueryCursorLoader {
 			}
 			
 			//finally always do select
-			result = QueryBuilder.select().from(TABLE).all().perform(mDbHelper.getWritableDatabase());
+			result = QueryBuilder.select().
+					from(TABLE).
+					all().
+					perform(mDbHelper.getWritableDatabase()).
+					getResult();
 			
 			return result;
 		}
