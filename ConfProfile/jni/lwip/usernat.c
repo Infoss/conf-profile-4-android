@@ -6,6 +6,9 @@
 
 #include <android/log.h>
 #include <stdlib.h>
+#include <sys/socket.h>
+#include <sys/un.h>
+#include <fcntl.h>
 
 #define LOG_TAG "usernat"
 
@@ -23,13 +26,13 @@ static void log_remote(int level, char* tag, char* fmt, ...) {
 }
 
 static void usage() {
-	log_print("usage: usernat <ctrl_unix_socket>");
+	log_print(ANDROID_LOG_INFO, LOG_TAG, "usage: usernat <ctrl_unix_socket>");
 }
 
 static void rcvd_cmd(int sock) {
 	unsigned char bytes[2];
-	if (recv(control, &bytes[0], 1, 0) != 1 ||
-			recv(control, &bytes[1], 1, 0) != 1) {
+	if (recv(sock, &bytes[0], 1, 0) != 1 ||
+			recv(sock, &bytes[1], 1, 0) != 1) {
 		log_print(ANDROID_LOG_FATAL, LOG_TAG, "Can't get argument length");
 		exit(4);
 	} else {
@@ -37,15 +40,15 @@ static void rcvd_cmd(int sock) {
 		int offset = 0;
 
 		if (length == 0xFFFF) {
-			break;
+			return;
 		}
 		char* cmd = malloc(length + 1);
 		while (offset < length) {
-			int n = recv(control, &cmd[offset], length - offset, 0);
+			int n = recv(sock, &cmd[offset], length - offset, 0);
 			if (n > 0) {
 				offset += n;
 			} else {
-				log_print(FATAL, "Cannot get argument value");
+				log_print(ANDROID_LOG_FATAL, LOG_TAG, "Cannot get argument value");
 				exit(5);
 			}
 		}
@@ -60,7 +63,7 @@ static void send_cmd(int sock, char* cmd, int len) {
 }
 
 int main(int argc, char **argv) {
-	log_msg = log_android;
+	log_print = log_android;
 
 	if(argc != 2) {
 		usage();
@@ -98,6 +101,6 @@ int main(int argc, char **argv) {
 
 	rcvd_cmd(control);
 
-	log_msg(ANDROID_LOG_DEBUG, LOG_TAG, "test");
-	log_msg = log_remote;
+	log_print(ANDROID_LOG_DEBUG, LOG_TAG, "test");
+	log_print = log_remote;
 }

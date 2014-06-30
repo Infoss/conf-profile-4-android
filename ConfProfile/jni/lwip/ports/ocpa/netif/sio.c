@@ -121,7 +121,7 @@ static int sio_init( char * device, int devnum, sio_status_t * siostat )
 
 	saio.sa_flags = 0;
 #if linux
-	saio.sa_restorer = NULL;
+	//saio.sa_restorer = NULL;
 #endif /* linux */
 	sigaction( SIGIO,&saio,NULL );
 
