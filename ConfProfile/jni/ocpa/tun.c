@@ -66,6 +66,11 @@ ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 	}
 
 	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
+
+	//start capture
+	pcap_output_write(ctx->pcap_output, buff, 0, len);
+	//end capture
+
 	return write(ctx->local_fd, buff, len);
 }
 
@@ -81,6 +86,10 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 	if(res < 0) {
 		return res;
 	}
+
+	//start capture
+	pcap_output_write(ctx->pcap_output, buff, 0, res);
+	//end capture
 
 	pthread_rwlock_rdlock(ctx->router_ctx->rwlock4);
 	if((buff[0] & 0xf0) == 0x40 && ctx->router_ctx->dev_tun_ctx.use_masquerade4) {
@@ -106,6 +115,7 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 	} else if((buff[0] & 0xf0) == 0x60 && ctx->router_ctx->dev_tun_ctx.use_masquerade6) {
 
 	}
+
 	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
 	pthread_rwlock_unlock(ctx->router_ctx->rwlock4);
 	return res;
