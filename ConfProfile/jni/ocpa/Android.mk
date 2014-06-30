@@ -59,7 +59,7 @@ ifneq ($(strongswan_USE_BYOD),)
 endif
 
 LOCAL_LDLIBS := -llog 
-LOCAL_STATIC_LIBRARIES := libuip
+LOCAL_STATIC_LIBRARIES := 
 LOCAL_SHARED_LIBRARIES := strongswan hydra ipsec charon
 
 ifneq ($(strongswan_USE_BYOD),)
