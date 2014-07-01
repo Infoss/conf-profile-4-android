@@ -5,14 +5,20 @@
  */
 
 #include <android/log.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <fcntl.h>
 
 #define LOG_TAG "usernat"
 
+static int control;
+
 static void (*log_print)(int level, char* tag, char* fmt, ...) = NULL;
+
+static void send_cmd(int sock, char* cmd, int len);
 
 static void log_android(int level, char* tag, char* fmt, ...) {
 	va_list args;
@@ -22,11 +28,59 @@ static void log_android(int level, char* tag, char* fmt, ...) {
 }
 
 static void log_remote(int level, char* tag, char* fmt, ...) {
-	//TODO: send logs to remote receiver
+	unsigned int log_buff_size = 0xfffe;
+	char* log_buff = malloc(log_buff_size);
+	if(log_buff != NULL) {
+
+		int written = 0;
+		unsigned int offs = 0;
+		memset(log_buff, 0, log_buff_size);
+
+		written = snprintf(log_buff + offs, log_buff_size - offs, "%s", "log ");
+		if(written <= 0) {
+			goto send_log;
+		}
+		offs += written;
+
+		written = snprintf(log_buff + offs, log_buff_size - offs, "[%s]", tag);
+		if(written <= 0) {
+			goto send_log;
+		}
+		offs += written;
+
+		va_list args;
+		va_start(args, fmt);
+		written = vsnprintf(log_buff + offs, log_buff_size - offs, fmt, args);
+		va_end(args);
+
+send_log:
+		send_cmd(control, log_buff, strlen(log_buff));
+		free(log_buff);
+	}
 }
 
 static void usage() {
 	log_print(ANDROID_LOG_INFO, LOG_TAG, "usage: usernat <ctrl_unix_socket>");
+}
+
+static void parse_resp(char* cmd) {
+
+}
+
+static void parse_cmd(char* cmd) {
+	if(cmd == NULL) {
+		return;
+	}
+
+	if(strncmp(cmd, "resp ", strlen("resp ")) == 0) {
+		parse_resp(cmd + strlen("resp "));
+		return;
+	}
+
+	if(strncmp(cmd, "halt\0", strlen("halt") + 1) == 0) {
+		log_remote(ANDROID_LOG_INFO, LOG_TAG, "Received 'halt'. Exiting with error code 0.");
+		exit(0);
+	}
 }
 
 static void rcvd_cmd(int sock) {
@@ -53,13 +107,82 @@ static void rcvd_cmd(int sock) {
 			}
 		}
 		cmd[length] = 0;
-		//TODO: parse command and save it
+
+		parse_cmd(cmd);
 		free(cmd);
 	}
 }
 
 static void send_cmd(int sock, char* cmd, int len) {
+	if(len < 0 || cmd == NULL) {
+		return;
+	}
 
+	int total_len = len;
+	if(len > 0xfffe) {
+		total_len = 0xfffe;
+	}
+
+	char* buff = malloc(total_len + 2);
+	if(buff != NULL) {
+		buff[0] = (total_len >> 8) & 0x00ff;
+		buff[1] = total_len & 0x00ff;
+		memcpy(buff + 2, cmd, total_len);
+		send(sock, buff, total_len + 2, 0);
+		free(buff);
+	}
+}
+
+static void send_cmd_with_fd(int sock, char* cmd, int len, int fd_to_send) {
+	struct msghdr socket_message;
+	struct iovec io_vector[1];
+	struct cmsghdr *control_message = NULL;
+	/* storage space needed for an ancillary element with a paylod of length is CMSG_SPACE(sizeof(length)) */
+	char ancillary_element_buffer[CMSG_SPACE(sizeof(int))];
+	int available_ancillary_element_buffer_space;
+
+	if(len < 0 || cmd == NULL) {
+		return;
+	}
+
+	int total_len = len;
+	if(len > 0xfffe) {
+		total_len = 0xfffe;
+	}
+
+	char* buff = malloc(total_len + 2);
+	if(buff == NULL) {
+		return;
+	}
+
+	buff[0] = (total_len >> 8) & 0x00ff;
+	buff[1] = total_len & 0x00ff;
+	memcpy(buff + 2, cmd, total_len);
+
+	/* at least one vector of one byte must be sent */
+	io_vector[0].iov_base = buff;
+	io_vector[0].iov_len = total_len + 2;
+
+	/* initialize sock message */
+	memset(&socket_message, 0, sizeof(struct msghdr));
+	socket_message.msg_iov = io_vector;
+	socket_message.msg_iovlen = 1;
+
+	/* provide space for the ancillary data */
+	available_ancillary_element_buffer_space = CMSG_SPACE(sizeof(int));
+	memset(ancillary_element_buffer, 0, available_ancillary_element_buffer_space);
+	socket_message.msg_control = ancillary_element_buffer;
+	socket_message.msg_controllen = available_ancillary_element_buffer_space;
+
+	/* initialize a single ancillary data element for fd passing */
+	control_message = CMSG_FIRSTHDR(&socket_message);
+	control_message->cmsg_level = SOL_SOCKET;
+	control_message->cmsg_type = SCM_RIGHTS;
+	control_message->cmsg_len = CMSG_LEN(sizeof(int));
+	*((int *) CMSG_DATA(control_message)) = fd_to_send;
+
+	sendmsg(sock, &socket_message, 0);
+	free(buff);
 }
 
 int main(int argc, char **argv) {
@@ -70,7 +193,6 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	int control;
 	int i;
 	struct sockaddr_un remote;
 	int addr_len;
@@ -99,8 +221,11 @@ int main(int argc, char **argv) {
 	}
 	fcntl(control, F_SETFD, FD_CLOEXEC);
 
-	rcvd_cmd(control);
-
 	log_print(ANDROID_LOG_DEBUG, LOG_TAG, "test");
 	log_print = log_remote;
+
+	while(true) {
+		rcvd_cmd(control);
+	}
+
 }
