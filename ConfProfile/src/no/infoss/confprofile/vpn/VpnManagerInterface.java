@@ -10,6 +10,7 @@ public interface VpnManagerInterface extends IInterface {
 	public void startVpnService();
 	public void notifyVpnServiceStarted();
 	public void notifyVpnServiceRevoked();
+	public void notifyTunnelStateChanged();
 	
 	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover);
 	public void notifyConnectivityChanged(NetworkConfig netConfig, boolean isFailover);

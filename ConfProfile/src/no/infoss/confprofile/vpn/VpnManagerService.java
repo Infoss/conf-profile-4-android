@@ -18,6 +18,7 @@ import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
+import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
 import no.infoss.jcajce.InfossJcaProvider;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -143,6 +144,14 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnServiceStarted() {
+		if(mUsernatTunnel != null) {
+			mUsernatTunnel.terminateConnection();
+		}
+		
+		if(mCurrentTunnel != null) {
+			mCurrentTunnel.terminateConnection();
+		}
+		
 		if(mRouterLoop != null) {
 			mRouterLoop.terminate();
 		}
@@ -155,6 +164,9 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		} finally {
 			mBindKit.unlock();
 		}
+		
+		mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
+		mUsernatTunnel.establishConnection(null);
 		
 		mIsVpnServiceStarted = true;
 		
@@ -170,6 +182,16 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnServiceRevoked() {
+		if(mCurrentTunnel != null) {
+			mCurrentTunnel.terminateConnection();
+		}
+		mCurrentTunnel = null;
+		
+		if(mUsernatTunnel != null) {
+			mUsernatTunnel.terminateConnection();
+		}
+		mUsernatTunnel = null;
+		
 		if(mRouterLoop != null) {
 			mRouterLoop.terminate();
 		}
@@ -186,6 +208,27 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		mIsVpnServiceStarted = false;
 	}
 	
+	@Override
+	public void notifyTunnelStateChanged() {
+		ConnectionStatus tunStatus = ConnectionStatus.DISCONNECTED;
+		ConnectionStatus natStatus = ConnectionStatus.DISCONNECTED;
+		
+		if(mCurrentTunnel != null) {
+			tunStatus = mCurrentTunnel.getConnectionStatus();
+		}
+		
+		if(mUsernatTunnel != null) {
+			natStatus = mUsernatTunnel.getConnectionStatus();
+		}
+		
+		String title;
+		String text;
+		int smallIconId;
+		int largeIconId;
+		//TODO: implement notification based on the connection status
+	}
+
+	@Override
 	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover) {
 		Log.d(TAG, "lost " + netConfig.toString() + (isFailover ? ", failover" : ""));
 		mSavedNetworkConfig = netConfig;
@@ -194,6 +237,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		updateCurrentConfiguration();
 	}
 	
+	@Override
 	public void notifyConnectivityChanged(NetworkConfig netConfig, boolean isFailover) {
 		Log.d(TAG, "changed to " + netConfig.toString() + (isFailover ? ", failover" : ""));
 		if(mIsRequestActive) {
