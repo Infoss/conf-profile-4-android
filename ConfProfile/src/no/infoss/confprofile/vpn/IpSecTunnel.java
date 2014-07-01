@@ -10,13 +10,14 @@ import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.Callable;
 
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.util.NetUtils;
-import no.infoss.confprofile.vpn.IpSecVpnStateService.ErrorState;
-import no.infoss.confprofile.vpn.IpSecVpnStateService.State;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import no.infoss.confprofile.vpn.ipsec.imc.ImcState;
 import no.infoss.confprofile.vpn.ipsec.imc.RemediationInstruction;
@@ -25,16 +26,13 @@ import android.security.KeyChainException;
 import android.util.Log;
 
 public class IpSecTunnel extends VpnTunnel {
-	
 	public static final String TAG = IpSecTunnel.class.getSimpleName();
 	public static final String VPN_TYPE = "IPSec";
 
 	public static final boolean BYOD = false;
 
 	private boolean mIsTerminating;
-	private Map<String, Object> mOptions;
-	private IpSecVpnStateService mService;
-	private final Object mServiceLock = new Object();	
+	private Map<String, Object> mOptions;	
 	public static final String LOG_FILE = "charon.log";
 	private String mLogFile;
 	private volatile String mCurrentCertificateAlias;
@@ -51,6 +49,38 @@ public class IpSecTunnel extends VpnTunnel {
 	static final int STATE_LOOKUP_ERROR = 5;
 	static final int STATE_UNREACHABLE_ERROR = 6;
 	static final int STATE_GENERIC_ERROR = 7;
+	
+	/*from IpSecVpnStateService*/
+	private long mConnectionID = 0;
+	private final List<VpnStateListener> mListeners = new ArrayList<VpnStateListener>();
+	private State mState = State.DISABLED;
+	private ErrorState mError = ErrorState.NO_ERROR;
+	private ImcState mImcState = ImcState.UNKNOWN;
+	private final LinkedList<RemediationInstruction> mRemediationInstructions = new LinkedList<RemediationInstruction>();
+	
+	public enum State {
+		DISABLED,
+		CONNECTING,
+		CONNECTED,
+		DISCONNECTING,
+	}
+
+	public enum ErrorState {
+		NO_ERROR,
+		AUTH_FAILED,
+		PEER_AUTH_FAILED,
+		LOOKUP_FAILED,
+		UNREACHABLE,
+		GENERIC_ERROR,
+	}
+	
+	/**
+	 * Listener interface for bound clients that are interested in changes to
+	 * this Service.
+	 */
+	public interface VpnStateListener {
+		public void stateChanged();
+	}
 	
 	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg);
@@ -145,11 +175,7 @@ public class IpSecTunnel extends VpnTunnel {
 	 * @param profile currently active VPN profile
 	 */
 	private void startConnection() {
-		synchronized (mServiceLock) {
-			if (mService != null) {
-				mService.startConnection(mOptions);
-			}
-		}
+		startConnection(mOptions);
 	}
 	
 	private boolean getEnableBYOD() {
@@ -193,45 +219,65 @@ public class IpSecTunnel extends VpnTunnel {
 	}
 	
 	/**
-	 * Update the current VPN state on the state service. Called by the handler
-	 * thread and any of charon's threads.
+	 * Update the state and notify all listeners, if changed. 
+	 * Called by the handler thread and any of charon's threads.
 	 *
 	 * @param state current state
 	 */
-	private void setState(State state) {
-		synchronized (mServiceLock) {
-			if (mService != null) {
-				mService.setState(state);
+	private void setState(final State state) {
+		notifyListeners(new Callable<Boolean>() {
+			@Override
+			public Boolean call() throws Exception {
+				if (IpSecTunnel.this.mState != state) {
+					IpSecTunnel.this.mState = state;
+					return true;
+				}
+				return false;
 			}
-		}
+		});
 	}
 
 	/**
-	 * Set an error on the state service. Called by the handler thread and any
-	 * of charon's threads.
+	 * Set the current error state and notify all listeners, if changed. 
+	 * Called by the handler thread and any of charon's threads.
 	 *
 	 * @param error error state
 	 */
-	private void setError(ErrorState error) {
-		synchronized (mServiceLock) {
-			if (mService != null) {
-				mService.setError(error);
+	private void setError(final ErrorState error) {
+		notifyListeners(new Callable<Boolean>() {
+			@Override
+			public Boolean call() throws Exception {
+				if (IpSecTunnel.this.mError != error) {
+					IpSecTunnel.this.mError = error;
+					return true;
+				}
+				return false;
 			}
-		}
+		});
 	}
 
 	/**
-	 * Set the IMC state on the state service. Called by the handler thread and
-	 * any of charon's threads.
+	 * Set the current IMC state and notify all listeners, if changed. 
+	 * Setting the state to UNKNOWN clears all remediation instructions.
+	 * Called by the handler thread and any of charon's threads.
 	 *
 	 * @param state IMC state
 	 */
-	private void setImcState(ImcState state) {
-		synchronized (mServiceLock) {
-			if (mService != null) {
-				mService.setImcState(state);
+	private void setImcState(final ImcState state) {
+		notifyListeners(new Callable<Boolean>() {
+			@Override
+			public Boolean call() throws Exception {
+				if (state == ImcState.UNKNOWN) {
+					IpSecTunnel.this.mRemediationInstructions.clear();
+				}
+				
+				if (IpSecTunnel.this.mImcState != state) {
+					IpSecTunnel.this.mImcState = state;
+					return true;
+				}
+				return false;
 			}
-		}
+		});
 	}
 	
 	/**
@@ -242,13 +288,9 @@ public class IpSecTunnel extends VpnTunnel {
 	 * @param error error state
 	 */
 	private void setErrorDisconnect(ErrorState error) {
-		synchronized (mServiceLock) {
-			if (mService != null) {
-				if (!mIsTerminating) {
-					mService.setError(error);
-					terminateConnection();
-				}
-			}
+		if (!mIsTerminating) {
+			setError(error);
+			terminateConnection();
 		}
 	}
 	
@@ -301,18 +343,23 @@ public class IpSecTunnel extends VpnTunnel {
 	}
 	
 	/**
-	 * Add a remediation instruction to the VPN state service.
+	 * Add the given remediation instruction to the internal list. 
+	 * Listeners are not notified.
+	 * 
+	 * Instructions are cleared if the IMC state is set to UNKNOWN.
+	 * 
 	 * Called via JNI by different threads (but not concurrently).
 	 *
 	 * @param xml XML text
 	 */
 	public void addRemediationInstruction(String xml) {
-		for (RemediationInstruction instruction : RemediationInstruction.fromXml(xml)) {
-			synchronized (mServiceLock) {
-				if (mService != null) {
-					mService.addRemediationInstruction(instruction);
+		for (final RemediationInstruction instruction : RemediationInstruction.fromXml(xml)) {
+			mHandler.post(new Runnable() {
+				@Override
+				public void run() {
+					IpSecTunnel.this.mRemediationInstructions.add(instruction);
 				}
-			}
+			});
 		}
 	}
 	
@@ -462,4 +509,58 @@ public class IpSecTunnel extends VpnTunnel {
 	private native void networkChanged(boolean disconnected);
 	private native long initIpSecTun();
 	private native void deinitIpSecTun(long tunCtx);
+	
+	/*from IpSecVpnStateService*/
+	/**
+	 * Update state and notify all listeners about the change. By using a Handler
+	 * this is done from the main UI thread and not the initial reporter thread.
+	 * Also, in doing the actual state change from the main thread, listeners
+	 * see all changes and none are skipped.
+	 *
+	 * @param change the state update to perform before notifying listeners, returns true if state changed
+	 */
+	private void notifyListeners(final Callable<Boolean> change) {
+		mHandler.post(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					if (change.call()) {
+						/* otherwise there is no need to notify the listeners */
+						for (VpnStateListener listener : mListeners) {
+							listener.stateChanged();
+						}
+					}
+				} catch (Exception e) {
+					Log.e(TAG, "Error while notifying listeners", e);
+				}
+			}
+		});
+	}
+
+	/**
+	 * Called when a connection is started.  Sets the currently active VPN
+	 * profile, resets IMC and Error state variables, sets the State to
+	 * CONNECTING, increases the connection ID, and notifies all listeners.
+	 *
+	 * May be called from threads other than the main thread.
+	 *
+	 * @param profile current profile
+	 */
+	public void startConnection(final Map<String, Object> options)
+	{
+		notifyListeners(new Callable<Boolean>() {
+			@Override
+			public Boolean call() throws Exception
+			{
+				IpSecTunnel.this.mConnectionID++;
+				IpSecTunnel.this.mState = State.CONNECTING;
+				IpSecTunnel.this.mError = ErrorState.NO_ERROR;
+				IpSecTunnel.this.mImcState = ImcState.UNKNOWN;
+				IpSecTunnel.this.mRemediationInstructions.clear();
+				return true;
+			}
+		});
+	}
+
+	
 }

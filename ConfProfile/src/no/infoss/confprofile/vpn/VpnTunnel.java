@@ -13,6 +13,8 @@ import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import android.content.Context;
+import android.os.Handler;
+import android.os.Looper;
 import android.util.Log;
 
 public abstract class VpnTunnel implements Runnable {
@@ -30,6 +32,7 @@ public abstract class VpnTunnel implements Runnable {
 	protected VpnConfigInfo mCfg;
 	protected long mVpnServiceCtx; //native
 	protected long mVpnTunnelCtx; //native
+	protected final Handler mHandler = new Handler(Looper.getMainLooper());
 	
 	public VpnTunnel(Context ctx, VpnConfigInfo cfg) {
 		mThread = new Thread(this);
