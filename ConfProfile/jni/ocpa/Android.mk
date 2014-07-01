@@ -11,10 +11,12 @@ LOCAL_SRC_FILES := \
 	tun_ipsec.c \
 	tun_l2tp.c \
 	tun_openvpn.c \
+	tun_usernat.c \
 	jni_IpSecTunnel.c \
 	jni_L2tpTunnel.c \
 	jni_OpenVpnTunnel.c \
 	jni_RouterLoop.c \
+	jni_UsernatTunnel.c \
 	jni_VpnTunnel.c \
 	pcap_output.c \
 	android_log_utils.c \
