@@ -38,7 +38,6 @@ public class OpenVpnTunnel extends VpnTunnel {
 	
 	private Map<String, Object> mOptions;
 	private VpnManagerInterface mVpnMgr;
-	private boolean mIsTerminating;
 	private Thread mWorkerThread;
 	private OpenVpnWorker mWorker;
 	
@@ -67,7 +66,6 @@ public class OpenVpnTunnel extends VpnTunnel {
 		super(ctx, cfg);
 		mVpnServiceCtx = vpnServiceCtx;
 		mVpnMgr = vpnMgr;
-		mIsTerminating = false;
 		
 		boolean managemeNetworkState = true;
 		if(managemeNetworkState) {
@@ -83,7 +81,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 	@SuppressWarnings("unchecked")
 	@Override
 	public void establishConnection(Map<String, Object> options) {
-		if(mIsTerminating) {
+		if(mConnectionStatus != ConnectionStatus.DISCONNECTED) {
 			return;
 		}
 		
@@ -94,16 +92,20 @@ public class OpenVpnTunnel extends VpnTunnel {
 	}
 	
 	public void terminateConnection() {
-		mIsTerminating = true;
-		managmentCommand("signal SIGINT\n");
-		deinitOpenVpnTun(mVpnTunnelCtx);
-		mVpnTunnelCtx = 0;
+		if(mConnectionStatus != ConnectionStatus.TERMINATED) {
+			mConnectionStatus = ConnectionStatus.TERMINATED;
+			managmentCommand("signal SIGINT\n");
+			deinitOpenVpnTun(mVpnTunnelCtx);
+			mVpnTunnelCtx = 0;
+		}
 	}
 
 	@Override
 	public void run() {
 		if(!MiscUtils.writeExecutableToCache(mCtx, OpenVpnWorker.MINIVPN)) {
 			Log.e(TAG, "Error writing minivpn");
+			terminateConnection();
+			return;
 		}
 		
 		byte[] buffer = new byte[2048];
@@ -133,8 +135,8 @@ public class OpenVpnTunnel extends VpnTunnel {
         mServerSocketLocal = new LocalSocket();
 
         while(tries > 0) {
-        	if(mIsTerminating) {
-        		break;
+        	if(mConnectionStatus == ConnectionStatus.TERMINATED) {
+        		return;
         	}
         	
             try {
@@ -162,7 +164,7 @@ public class OpenVpnTunnel extends VpnTunnel {
         }
         
         mWorker = new OpenVpnWorker(this, argv, new HashMap<String, String>());
-		mWorkerThread = new Thread(mWorker, "OpenVPN worker");
+		mWorkerThread = new Thread(mWorker, "OpenVpn worker");
 		mWorkerThread.start();
 
 		try {
@@ -173,8 +175,9 @@ public class OpenVpnTunnel extends VpnTunnel {
 
 			while(true) {
 				int numbytesread = instream.read(buffer);
-				if(numbytesread==-1)
+				if(numbytesread == -1) {
 					return;
+				}
 
 				FileDescriptor[] fds = null;
 				try {
@@ -182,20 +185,22 @@ public class OpenVpnTunnel extends VpnTunnel {
 				} catch (IOException e) {
 					VpnStatus.logException("Error reading fds from socket", e);
 				}
-				if(fds!=null){
+				if(fds != null){
                     Collections.addAll(mFDList, fds);
 				}
 
-				String input = new String(buffer,0,numbytesread,"UTF-8");
+				String input = new String(buffer, 0, numbytesread,"UTF-8");
 
 				pendingInput += input;
 
-				pendingInput=processInput(pendingInput);
+				pendingInput = processInput(pendingInput);
 			}
 		} catch (IOException e) {
             if (!e.getMessage().equals("socket closed"))
                 VpnStatus.logException(e);
 		}
+		
+		mConnectionStatus = ConnectionStatus.TERMINATED;
 	}
 
 	public void managmentCommand(String cmd) {

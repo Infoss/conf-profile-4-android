@@ -42,10 +42,10 @@ public class OpenVpnWorker implements Runnable {
 	public void run() {
 		try {
 			Log.i(TAG, "Starting openvpn");
-			startOpenVPNThreadArgs(mArgv, mProcessEnv);
+			startOpenVpnWorkerArgs(mArgv, mProcessEnv);
 			Log.i(TAG, "Giving up");
 		} catch (Exception e) {
-			Log.e(TAG, "OpenVPNThread got " + e.toString(), e);
+			Log.e(TAG, "OpenVpnWorker got " + e.toString(), e);
 		} finally {
 			int exitvalue = 0;
 			
@@ -68,7 +68,7 @@ public class OpenVpnWorker implements Runnable {
 		}
 	}
 
-	private void startOpenVPNThreadArgs(String[] argv, Map<String, String> env) {
+	private void startOpenVpnWorkerArgs(String[] argv, Map<String, String> env) {
 		LinkedList<String> argvlist = new LinkedList<String>();
 
         Collections.addAll(argvlist, argv);
