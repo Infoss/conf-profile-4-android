@@ -27,12 +27,30 @@ public abstract class VpnTunnel implements Runnable {
 	
 	protected final String mInstanceLogTag;
 	protected final Logger mLogger;
+	protected final Handler mHandler;
+	
 	protected Thread mThread;
 	protected Context mCtx;
 	protected VpnConfigInfo mCfg;
+	protected ConnectionStatus mConnectionStatus;
+	protected ConnectionError mConnectionError;
 	protected long mVpnServiceCtx; //native
 	protected long mVpnTunnelCtx; //native
-	protected final Handler mHandler = new Handler(Looper.getMainLooper());
+	
+	enum ConnectionStatus {
+		DISCONNECTED,
+		CONNECTING,
+		CONNECTED,
+		DISCONNECTING,
+		TERMINATED
+	}
+	
+	enum ConnectionError {
+		NO_ERROR,
+		GENERIC_ERROR,
+		GENERIC_NETWORK_ERROR,
+		AUTH_FAILED
+	}
 	
 	public VpnTunnel(Context ctx, VpnConfigInfo cfg) {
 		mThread = new Thread(this);
@@ -41,6 +59,10 @@ public abstract class VpnTunnel implements Runnable {
 		
 		mInstanceLogTag = String.format("%s (id=%d)", getClass().getSimpleName(), mThread.getId());
 		mLogger = new Logger();
+		mHandler = new Handler(Looper.getMainLooper());
+		
+		mConnectionStatus = ConnectionStatus.DISCONNECTED;
+		mConnectionError = ConnectionError.NO_ERROR;
 	}
 	
 	protected abstract String getThreadName();
@@ -57,6 +79,14 @@ public abstract class VpnTunnel implements Runnable {
 	
 	public final Context getContext() {
 		return mCtx;
+	}
+	
+	public final ConnectionStatus getConnectionStatus() {
+		return mConnectionStatus;
+	}
+	
+	public final ConnectionError getConnectionError() {
+		return mConnectionError;
 	}
 	
 	public void startLoop() {
