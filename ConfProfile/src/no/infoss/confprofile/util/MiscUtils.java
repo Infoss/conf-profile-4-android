@@ -5,6 +5,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
+import no.infoss.confprofile.BuildConfig;
 import android.content.Context;
 import android.os.Build;
 import android.os.Environment;
@@ -25,8 +26,13 @@ public class MiscUtils {
 	
 	public static boolean writeExecutableToCache(Context context, String filename) {
 		File dstFile = new File(context.getCacheDir(), filename);
-		if(dstFile.exists() && dstFile.canExecute())
-		return true;
+		if(dstFile.exists() && dstFile.canExecute()) {
+			if(!BuildConfig.DEBUG) {
+				return true;
+			} else {
+				dstFile.delete();
+			}
+		}
 	
 		try {
 			InputStream is = null;
@@ -35,35 +41,41 @@ public class MiscUtils {
 				is = context.getAssets().open(filename.concat(".").concat(Build.CPU_ABI));
 			} catch (IOException e) {
 				Log.i(TAG, "Failed getting assets for archicture ".concat(Build.CPU_ABI), e);
-				if(Build.CPU_ABI2 == null || Build.CPU_ABI2.isEmpty()) {
-					throw e;
+				
+				try {
+					is = context.getAssets().open(filename.concat(".").concat(Build.CPU_ABI2));
+				} catch(Exception ex) {
+					Log.i(TAG, "Failed getting assets for archicture ".concat(Build.CPU_ABI2), ex);
+					is = context.getAssets().open(filename);
 				}
-				is = context.getAssets().open(filename.concat(".").concat(Build.CPU_ABI2));
 			}
 			
-			FileOutputStream fos = new FileOutputStream(dstFile);
+			FileOutputStream fos = null;
 			try {
+				fos = new FileOutputStream(dstFile);
 				byte buff[]= new byte[4096];
-				int readbytes = 0; ;
+				int readbytes = 0;
 				while((readbytes = is.read(buff)) != -1) {
 					fos.write(buff, 0, readbytes);
 					readbytes = is.read(buff);
 				}
 			} finally {
-				try {
-					fos.flush();
-				} catch(Exception ex) {
-					//ignore this
-				}
-				
-				try {
-					fos.close();
-				} catch(Exception ex) {
-					//ignore this
+				if(fos != null) {
+					try {
+						fos.flush();
+					} catch(Exception ex) {
+						//ignore this
+					}
+					
+					try {
+						fos.close();
+					} catch(Exception ex) {
+						//ignore this
+					}
 				}
 			}
 			
-			if(!dstFile.setExecutable(true)) {
+			if(!dstFile.setExecutable(true, !BuildConfig.DEBUG)) {
 				Log.e(TAG, String.format("Failed to make ".concat(filename).concat(" executable")));
 				return false;
 			}
