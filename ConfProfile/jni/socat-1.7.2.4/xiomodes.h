@@ -16,6 +16,9 @@
 #include "xio-gopen.h"
 #include "xio-pipe.h"
 #if _WITH_SOCKET
+#ifdef OCPA_CHANGES
+#include "xio-socket-fd.h"
+#endif /* OCPA_CHANGES */
 #include "xio-socket.h"
 #include "xio-listen.h"
 #include "xio-unix.h"
