@@ -63,17 +63,33 @@ static void usage() {
 	log_print(ANDROID_LOG_INFO, LOG_TAG, "usage: usernat <ctrl_unix_socket>");
 }
 
-static void parse_resp(char* cmd) {
+static int find_cmd(const char* cmd, char* buff, int len) {
+	int cmd_len = strlen(cmd);
+	if(len <= cmd_len) {
+		return -1;
+	}
+
+	if(strncmp(buff, cmd, cmd_len) == 0 && (buff[cmd_len] == '\0' || buff[cmd_len] == ' ')) {
+		return cmd_len;
+	}
+
+	return -1;
+}
+
+static void parse_resp(char* cmd, int len) {
 
 }
 
-static void parse_cmd(char* cmd) {
+static void parse_cmd(char* cmd, int len) {
 	if(cmd == NULL) {
 		return;
 	}
 
-	if(strncmp(cmd, "resp ", strlen("resp ")) == 0) {
-		parse_resp(cmd + strlen("resp "));
+	int param_offs;
+
+	param_offs = find_cmd("resp", cmd, len);
+	if(param_offs != -1) {
+		parse_resp(cmd + param_offs, len - param_offs);
 		return;
 	}
 
@@ -108,7 +124,7 @@ static void rcvd_cmd(int sock) {
 		}
 		cmd[length] = 0;
 
-		parse_cmd(cmd);
+		parse_cmd(cmd, length + 1);
 		free(cmd);
 	}
 }
@@ -198,7 +214,7 @@ int main(int argc, char **argv) {
 	int addr_len;
 
 	remote.sun_family = AF_UNIX;
-	strcpy(remote.sun_path, (*argv)[1]);
+	strcpy(remote.sun_path, argv[1]);
 	addr_len = strlen(remote.sun_path) + sizeof(remote.sun_family);
 
 	if((control = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
