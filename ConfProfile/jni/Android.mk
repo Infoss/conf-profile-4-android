@@ -9,7 +9,8 @@ subproject_PATHS := openssl \
 					openvpn \
 					blinkt \
 					strongswan \
-					ocpa
+					ocpa \
+					socat-1.7.2.4
 
 include $(addprefix $(LOCAL_PATH)/,$(addsuffix /Android.mk, \
 		$(subproject_PATHS)))
