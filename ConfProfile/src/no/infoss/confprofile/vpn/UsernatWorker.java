@@ -14,7 +14,8 @@ import android.util.Log;
 
 public class UsernatWorker implements Runnable {
 	public static final String TAG = UsernatWorker.class.getSimpleName();
-	public static final String USERNAT = "ocpasocat";
+	public static final String USERNAT = "usernat";
+	public static final String SOCAT = "ocpasocat";
     
     private String[] mArgv;
 	private Process mProcess;
@@ -88,6 +89,8 @@ public class UsernatWorker implements Runnable {
 					in = mProcess.getErrorStream();
 					br = new BufferedReader(new InputStreamReader(in));
 					logline = br.readLine();
+					
+					//TODO: fix this weird debugging code
 					while(logline != null) {
 						Log.d(TAG, logline);
 					}

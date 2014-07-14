@@ -39,6 +39,12 @@ public class UsernatTunnel extends VpnTunnel {
 
 	@Override
 	public void run() {
+		if(!MiscUtils.writeExecutableToCache(mCtx, UsernatWorker.SOCAT)) {
+			Log.e(TAG, "Error writing socat");
+			terminateConnection();
+			return;
+		}
+		
 		if(!MiscUtils.writeExecutableToCache(mCtx, UsernatWorker.USERNAT)) {
 			Log.e(TAG, "Error writing usernat");
 			terminateConnection();
