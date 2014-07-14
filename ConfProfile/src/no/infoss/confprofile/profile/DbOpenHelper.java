@@ -41,28 +41,17 @@ public class DbOpenHelper extends SQLiteOpenHelper {
  
 	@Override
 	public void onCreate(SQLiteDatabase db) {
+		db.beginTransaction();
 		try {
 			db.execSQL(SQL_PROFILES, new Object[0]);
-		} catch(Exception e) {
-			Log.e(TAG, "SQL_PROFILES error", e);
-		}
-		
-		try {
 			db.execSQL(SQL_LINKED_OBJECTS, new Object[0]);
-		} catch(Exception e) {
-			Log.e(TAG, "SQL_LINKED_OBJECTS error", e);
-		}
-		
-		try {
 			db.execSQL(SQL_PAYLOADS, new Object[0]);
-		} catch(Exception e) {
-			Log.e(TAG, "SQL_PAYLOADS error", e);
-		}
-		
-		try {
 			db.execSQL(SQL_TRIGGER_DELETE_PROFILE, new Object[0]);
+			db.setTransactionSuccessful();
 		} catch(Exception e) {
-			Log.e(TAG, "SQL_TRIGGER_DELETE_PROFILE error", e);
+			Log.e(TAG, "SQL error", e);
+		} finally {
+			db.endTransaction();
 		}
 	}
 	
