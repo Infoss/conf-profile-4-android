@@ -8,10 +8,11 @@ import java.io.StringWriter;
 import java.lang.reflect.Method;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -115,10 +116,10 @@ public class OpenVpnTunnel extends VpnTunnel {
 		File cacheDir = mCtx.getCacheDir();
 		File confFile = new File(cacheDir, confFileName);
 		
-		String[] argv = new String[3];
-        argv[0] = cacheDir.getAbsolutePath() + "/" + OpenVpnWorker.MINIVPN;
-        argv[1] = "--config";
-        argv[2] = confFile.getAbsolutePath();
+		List<String> args = new ArrayList<String>(3);
+        args.add(cacheDir.getAbsolutePath() + "/" + OpenVpnWorker.MINIVPN);
+        args.add("--config");
+        args.add(confFile.getAbsolutePath());
 
         if(!MiscUtils.writeStringToFile(confFile, buildConfig())) {
         	Log.e(TAG, "Terminating connection");
@@ -163,7 +164,7 @@ public class OpenVpnTunnel extends VpnTunnel {
             VpnStatus.logException(e);
         }
         
-        mWorker = new OpenVpnWorker(this, argv, new HashMap<String, String>());
+        mWorker = new OpenVpnWorker(this, args, null);
 		mWorkerThread = new Thread(mWorker, "OpenVpn worker");
 		mWorkerThread.start();
 

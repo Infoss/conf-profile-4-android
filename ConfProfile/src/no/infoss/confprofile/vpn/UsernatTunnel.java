@@ -4,6 +4,8 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 import no.infoss.confprofile.util.MiscUtils;
@@ -52,7 +54,8 @@ public class UsernatTunnel extends VpnTunnel {
 		}
 		
 		File cacheDir = mCtx.getCacheDir();
-		String[] argv = new String[] { cacheDir.getAbsolutePath() + "/" + UsernatWorker.USERNAT };
+		List<String> args = new LinkedList<String>();
+		args.add(cacheDir.getAbsolutePath() + "/" + UsernatWorker.USERNAT);
 		
 		// Could take a while to open connection
         int tries=8;
@@ -91,7 +94,7 @@ public class UsernatTunnel extends VpnTunnel {
             VpnStatus.logException(e);
         }
         
-        mWorker = new UsernatWorker(this, argv, new HashMap<String, String>());
+        mWorker = new UsernatWorker(this, args, new HashMap<String, String>());
 		mWorkerThread = new Thread(mWorker, "Usernat worker");
 		mWorkerThread.start();
 

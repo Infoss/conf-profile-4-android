@@ -5,8 +5,8 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -93,10 +93,10 @@ public class L2tpTunnel extends VpnTunnel {
 			return;
 		}
 
-		String[] argv = new String[2];
-		argv[0] = (new File(mCtx.getCacheDir(), L2tpWorker.MINIVPN)).getAbsolutePath();
-		argv[1] = unixSockName;
-		mWorker = new L2tpWorker(this, argv, new HashMap<String, String>());
+		List<String> args = new ArrayList<String>(2);
+		args.add((new File(mCtx.getCacheDir(), L2tpWorker.MINIVPN)).getAbsolutePath());
+		args.add(unixSockName);
+		mWorker = new L2tpWorker(this, args, null);
 		mWorkerThread = new Thread(mWorker, "L2TP worker");
 		mWorkerThread.start();
 

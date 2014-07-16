@@ -4,6 +4,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import no.infoss.confprofile.BuildConfig;
 import android.content.Context;
@@ -15,10 +18,20 @@ public class MiscUtils {
 	public static final String TAG = MiscUtils.class.getSimpleName();
 	public static final String HEX = "0123456789abcdef";
 	
+	@Deprecated
 	public static String genLibraryPath(Context ctx, ProcessBuilder pb) {	
 		String[] paths = new String[] {
 			ctx.getApplicationInfo().nativeLibraryDir, 
 			pb.environment().get("LD_LIBRARY_PATH")
+		};
+	
+		return StringUtils.join(paths, ":", true);
+	}
+	
+	public static String genLibraryPath(Context ctx, String oldLibraryPath) {	
+		String[] paths = new String[] {
+			ctx.getApplicationInfo().nativeLibraryDir, 
+			oldLibraryPath
 		};
 	
 		return StringUtils.join(paths, ":", true);
@@ -136,5 +149,26 @@ public class MiscUtils {
 			}
 		}
 		return true;
+	}
+	
+	public static Process startProcess(Context ctx, List<String> args, Map<String, String> env) 
+			throws IOException {
+		ProcessBuilder pb = new ProcessBuilder(args);
+		
+		if(env != null) {
+			if(env.containsKey("redirectErrorStream")) {
+				pb.redirectErrorStream(Boolean.parseBoolean(env.get("redirectErrorStream")));
+				env.remove("redirectErrorStream");
+			}
+			
+			for(Entry<String, String> entry : env.entrySet()) {
+				pb.environment().put(entry.getKey(), entry.getValue());
+			}
+		}
+		
+		String ldLibraryPath = genLibraryPath(ctx, pb.environment().get("LD_LIBRARY_PATH"));
+		pb.environment().put("LD_LIBRARY_PATH", ldLibraryPath);
+		
+		return pb.start();
 	}
 }
