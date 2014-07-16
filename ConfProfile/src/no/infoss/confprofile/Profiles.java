@@ -19,8 +19,6 @@
 
 package no.infoss.confprofile;
 
-import no.infoss.confprofile.format.VpnPayload;
-import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
@@ -55,8 +53,8 @@ import com.litecoding.classkit.view.LazyCursorList;
 import com.litecoding.classkit.view.ObjectAdapter;
 import com.litecoding.classkit.view.ObjectAdapter.ObjectMapper;
 
-public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection {
-	public static final String TAG = Main.class.getSimpleName();
+public class Profiles extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection {
+	public static final String TAG = Profiles.class.getSimpleName();
 	
 	private LazyCursorList<ProfileInfo> mProfileInfoList;
 	private DbOpenHelper mDbHelper;
@@ -66,7 +64,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.main);
+		setContentView(R.layout.profiles);
 		
 		mProfileInfoList = new LazyCursorList<ProfileInfo>(ProfilesCursorLoader.PROFILE_CURSOR_MAPPER);
 		mDbHelper = DbOpenHelper.getInstance(this);
@@ -76,7 +74,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				getLayoutInflater(), 
 				mProfileInfoList, 
 				R.layout.profile_item, 
-				new PayloadInfoMapper());
+				new ProfileInfoMapper());
 		GridView grid = (GridView) findViewById(R.id.profileGrid);
 		grid.setEmptyView(findViewById(android.R.id.empty));
 		grid.setAdapter(profileAdapter);
@@ -88,9 +86,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				@SuppressWarnings("unchecked")
 				ObjectAdapter<ProfileInfo> adapter = (ObjectAdapter<ProfileInfo>) parent.getAdapter();
 				ProfileInfo info = (ProfileInfo) adapter.getItem(position);
-				Intent intent = new Intent(Main.this, ProfileDetails.class);
+				Intent intent = new Intent(Profiles.this, ProfileDetails.class);
 				intent.putExtra(PayloadsCursorLoader.P_PROFILE_ID, info.id);
-				Main.this.startActivity(intent);
+				Profiles.this.startActivity(intent);
 			}
 		});
 		
@@ -103,11 +101,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	protected void onResume() {
 		super.onResume();
 		
-		Bundle params = new Bundle();
-		params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
-		params.putString(BaseQueryCursorLoader.P_SELECT_BY, PayloadsCursorLoader.COL_PAYLOAD_TYPE);
-		params.putString(BaseQueryCursorLoader.P_SELECT_VALUE, VpnPayload.VALUE_PAYLOAD_TYPE);
-		getLoaderManager().restartLoader(0, params, this);
+		getLoaderManager().restartLoader(0, null, this);
 	}
 	
 	@Override
@@ -118,15 +112,11 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		MenuInflater inflater = getMenuInflater();
-		MenuItem item;
-		
-		inflater.inflate(R.menu.main, menu);
-		
 		if(BuildConfig.DEBUG) {
+			MenuInflater inflater = getMenuInflater();
+			inflater.inflate(R.menu.main, menu);
 			
-			menu.setGroupVisible(R.id.menu_group_debug, true);
-			menu.setGroupEnabled(R.id.menu_group_debug, true);
+			MenuItem item;
 			
 			item = menu.findItem(R.id.menu_item_start_capture);
 			if(item != null) {
@@ -147,38 +137,20 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
-		Intent intent = null;
-		
-		switch(item.getItemId()) {
-		case R.id.menu_item_go_profiles: {
-			return true;
-		}
-		
-		case R.id.menu_item_go_info: {
-			intent = new Intent(this, About.class);
-			startActivity(intent);
-			return true;
-		}
-		}
-		
-		/*
-		 * While building release version the following block of code 
-		 * should be removed by javac or proguard as dead block.
-		 */
 	    if(BuildConfig.DEBUG) {
-		    switch(item.getItemId()) {
-	        case R.id.menu_item_backup_all: {
-	            backupData();
-	            return true;
-	        }
-	        case R.id.menu_item_start_capture:
-	        case R.id.menu_item_stop_capture: {
-	        	startStopDebugPcap();
-	        	return true;
-	        }
-	        default: {
-	            return super.onOptionsItemSelected(item);
-	        }
+		    switch (item.getItemId()) {
+		        case R.id.menu_item_backup_all: {
+		            backupData();
+		            return true;
+		        }
+		        case R.id.menu_item_start_capture:
+		        case R.id.menu_item_stop_capture: {
+		        	startStopDebugPcap();
+		        	return true;
+		        }
+		        default: {
+		            return super.onOptionsItemSelected(item);
+		        }
 		    }
 	    }
 	    
@@ -246,7 +218,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		mBindKit.unlock();
 	}
 	
-	private static class PayloadInfoMapper implements ObjectMapper<ProfileInfo> {
+	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {
 
 		@Override
 		public View prepareView(int position, View convertView, ProfileInfo data) {
