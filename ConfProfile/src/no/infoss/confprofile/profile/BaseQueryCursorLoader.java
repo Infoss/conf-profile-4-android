@@ -16,6 +16,7 @@ public abstract class BaseQueryCursorLoader extends CursorLoader {
 	public static final String PREFIX = "no.infoss.data.";
 	public static final String P_BATCH_MODE = PREFIX.concat("P_BATCH_MODE");
 	public static final String P_SELECT_BY = PREFIX.concat("P_SELECT_BY");
+	public static final String P_SELECT_VALUE = PREFIX.concat("P_SELECT_VALUE");
 	
 	protected LoaderQueryPerformance mPerformance;
 	

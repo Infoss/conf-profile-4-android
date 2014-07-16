@@ -138,7 +138,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 		Bundle request = new Bundle();
 		request.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
 		request.putString(PayloadsCursorLoader.P_SELECT_BY, PayloadsCursorLoader.COL_PROFILE_ID);
-		request.putString(PayloadsCursorLoader.P_PROFILE_ID, mProfileId);
+		request.putString(PayloadsCursorLoader.P_SELECT_VALUE, mProfileId);
 		getLoaderManager().restartLoader(0, request, this);
 	}
 	

@@ -25,7 +25,10 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 	private static final String SQL_PAYLOADS = "CREATE TABLE payloads (" + 
 			"profile_id TEXT NOT NULL REFERENCES profiles (id), " + 
 			"payload_uuid TEXT PRIMARY KEY NOT NULL, " + 
+			"payload_type TEXT NOT NULL, " + 
 			"data TEXT NOT NULL);";
+	private static final String SQL_INDEX_PAYLOAD_TYPE = "CREATE INDEX idx_payloads " + 
+			"ON payloads (payload_type COLLATE NOCASE ASC);";
 	private static final String SQL_TRIGGER_DELETE_PROFILE = "CREATE TRIGGER delete_profile " + 
 			"BEFORE DELETE ON profiles " + 
 			"BEGIN " + 
@@ -46,6 +49,7 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			db.execSQL(SQL_PROFILES, new Object[0]);
 			db.execSQL(SQL_LINKED_OBJECTS, new Object[0]);
 			db.execSQL(SQL_PAYLOADS, new Object[0]);
+			db.execSQL(SQL_INDEX_PAYLOAD_TYPE, new Object[0]);
 			db.execSQL(SQL_TRIGGER_DELETE_PROFILE, new Object[0]);
 			db.setTransactionSuccessful();
 		} catch(Exception e) {
