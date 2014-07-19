@@ -36,21 +36,7 @@ void common_tun_set(common_tun_ctx_t* ctx, jobject jtun_instance) {
 	ctx->bytes_in = 0;
 	ctx->bytes_out = 0;
 
-	if(jtun_instance != NULL) {
-		JNIEnv* jnienv;
-		bool need_detach = androidjni_attach_thread(&jnienv);
-		ctx->jni._tun_instance = (*jnienv)->NewGlobalRef(jnienv, jtun_instance);
-
-		jobject clazz = (*jnienv)->FindClass(jnienv, JNI_PACKAGE_STRING "/RouterLoop");
-
-		if(clazz != NULL) {
-			ctx->jni._method_protect = (*jnienv)->GetMethodID(jnienv, clazz, "protect", "(I)Z");
-		}
-
-		if(need_detach) {
-			androidjni_detach_thread();
-		}
-	}
+	ctx->j_vpn_tun = wrap_into_VpnTunnel(jtun_instance);
 
 	ctx->pcap_output = NULL;
 }
@@ -79,19 +65,8 @@ void common_tun_free(common_tun_ctx_t* ctx) {
 	ctx->bytes_in = 0;
 	ctx->bytes_out = 0;
 
-	if(ctx->jni._tun_instance != NULL) {
-		JNIEnv* jnienv;
-		bool need_detach = androidjni_attach_thread(&jnienv);
-
-		(*jnienv)->DeleteGlobalRef(jnienv, ctx->jni._tun_instance);
-
-		if(need_detach) {
-			androidjni_detach_thread();
-		}
-
-		ctx->jni._tun_instance = NULL;
-	}
-	ctx->jni._method_protect = NULL;
+	destroy_VpnTunnel(ctx->j_vpn_tun);
+	ctx->j_vpn_tun = NULL;
 
 	pcap_output_destroy(ctx->pcap_output);
 	ctx->pcap_output = NULL;

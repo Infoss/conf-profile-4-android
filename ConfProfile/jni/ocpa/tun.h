@@ -11,6 +11,7 @@
 #include <stdint.h>
 #include <jni.h>
 
+#include "java_VpnTunnel.h"
 #include "pcap_output.h"
 
 #define UNDEFINED_FD -1
@@ -21,11 +22,6 @@ typedef struct tun_jni_data_t tun_jni_data_t;
 
 typedef ssize_t (*tun_send_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
 typedef ssize_t (*tun_recv_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
-
-struct tun_jni_data_t {
-	jobject _tun_instance;
-	jmethodID _method_protect;
-};
 
 struct common_tun_ctx_t {
 	int local_fd;  //router side
@@ -41,7 +37,7 @@ struct common_tun_ctx_t {
 	uint64_t bytes_in;
 	uint64_t bytes_out;
 
-	tun_jni_data_t jni;
+	java_VpnTunnel* j_vpn_tun;
 
 	//Debug features
 	pcap_output_t* pcap_output;

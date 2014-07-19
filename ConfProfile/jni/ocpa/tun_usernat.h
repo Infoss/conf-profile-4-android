@@ -8,6 +8,7 @@
 #define TUN_USERNAT_H_
 
 #include "tun.h"
+#include "java_UsernatTunnel.h"
 
 #define NAT_LINK_IP6  2
 #define NAT_LINK_TCP4 0
@@ -76,6 +77,8 @@ struct usernat_tun_ctx_t {
 
 	nat_link_t* tcp4;
 	nat_link_t* tcp6;
+
+	java_UsernatTunnel* j_usernat_tun;
 };
 
 usernat_tun_ctx_t* usernat_tun_init(jobject jtun_instance);

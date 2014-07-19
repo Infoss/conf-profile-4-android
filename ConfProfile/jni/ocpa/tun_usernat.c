@@ -41,6 +41,8 @@ usernat_tun_ctx_t* usernat_tun_init(jobject jtun_instance) {
 	ctx->remote4 = 0;
 	memset(ctx->remote6, 0, sizeof(ctx->remote6));
 
+	ctx->j_usernat_tun = wrap_into_UsernatTunnel(jtun_instance);
+
 	return ctx;
 }
 
@@ -50,6 +52,8 @@ void usernat_tun_deinit(usernat_tun_ctx_t* ctx) {
 	}
 
 	common_tun_free((common_tun_ctx_t*) ctx);
+	destroy_UsernatTunnel(ctx->j_usernat_tun);
+	ctx->j_usernat_tun = NULL;
 
 	free(ctx);
 }
@@ -157,7 +161,6 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 	uint16_t local_port = 0;
 	uint16_t remote_port = 0;
 	sockaddr_uni tmp_sa;
-	JNIEnv* jnienv;
 
 	if(packet->ipver == 4) {
 		uint32_t remote_addr = 0;
@@ -270,33 +273,30 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 			result->common.hop_port = tmp_sa.in.sin_port;
 
 			//TODO: init sockets, add a link
-			bool need_detach = androidjni_attach_thread(&jnienv);
+			bool is_protected = ctx->common.j_vpn_tun->protectSocket(
+					ctx->common.j_vpn_tun,
+					result->common.sock_connect
+					);
 
-			jboolean is_protected = JNI_FALSE;
-			if(ctx->common.jni._tun_instance != NULL) {
-				jobject instance = ctx->common.jni._tun_instance;
-				jmethodID methodID = ctx->common.jni._method_protect;
-				is_protected = (*jnienv)->CallBooleanMethod(jnienv,
-						instance,
-						methodID,
-						result->common.sock_connect);
-				if((*jnienv)->ExceptionOccurred(jnienv)){
-					(*jnienv)->ExceptionDescribe(jnienv);
-					(*jnienv)->ExceptionClear(jnienv);
-					free(result);
-					result = NULL;
-				}
-			}
-
-			if(is_protected == JNI_FALSE && result != NULL) {
+			if(is_protected && result != NULL) {
 				free(result);
 				result = NULL;
 			}
 
-			if(need_detach) {
-				androidjni_detach_thread();
-			}
+			tmp_sa.in.sin_addr.s_addr = result->tcp4.real_dst_addr;
 
+			result->common.socat_pid = ctx->j_usernat_tun->buildSocatTunnel(
+					ctx->j_usernat_tun,
+					result->common.sock_accept,
+					result->common.sock_connect,
+					inet_ntoa(tmp_sa.in.sin_addr),
+					result->tcp4.real_dst_port
+					);
+			if(result->common.socat_pid == -1) {
+				close(result->common.sock_accept);
+				free(result);
+				result = NULL;
+			}
 		}
 
 	} else if(packet->ipver == 6) {
