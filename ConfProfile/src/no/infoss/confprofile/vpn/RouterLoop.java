@@ -48,8 +48,12 @@ import android.util.Log;
 				Log.d(TAG, "Can't set MTU=".concat(String.valueOf(1500)));
 			}
 			
-			if(!mBuilder.addAddress("172.31.255.254", 32)) {
-				Log.d(TAG, "Can't add address=".concat("172.31.255.254/32"));
+			/*
+			 * Here we set local address as 172.31.255.254.
+			 * 172.31.255.253 will be used by usernat as "remote" address.
+			 */
+			if(!mBuilder.addAddress("172.31.255.254", 30)) {
+				Log.d(TAG, "Can't add address=".concat("172.31.255.254/30"));
 			}
 			
 			if(!mBuilder.addRoute("0.0.0.0", 0)) {
