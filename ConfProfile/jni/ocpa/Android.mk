@@ -13,6 +13,7 @@ LOCAL_SRC_FILES := \
 	tun_openvpn.c \
 	tun_usernat.c \
 	java_UsernatTunnel.c \
+	java_VpnTunnel.c \
 	jni_IpSecTunnel.c \
 	jni_L2tpTunnel.c \
 	jni_OpenVpnTunnel.c \
