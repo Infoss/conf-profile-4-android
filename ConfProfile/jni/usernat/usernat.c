@@ -149,12 +149,12 @@ static void send_cmd(int sock, char* cmd, int len) {
 	}
 }
 
-static void send_cmd_with_fd(int sock, char* cmd, int len, int fd_to_send) {
+static void send_cmd_with_fd(int sock, char* cmd, int len, int* fds_to_send, int fds_count) {
 	struct msghdr socket_message;
 	struct iovec io_vector[1];
 	struct cmsghdr *control_message = NULL;
 	/* storage space needed for an ancillary element with a paylod of length is CMSG_SPACE(sizeof(length)) */
-	char ancillary_element_buffer[CMSG_SPACE(sizeof(int))];
+	char ancillary_element_buffer[CMSG_SPACE(sizeof(int) * fds_count)];
 	int available_ancillary_element_buffer_space;
 
 	if(len < 0 || cmd == NULL) {
@@ -185,7 +185,7 @@ static void send_cmd_with_fd(int sock, char* cmd, int len, int fd_to_send) {
 	socket_message.msg_iovlen = 1;
 
 	/* provide space for the ancillary data */
-	available_ancillary_element_buffer_space = CMSG_SPACE(sizeof(int));
+	available_ancillary_element_buffer_space = CMSG_SPACE(sizeof(int) * fds_count);
 	memset(ancillary_element_buffer, 0, available_ancillary_element_buffer_space);
 	socket_message.msg_control = ancillary_element_buffer;
 	socket_message.msg_controllen = available_ancillary_element_buffer_space;
@@ -194,8 +194,13 @@ static void send_cmd_with_fd(int sock, char* cmd, int len, int fd_to_send) {
 	control_message = CMSG_FIRSTHDR(&socket_message);
 	control_message->cmsg_level = SOL_SOCKET;
 	control_message->cmsg_type = SCM_RIGHTS;
-	control_message->cmsg_len = CMSG_LEN(sizeof(int));
-	*((int *) CMSG_DATA(control_message)) = fd_to_send;
+	control_message->cmsg_len = CMSG_LEN(sizeof(int) * fds_count);
+	int i;
+	for(i = 0; i < fds_count; i++) {
+		//*((int *) CMSG_DATA(control_message)) = fd_to_send;
+		((int *) CMSG_DATA(control_message))[i] = fds_to_send[i];
+	}
+
 
 	sendmsg(sock, &socket_message, 0);
 	free(buff);
@@ -209,7 +214,6 @@ int main(int argc, char **argv) {
 		exit(1);
 	}
 
-	int i;
 	struct sockaddr_un remote;
 	int addr_len;
 
