@@ -9,22 +9,12 @@
 #include <jni.h>
 
 #include "tun.h"
+#include "iputils.h"
 
-typedef struct ocpa_ip_packet_t ocpa_ip_packet_t;
 typedef struct route4_link_t route4_link_t;
 typedef struct route6_link_t route6_link_t;
 typedef struct router_ctx_t router_ctx_t;
 typedef struct poll_helper_struct_t poll_helper_struct_t;
-
-struct ocpa_ip_packet_t {
-	uint32_t buff_len;
-	uint8_t* buff;
-	uint32_t pkt_len;
-	uint8_t ipver;
-	uint8_t payload_proto;
-	uint32_t payload_offs;
-	uint32_t payload_len;
-};
 
 struct route4_link_t {
     uint32_t ip4;

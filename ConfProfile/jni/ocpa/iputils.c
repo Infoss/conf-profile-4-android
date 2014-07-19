@@ -307,6 +307,14 @@ inline bool ip6_addr_match(uint8_t* network, uint8_t netmask, uint8_t* test_ip) 
 	return true;
 }
 
+inline bool ip4_addr_eq(uint32_t addr1, uint8_t addr2) {
+	return addr1 == addr2;
+}
+
+inline bool ip6_addr_eq(uint8_t* addr1, uint8_t* addr2) {
+	return memcmp(addr1, addr2, 16) == 0;
+}
+
 inline void ip6_find_payload(ocpa_ip_packet_t *ip_packet) {
 	if(ip_packet == NULL || ip_packet->buff == NULL) {
 		return;
@@ -345,6 +353,28 @@ inline void ip6_find_payload(ocpa_ip_packet_t *ip_packet) {
 
 	ip_packet->payload_proto = proto;
 	ip_packet->payload_offs = offs;
+
+	switch(ip_packet->payload_proto) {
+	case IPPROTO_UDP: {
+		udp_header* udp_hdr = (udp_header*) (ip_packet->buff + ip_packet->payload_offs);
+		ip_packet->payload_header.udp = udp_hdr;
+		ip_packet->src_port = ntohs(udp_hdr->source);
+		ip_packet->dst_port = ntohs(udp_hdr->dest);
+		break;
+	}
+	case IPPROTO_TCP: {
+		tcp_header* tcp_hdr = (tcp_header*) (ip_packet->buff + ip_packet->payload_offs);
+		ip_packet->payload_header.tcp = tcp_hdr;
+		ip_packet->src_port = ntohs(tcp_hdr->source);
+		ip_packet->dst_port = ntohs(tcp_hdr->dest);
+		break;
+	}
+	default: {
+		ip_packet->payload_header.raw = NULL;
+		break;
+	}
+	}
+
 	int ip6plen = ((ip6_header*) ip_packet->buff)->ip6_ctlun.ip6_un1.ip6_un1_plen;
 	ip_packet->payload_len = ip6plen + sizeof(ip6_header) - offs;
 }
@@ -359,5 +389,50 @@ inline void ip_detect_ipver(ocpa_ip_packet_t* ip_packet) {
 				ip_packet->ipver = 6;
 			}
 		}
+	}
+}
+
+inline void ip_parse_packet(ocpa_ip_packet_t* ip_packet) {
+	if(ip_packet == NULL || ip_packet->buff == NULL) {
+		return;
+	}
+
+	ip_packet->src_port = 0;
+	ip_packet->dst_port = 0;
+
+	ip_detect_ipver(ip_packet);
+	if(ip_packet->ipver == 4) {
+		ip4_header* hdr = (ip4_header*) ip_packet->buff;
+		ip_packet->payload_proto = hdr->protocol;
+		ip_packet->payload_offs = hdr->ihl * 4;
+
+		switch(ip_packet->payload_proto) {
+		case IPPROTO_UDP: {
+			udp_header* udp_hdr = (udp_header*) (ip_packet->buff + ip_packet->payload_offs);
+			ip_packet->payload_header.udp = udp_hdr;
+			ip_packet->payload_len = ntohs(udp_hdr->len);
+			ip_packet->src_port = ntohs(udp_hdr->source);
+			ip_packet->dst_port = ntohs(udp_hdr->dest);
+			break;
+		}
+		case IPPROTO_TCP: {
+			tcp_header* tcp_hdr = (tcp_header*) (ip_packet->buff + ip_packet->payload_offs);
+			ip_packet->payload_header.tcp = tcp_hdr;
+			ip_packet->payload_len = ntohs(hdr->tot_len) - (hdr->ihl * 4);
+			ip_packet->src_port = ntohs(tcp_hdr->source);
+			ip_packet->dst_port = ntohs(tcp_hdr->dest);
+			break;
+		}
+		default: {
+			ip_packet->payload_header.raw = NULL;
+			ip_packet->payload_len = ntohs(hdr->tot_len) - (hdr->ihl * 4);
+			break;
+		}
+		}
+
+	} else if(ip_packet->ipver == 6) {
+		ip6_find_payload(ip_packet);
+	} else {
+		return;
 	}
 }

@@ -9,8 +9,40 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "router.h"
 
+#include "protoheaders.h"
+
+typedef union ip_header_t ip_header_t;
+typedef union protocol_header_t protocol_header_t;
+typedef struct ocpa_ip_packet_t ocpa_ip_packet_t;
+
+union ip_header_t {
+	void* raw;
+	ip4_header* v4;
+	ip6_header* v6;
+};
+
+union protocol_header_t {
+	void* raw;
+	tcp_header* tcp;
+	udp_header* udp;
+};
+
+struct ocpa_ip_packet_t {
+	uint32_t buff_len;
+	uint8_t* buff;
+	uint32_t pkt_len;
+	uint8_t ipver;
+	ip_header_t ip_header;
+	uint8_t payload_proto;
+	protocol_header_t payload_header;
+	uint32_t payload_offs;
+	uint32_t payload_len;
+	uint16_t src_port;
+	uint16_t dst_port;
+};
+
+//TODO: force all methods to use ocpa_ip_packet_t instead of buffers & sizes
 uint16_t ip4_calc_ip_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_tcp_checksum(uint8_t* buff, int len);
 uint16_t ip4_calc_udp_checksum(uint8_t* buff, int len);
@@ -25,8 +57,12 @@ inline uint16_t ip_sum_to_checksum(uint32_t sum);
 
 inline bool ip4_addr_match(uint32_t network, uint8_t netmask, uint32_t test_ip);
 inline bool ip6_addr_match(uint8_t* network, uint8_t netmask, uint8_t* test_ip);
+inline bool ip4_addr_eq(uint32_t addr1, uint8_t addr2);
+inline bool ip6_addr_eq(uint8_t* addr1, uint8_t* addr2);
 inline void ip6_find_payload(ocpa_ip_packet_t* ip_packet);
 
 inline void ip_detect_ipver(ocpa_ip_packet_t* ip_packet);
+
+inline void ip_parse_packet(ocpa_ip_packet_t* ip_packet);
 
 #endif /* IPUTILS_H_ */
