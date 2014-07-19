@@ -5,7 +5,9 @@
  */
 
 #include <stdlib.h>
+#include "android_jni.h"
 #include "java_UsernatTunnel.h"
+
 
 struct java_UsernatTunnel_private {
 	java_UsernatTunnel public;

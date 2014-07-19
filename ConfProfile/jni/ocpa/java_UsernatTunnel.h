@@ -8,8 +8,7 @@
 #define JAVA_USERNATTUNNEL_H_
 
 #include <stdint.h>
-
-#include "android_jni.h"
+#include <jni.h>
 
 typedef struct java_UsernatTunnel java_UsernatTunnel;
 
