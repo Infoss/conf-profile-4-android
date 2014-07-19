@@ -8,7 +8,7 @@
 #include "tun_l2tp.h"
 
 JNI_METHOD(L2tpTunnel, initL2tpTun, jlong) {
-	return (jlong) (intptr_t) l2tp_tun_init();
+	return (jlong) (intptr_t) l2tp_tun_init(this);
 }
 
 JNI_METHOD(L2tpTunnel, deinitL2tpTun, void, jlong jtunctx) {

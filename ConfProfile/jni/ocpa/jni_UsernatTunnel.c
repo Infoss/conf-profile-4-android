@@ -8,7 +8,7 @@
 #include "tun_usernat.h"
 
 JNI_METHOD(UsernatTunnel, initUsernatTun, jlong) {
-	return (jlong) (intptr_t) usernat_tun_init();
+	return (jlong) (intptr_t) usernat_tun_init(this);
 }
 
 JNI_METHOD(UsernatTunnel, deinitUsernatTun, void, jlong jtunctx) {

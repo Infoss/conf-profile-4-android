@@ -15,7 +15,7 @@ struct ipsec_tun_ctx_t {
 	common_tun_ctx_t common;
 };
 
-ipsec_tun_ctx_t* ipsec_tun_init();
+ipsec_tun_ctx_t* ipsec_tun_init(jobject jtun_instance);
 void ipsec_tun_deinit(ipsec_tun_ctx_t* ctx);
 
 #endif /* TUN_IPSEC_H_ */

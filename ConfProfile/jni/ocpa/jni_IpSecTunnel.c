@@ -39,7 +39,7 @@ JNI_METHOD(IpSecTunnel, networkChanged, void, jboolean jdisconnected) {
 }
 
 JNI_METHOD(IpSecTunnel, initIpSecTun, jlong) {
-	return (jlong) (intptr_t) ipsec_tun_init();
+	return (jlong) (intptr_t) ipsec_tun_init(this);
 }
 
 JNI_METHOD(IpSecTunnel, deinitIpSecTun, void, jlong jtunctx) {

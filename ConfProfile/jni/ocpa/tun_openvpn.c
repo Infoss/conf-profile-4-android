@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include "tun_openvpn.h"
 
-openvpn_tun_ctx_t* openvpn_tun_init() {
+openvpn_tun_ctx_t* openvpn_tun_init(jobject jtun_instance) {
 	openvpn_tun_ctx_t* ctx = malloc(sizeof(openvpn_tun_ctx_t));
 	if(ctx == NULL) {
 		return NULL;
@@ -20,7 +20,7 @@ openvpn_tun_ctx_t* openvpn_tun_init() {
 		return NULL;
 	}
 
-	common_tun_set((common_tun_ctx_t*) ctx);
+	common_tun_set((common_tun_ctx_t*) ctx, jtun_instance);
 
 	ctx->common.local_fd = fds[0];
 	ctx->common.remote_fd = fds[1];

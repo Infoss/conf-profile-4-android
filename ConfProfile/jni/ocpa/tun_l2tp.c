@@ -8,7 +8,7 @@
 #include <sys/socket.h>
 #include "tun_l2tp.h"
 
-l2tp_tun_ctx_t* l2tp_tun_init() {
+l2tp_tun_ctx_t* l2tp_tun_init(jobject jtun_instance) {
 	l2tp_tun_ctx_t* ctx = malloc(sizeof(l2tp_tun_ctx_t));
 	if(ctx == NULL) {
 		return NULL;
@@ -20,7 +20,7 @@ l2tp_tun_ctx_t* l2tp_tun_init() {
 		return NULL;
 	}
 
-	common_tun_set((common_tun_ctx_t*) ctx);
+	common_tun_set((common_tun_ctx_t*) ctx, jtun_instance);
 
 	ctx->common.local_fd = fds[0];
 	ctx->common.remote_fd = fds[1];

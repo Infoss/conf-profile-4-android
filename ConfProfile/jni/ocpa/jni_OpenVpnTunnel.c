@@ -8,7 +8,7 @@
 #include "tun_openvpn.h"
 
 JNI_METHOD(OpenVpnTunnel, initOpenVpnTun, jlong) {
-	return (jlong) (intptr_t) openvpn_tun_init();
+	return (jlong) (intptr_t) openvpn_tun_init(this);
 }
 
 JNI_METHOD(OpenVpnTunnel, deinitOpenVpnTun, void, jlong jtunctx) {

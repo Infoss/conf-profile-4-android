@@ -30,7 +30,7 @@ router_ctx_t* router_init() {
     		return NULL;
     	}
 
-    	common_tun_set(&ctx->dev_tun_ctx);
+    	common_tun_set(&ctx->dev_tun_ctx, NULL);
     	ctx->dev_tun_ctx.send_func = dev_tun_send;
     	ctx->dev_tun_ctx.recv_func = dev_tun_recv;
     	ctx->dev_tun_ctx.router_ctx = ctx;
@@ -564,6 +564,7 @@ void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 	LOGD(LOG_TAG, "Start rebuilding poll struct");
 	pthread_rwlock_wrlock(ctx->rwlock4);
 	int poll_count = 0;
+	bool already_added = false;
 
 	//allocating memory for storing links to: android tun context, default route, all ip4 routes
 	common_tun_ctx_t** ctxs = malloc(sizeof(common_tun_ctx_t*) * (ctx->ip4_routes_count + 2));
@@ -574,7 +575,7 @@ void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 	ctxs[poll_count] = &(ctx->dev_tun_ctx);
 	poll_count++;
 
-	if(ctx->ip4_default_tun_ctx != NULL) {
+	if(ctx->ip4_default_tun_ctx != NULL && ctx->ip4_default_tun_ctx->local_fd != UNDEFINED_FD) {
 		ctxs[poll_count] = ctx->ip4_default_tun_ctx;
 		poll_count++;
 	}
@@ -584,7 +585,11 @@ void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 	route4_link_t* curr = ctx->ip4_routes;
 	while(curr != NULL) {
 		if(curr->tun_ctx != NULL) {
-			bool already_added = false;
+			if(curr->tun_ctx->local_fd == UNDEFINED_FD) {
+				continue;
+			}
+
+			already_added = false;
 
 			for(i = 0; i < poll_count; i++) {
 				if(ctxs[i] == curr->tun_ctx) {
