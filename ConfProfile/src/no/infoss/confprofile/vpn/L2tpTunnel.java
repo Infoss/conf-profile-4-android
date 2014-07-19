@@ -34,9 +34,8 @@ public class L2tpTunnel extends VpnTunnel {
 	private LinkedList<FileDescriptor> mFds = new LinkedList<FileDescriptor>();
 	
 	/*package*/ L2tpTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg);
+		super(ctx, cfg, vpnMgr);
 		mVpnServiceCtx = vpnServiceCtx;
-		mVpnMgr = vpnMgr;
 		mIsTerminating = false;
 	}
 

@@ -38,7 +38,6 @@ public class OpenVpnTunnel extends VpnTunnel {
 	public static final String VPN_TYPE = "net.openvpn.OpenVPN-Connect.vpnplugin";
 	
 	private Map<String, Object> mOptions;
-	private VpnManagerInterface mVpnMgr;
 	private Thread mWorkerThread;
 	private OpenVpnWorker mWorker;
 	
@@ -64,9 +63,8 @@ public class OpenVpnTunnel extends VpnTunnel {
 	
 	
 	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg);
+		super(ctx, cfg, vpnMgr);
 		mVpnServiceCtx = vpnServiceCtx;
-		mVpnMgr = vpnMgr;
 		
 		boolean managemeNetworkState = true;
 		if(managemeNetworkState) {
@@ -427,8 +425,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 			setDomain(extra);
 		} else if ("ROUTE".equals(needed)) {
 			String[] routeparts = extra.split(" ");
-            if(routeparts.length==5) {
-                assert(routeparts[3].equals("dev"));
+            if(routeparts.length == 5 && "dev".equals(routeparts[3])) {
                 addRoute4(routeparts[0], routeparts[1], routeparts[2], routeparts[4]);
             }  else if (routeparts.length >= 3) {
                 addRoute4(routeparts[0], routeparts[1], routeparts[2], null);

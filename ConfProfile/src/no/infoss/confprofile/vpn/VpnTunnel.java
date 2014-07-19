@@ -28,6 +28,7 @@ public abstract class VpnTunnel implements Runnable {
 	protected final String mInstanceLogTag;
 	protected final Logger mLogger;
 	protected final Handler mHandler;
+	protected final VpnManagerInterface mVpnMgr;
 	
 	protected Thread mThread;
 	protected Context mCtx;
@@ -52,7 +53,7 @@ public abstract class VpnTunnel implements Runnable {
 		AUTH_FAILED
 	}
 	
-	public VpnTunnel(Context ctx, VpnConfigInfo cfg) {
+	public VpnTunnel(Context ctx, VpnConfigInfo cfg, VpnManagerInterface vpnMgr) {
 		mThread = new Thread(this);
 		mCtx = ctx;
 		mCfg = cfg;
@@ -63,6 +64,8 @@ public abstract class VpnTunnel implements Runnable {
 		
 		mConnectionStatus = ConnectionStatus.DISCONNECTED;
 		mConnectionError = ConnectionError.NO_ERROR;
+		
+		mVpnMgr = vpnMgr;
 	}
 	
 	protected abstract String getThreadName();
@@ -119,6 +122,19 @@ public abstract class VpnTunnel implements Runnable {
 			return;
 		}
 		setMasqueradeIp6(mVpnTunnelCtx, ip6);
+	}
+	
+	/**
+	 * Shortcut method for calling from the native code
+	 * @param fd socket descriptor
+	 * @return true if success
+	 */
+	protected boolean protectSocket(int fd) {
+		if(mVpnMgr == null) {
+			return false;
+		}
+		
+		return mVpnMgr.protect(fd);
 	}
 	
 	protected void debugRestartPcap(PcapOutputStream pos) {

@@ -83,9 +83,8 @@ public class IpSecTunnel extends VpnTunnel {
 	}
 	
 	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg);
+		super(ctx, cfg, vpnMgr);
 		mVpnServiceCtx = vpnServiceCtx;
-		mVpnMgr = vpnMgr;
 		mIsTerminating = false;
 	}
 
