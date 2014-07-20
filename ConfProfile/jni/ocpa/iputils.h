@@ -57,7 +57,7 @@ inline uint16_t ip_sum_to_checksum(uint32_t sum);
 
 inline bool ip4_addr_match(uint32_t network, uint8_t netmask, uint32_t test_ip);
 inline bool ip6_addr_match(uint8_t* network, uint8_t netmask, uint8_t* test_ip);
-inline bool ip4_addr_eq(uint32_t addr1, uint8_t addr2);
+inline bool ip4_addr_eq(uint32_t addr1, uint32_t addr2);
 inline bool ip6_addr_eq(uint8_t* addr1, uint8_t* addr2);
 inline void ip6_find_payload(ocpa_ip_packet_t* ip_packet);
 

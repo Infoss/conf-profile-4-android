@@ -307,7 +307,7 @@ inline bool ip6_addr_match(uint8_t* network, uint8_t netmask, uint8_t* test_ip) 
 	return true;
 }
 
-inline bool ip4_addr_eq(uint32_t addr1, uint8_t addr2) {
+inline bool ip4_addr_eq(uint32_t addr1, uint32_t addr2) {
 	return addr1 == addr2;
 }
 
@@ -382,7 +382,7 @@ inline void ip6_find_payload(ocpa_ip_packet_t *ip_packet) {
 inline void ip_detect_ipver(ocpa_ip_packet_t* ip_packet) {
 	if(ip_packet != NULL) {
 		ip_packet->ipver = 0;
-		if(ip_packet->buff != NULL && ip_packet->pkt_len > 0) {
+		if(ip_packet->buff != NULL && ip_packet->buff_len > 0) {
 			if((ip_packet->buff[0] & 0xf0) == 0x40) {
 				ip_packet->ipver = 4;
 			} else if((ip_packet->buff[0] & 0xf0) == 0x60) {
@@ -400,6 +400,7 @@ inline void ip_parse_packet(ocpa_ip_packet_t* ip_packet) {
 	ip_packet->src_port = 0;
 	ip_packet->dst_port = 0;
 
+	ip_packet->ip_header.raw = ip_packet->buff;
 	ip_detect_ipver(ip_packet);
 	if(ip_packet->ipver == 4) {
 		ip4_header* hdr = (ip4_header*) ip_packet->buff;
