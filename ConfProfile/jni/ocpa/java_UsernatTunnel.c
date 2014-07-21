@@ -13,6 +13,8 @@ struct java_UsernatTunnel_private {
 	java_UsernatTunnel public;
 	jobject obj;
 	jmethodID id_buildSocatTunnel;
+	jmethodID id_getLocalAddress4;
+	jmethodID id_getRemoteAddress4;
 };
 
 union java_UsernatTunnel_union {
@@ -55,6 +57,64 @@ static int32_t buildSocatTunnel(java_UsernatTunnel* instance, int32_t fdAccept, 
 	return result;
 }
 
+static int32_t getLocalAddress4(java_UsernatTunnel* instance) {
+	if(instance == NULL) {
+		return -1;
+	}
+
+	int32_t result;
+	JNIEnv* jnienv;
+
+	union java_UsernatTunnel_union* this_instance = (union java_UsernatTunnel_union*) instance;
+	bool need_detach = androidjni_attach_thread(&jnienv);
+
+	result = (*jnienv)->CallIntMethod(
+			jnienv,
+			this_instance->private.obj,
+			this_instance->private.id_getLocalAddress4);
+
+	if ((*jnienv)->ExceptionOccurred(jnienv)){
+		(*jnienv)->ExceptionDescribe(jnienv);
+		(*jnienv)->ExceptionClear(jnienv);
+		result = -1;
+	}
+
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
+
+	return result;
+}
+
+static int32_t getRemoteAddress4(java_UsernatTunnel* instance) {
+	if(instance == NULL) {
+		return -1;
+	}
+
+	int32_t result;
+	JNIEnv* jnienv;
+
+	union java_UsernatTunnel_union* this_instance = (union java_UsernatTunnel_union*) instance;
+	bool need_detach = androidjni_attach_thread(&jnienv);
+
+	result = (*jnienv)->CallIntMethod(
+			jnienv,
+			this_instance->private.obj,
+			this_instance->private.id_getRemoteAddress4);
+
+	if ((*jnienv)->ExceptionOccurred(jnienv)){
+		(*jnienv)->ExceptionDescribe(jnienv);
+		(*jnienv)->ExceptionClear(jnienv);
+		result = -1;
+	}
+
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
+
+	return result;
+}
+
 java_UsernatTunnel* wrap_into_UsernatTunnel(jobject obj) {
 	union java_UsernatTunnel_union* result = malloc(sizeof(union java_UsernatTunnel_union));
 	if(result == NULL) {
@@ -68,12 +128,18 @@ java_UsernatTunnel* wrap_into_UsernatTunnel(jobject obj) {
 	jobject clazz = (*jnienv)->FindClass(jnienv, JNI_PACKAGE_STRING "/UsernatTunnel");
 	result->private.id_buildSocatTunnel =
 			(*jnienv)->GetMethodID(jnienv, clazz, "buildSocatTunnel", "(IILjava/lang/String;I)I");
+	result->private.id_getLocalAddress4 =
+				(*jnienv)->GetMethodID(jnienv, clazz, "getLocalAddress4", "()I");
+	result->private.id_getRemoteAddress4 =
+					(*jnienv)->GetMethodID(jnienv, clazz, "getRemoteAddress4", "()I");
 
 	if(need_detach) {
 		androidjni_detach_thread();
 	}
 
 	result->public.buildSocatTunnel = buildSocatTunnel;
+	result->public.getLocalAddress4 = getLocalAddress4;
+	result->public.getRemoteAddress4 = getRemoteAddress4;
 
 	return &result->public;
 }
