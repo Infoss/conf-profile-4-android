@@ -60,7 +60,7 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 		int dummy1, int dummy2, int dummy3);
 
 /* generic socket addresses */
-const struct addrdesc xioaddr_socket_fd_connect = { "socket-fd-connect",     3, xioopen_socket_fd_connect,  GROUP_FD|GROUP_SOCKET|GROUP_CHILD|GROUP_RETRY, 0, 0, 0 HELP(":<fd>[:<remote-address>]") };
+const struct addrdesc xioaddr_socket_fd_connect = { "socket-fd-connect",     3, xioopen_socket_fd_connect,  GROUP_FD|GROUP_SOCKET|GROUP_CHILD|GROUP_RETRY, 0, 0, 0 HELP(":<fd>[:<remote-address>:<remote-port>]") };
 #if WITH_LISTEN
 const struct addrdesc xioaddr_socket_fd_accept  = { "socket-fd-accept",      3, xioopen_socket_fd_accept,   GROUP_FD|GROUP_SOCKET|GROUP_LISTEN|GROUP_RANGE|GROUP_CHILD|GROUP_RETRY, 0, 0, 0 HELP(":<fd>") };
 #endif /* WITH_LISTEN */
@@ -665,7 +665,8 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 		int dummy1, int dummy2, int dummy3) {
 	struct single *xfd = &xxfd->stream;
 	const char *tofdname = argv[1];
-	const char *address = argv[2];
+	const char *address = NULL;
+	int port;
 	char *garbage;
 	int tofd;
 	int pf;
@@ -673,14 +674,22 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 	int result;
 	struct connection_ctx* ctx;
 
-	if(argc < 2 || argc > 3) {
-		Error2("%s: wrong number of parameters (%d instead of 1 or 2)", argv[0], argc - 1);
+	if(argc != 2 && argc != 4) {
+		Error2("%s: wrong number of parameters (%d instead of 1 or 3)", argv[0], argc - 1);
 		return STAT_NORETRY;
 	}
 
 	tofd = strtoul(tofdname, &garbage, 0);
 	if(*garbage != '\0') {
 		Warn1("garbage in parameter: \"%s\"", garbage);
+	}
+
+	if(argc == 4) {
+		address = argv[2];
+		port = strtoul(argv[3], &garbage, 0);
+		if(*garbage != '\0') {
+			Warn1("garbage in parameter: \"%s\"", garbage);
+		}
 	}
 
 	ctx = __ocpa_create_connection_ctx();
@@ -765,6 +774,12 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 	}
 
 	if(ctx->peer_len == 0 || __ocpa_check_connected(ctx) != STAT_OK) {
+		if(address == NULL) {
+			Error("socket isn't connected while address unspecified");
+			free(ctx);
+			return STAT_NORETRY;
+		}
+
 		ctx->peer_len = 0;
 		result = dalan(address, (char *)&ctx->peer.soa.sa_data, &ctx->peer_len, sizeof(ctx->peer));
 		if(result < 0) {

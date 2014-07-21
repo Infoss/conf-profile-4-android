@@ -28,6 +28,10 @@ public interface VpnManagerInterface extends IInterface {
 	 */
 	public void notifyVpnIsUnsupported();
 	
+	public int getLocalAddress4();
+	public int getRemoteAddress4();
+	public int getSubnetMask4();
+	
 	//proxy methods to OcpaVpnService
 	public boolean protect(int socket);
 	public boolean protect(Socket socket);

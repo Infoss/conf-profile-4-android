@@ -43,6 +43,9 @@ usernat_tun_ctx_t* usernat_tun_init(jobject jtun_instance) {
 
 	ctx->j_usernat_tun = wrap_into_UsernatTunnel(jtun_instance);
 
+	ctx->local4 = ctx->j_usernat_tun->getLocalAddress4(ctx->j_usernat_tun);
+	ctx->remote4 = ctx->j_usernat_tun->getRemoteAddress4(ctx->j_usernat_tun);
+
 	return ctx;
 }
 
@@ -77,6 +80,7 @@ ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 	nat_link_t* link = find_link(ctx, &packet);
 	if(link == NULL) {
 		//this packet is invalid, drop it
+		LOGD(LOG_TAG, "can't find appropriate link, dropping a packet");
 		return 0;
 	}
 
@@ -164,6 +168,15 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 
 	if(packet->ipver == 4) {
 		uint32_t remote_addr = 0;
+
+		//TODO: remove this
+		LOGD(LOG_TAG, "find_link(): pre-2 local: %d", ctx->local4);
+		LOGD(LOG_TAG, "find_link(): pre-2 saddr: %d", packet->ip_header.v4->saddr);
+		LOGD(LOG_TAG, "find_link(): pre-2 ntohl(saddr): %d", ntohl(packet->ip_header.v4->saddr));
+		LOGD(LOG_TAG, "find_link(): pre-2 remote: %d", ctx->remote4);
+		LOGD(LOG_TAG, "find_link(): pre-2 daddr: %d", packet->ip_header.v4->daddr);
+		LOGD(LOG_TAG, "find_link(): pre-2 ntohl(daddr): %d", ntohl(packet->ip_header.v4->daddr));
+
 		if(ip4_addr_eq(ctx->local4, ntohl(packet->ip_header.v4->saddr))) {
 			//outgoing usernat packet
 			is_incoming = false;
@@ -229,6 +242,9 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 					return NULL;
 				}
 
+				memset(&tmp_sa.sa, 0, sizeof(tmp_sa));
+				tmp_sa.sa.sa_family = AF_INET;
+				tmp_sa.in.sin_addr.s_addr = htonl(ctx->local4);
 				if(bind(result->common.sock_accept, &tmp_sa.sa, sizeof(tmp_sa)) == -1) {
 					free(result);
 					return NULL;
@@ -246,17 +262,23 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 			case NAT_LINK_UDP4: {
 				result->common.sock_accept = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 				if(result->common.sock_accept == -1) {
+					LOGD(LOG_TAG, "find_link(): 9");
 					free(result);
 					return NULL;
 				}
 
+				memset(&tmp_sa.sa, 0, sizeof(tmp_sa));
+				tmp_sa.sa.sa_family = AF_INET;
+				tmp_sa.in.sin_addr.s_addr = htonl(ctx->local4);
 				if(bind(result->common.sock_accept, &tmp_sa.sa, sizeof(tmp_sa)) == -1) {
+					LOGD(LOG_TAG, "find_link(): 10");
 					free(result);
 					return NULL;
 				}
 
 				result->common.sock_connect = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
 				if(result->common.sock_connect == -1) {
+					LOGD(LOG_TAG, "find_link(): 11");
 					close(result->common.sock_accept);
 					free(result);
 					return NULL;
@@ -265,7 +287,9 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 			}
 			default: {
 				//unsupported link type, should never be happen
-				free(result);
+				LOGE(LOG_TAG, "Unsupported link type %d", local_link_type);
+				link_deinit(result);
+				result = NULL;
 				return NULL;
 			}
 			}
@@ -278,9 +302,13 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 					result->common.sock_connect
 					);
 
-			if(is_protected && result != NULL) {
-				free(result);
+			if(!is_protected) {
+				LOGD(LOG_TAG, "find_link(): 13");
+				close(result->common.sock_accept);
+				close(result->common.sock_connect);
+				link_deinit(result);
 				result = NULL;
+				return NULL;
 			}
 
 			tmp_sa.in.sin_addr.s_addr = result->tcp4.real_dst_addr;
@@ -293,6 +321,7 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 					result->tcp4.real_dst_port
 					);
 			if(result->common.socat_pid == -1) {
+				LOGD(LOG_TAG, "find_link(): 14");
 				close(result->common.sock_accept);
 				free(result);
 				result = NULL;
@@ -301,6 +330,7 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 
 	} else if(packet->ipver == 6) {
 		//TODO: implement IPv6
+		LOGD(LOG_TAG, "find_link(): 15");
 	} else {
 		LOGE(LOG_TAG, "Invalid IP version (supported versions: IPv4, IPv6)");
 		return NULL;
@@ -313,5 +343,7 @@ static nat_link_t* find_link4(nat_link_t* root_link, uint32_t local_addr, uint16
 	if(root_link == NULL) {
 		return NULL;
 	}
+
+	return NULL;
 }
 

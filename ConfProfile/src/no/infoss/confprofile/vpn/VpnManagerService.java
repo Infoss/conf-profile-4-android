@@ -6,6 +6,7 @@ import java.security.PrivateKey;
 import java.security.Security;
 import java.security.cert.Certificate;
 import java.util.Collections;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -15,6 +16,7 @@ import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.task.ObtainOnDemandVpns;
 import no.infoss.confprofile.task.ObtainOnDemandVpns.ObtainOnDemandVpnsListener;
 import no.infoss.confprofile.util.MiscUtils;
+import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
@@ -39,6 +41,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	private static final String PCAP_TUN_FILENAME_FMT = "tun(%s)-%d.pcap";
 	private static final String PCAP_NAT_FILENAME_FMT = "usernat(%s)-%d.pcap";
 	
+	private static final List<LocalNetworkConfig> LOCAL_NET_CONFIGS;
+	
 	static {
 		System.loadLibrary("strongswan");
 
@@ -56,6 +60,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		System.loadLibrary("ocpa");
 		
 		Security.addProvider(new InfossJcaProvider());
+		
+		List<LocalNetworkConfig> configs = new LinkedList<LocalNetworkConfig>();
+		configs.add(new LocalNetworkConfig("172.31.255.254")); //add 172.31.255.254/30
+		LOCAL_NET_CONFIGS = Collections.unmodifiableList(configs);
 	}
 	
 	private NotificationManager mNtfMgr;
@@ -80,6 +88,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	private int[] mVpnManagerIcons;
 	private int[] mVpnManagerErrorIcons;
+	
+	private LocalNetworkConfig mCurrLocalNetConfig = null;
 	
 	@Override
 	public void onCreate() {
@@ -158,15 +168,28 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		
 		OcpaVpnInterface vpnService = mBindKit.lock();
 		try {
-			mRouterLoop = new RouterLoop(VpnManagerService.this, vpnService.createBuilderAdapter("OCPA"));
-			updateCurrentConfiguration();
+			mCurrLocalNetConfig = LOCAL_NET_CONFIGS.get(0);
+			mRouterLoop = new RouterLoop(this, vpnService.createBuilderAdapter("OCPA"));
 			mRouterLoop.startLoop();
+			
+			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
+			mUsernatTunnel.establishConnection(null);
+			mRouterLoop.defaultRoute4(mUsernatTunnel);
+			mRouterLoop.defaultRoute6(mUsernatTunnel);
+			
+			List<Route4> routes4 = mRouterLoop.getRoutes4();
+			if(routes4 == null) {
+				Log.d(TAG, "+ IPv4 routes: none");
+			} else {
+				Log.d(TAG, "+ IPv4 routes: " + routes4.toString());
+			}
+			
+			updateCurrentConfiguration();
 		} finally {
 			mBindKit.unlock();
 		}
 		
-		mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
-		mUsernatTunnel.establishConnection(null);
+		
 		
 		mIsVpnServiceStarted = true;
 		
@@ -371,6 +394,21 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		}
 		
 		return res;
+	}
+	
+	@Override
+	public int getLocalAddress4() {
+		return mCurrLocalNetConfig.localIp;
+	}
+	
+	@Override
+	public int getRemoteAddress4() {
+		return mCurrLocalNetConfig.remoteIp;
+	}
+	
+	@Override
+	public int getSubnetMask4() {
+		return mCurrLocalNetConfig.subnetMask;
 	}
 	
 	@Override
@@ -585,5 +623,52 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		public Map<String, Object> params;
 		public Certificate[] certificates;
 		public PrivateKey privateKey;
+	}
+	
+	private static class LocalNetworkConfig {
+		public final int subnetIp;
+		public final int subnetMask;
+		public final int localIp;
+		public final int remoteIp;
+		
+		public final String subnetAddr;
+		public final String localAddr;
+		public final String remoteAddr;
+		
+		public LocalNetworkConfig(String subnet, int mask, String local, String remote) {
+			subnetAddr = subnet;
+			subnetMask = mask;
+			localAddr = local;
+			remoteAddr = remote;
+			
+			subnetIp = NetUtils.ip4StrToInt(subnet);
+			localIp = NetUtils.ip4StrToInt(local);
+			remoteIp = NetUtils.ip4StrToInt(remote);
+		}
+		
+		public LocalNetworkConfig(int subnet, int mask, int local, int remote) {
+			subnetIp = subnet;
+			subnetMask = mask;
+			localIp = local;
+			remoteIp = remote;
+			
+			subnetAddr = NetUtils.ip4IntToStr(subnet);
+			localAddr = NetUtils.ip4IntToStr(local);
+			remoteAddr = NetUtils.ip4IntToStr(remote);
+		}
+		
+		public LocalNetworkConfig(String subnet) {
+			this(applyMask(subnet, 30));
+		}
+		
+		private LocalNetworkConfig(int subnet) {
+			this(subnet, 30, subnet + 2, subnet + 1);
+		}
+		
+		private static int applyMask(String addr, int mask) {
+			int ip = NetUtils.ip4StrToInt(addr);
+			int bitmask = ((int)0xffffffff >>> (32 - mask)) << (32 - mask);
+			return ip & bitmask;
+		}
 	}
 }

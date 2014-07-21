@@ -1,6 +1,7 @@
 package no.infoss.confprofile.vpn;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -8,9 +9,10 @@ import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
+
+import org.bouncycastle.util.Arrays;
 
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.vpn.OpenVpnTunnel.VpnStatus;
@@ -29,7 +31,6 @@ public class UsernatTunnel extends VpnTunnel {
 		VPN_CFG_INFO = new VpnConfigInfo();
 	}
 	
-	private VpnManagerInterface mVpnMgr;
 	private Thread mWorkerThread;
 	private UsernatWorker mWorker;
 	
@@ -41,6 +42,7 @@ public class UsernatTunnel extends VpnTunnel {
 	private Lock mRLock = mRWLock.readLock();
 	private Lock mWLock = mRWLock.writeLock();
 	private final SocatTunnelContext mSocatData = new SocatTunnelContext();
+	private final byte[] mOutBuff = new byte[65537];
 
 	public UsernatTunnel(Context ctx, RouterLoop routerLoop, VpnManagerInterface vpnMgr) {
 		super(ctx, VPN_CFG_INFO, vpnMgr);
@@ -127,14 +129,18 @@ public class UsernatTunnel extends VpnTunnel {
 		
 		while(!isInterrupted) {
 			pendingReports.clear();
-			mRLock.lock();
+			//mRLock.lock();
 			isCommandMode = mSocatData.isRequestReady() & !mSocatData.isResponseReady();
-			mRLock.unlock();
+			//mRLock.unlock();
 			
 			if(isCommandMode) {
-				mWLock.lock();
+				//mWLock.lock();
 				try {
-					String cmd = String.format("socat %s %d", mSocatData.inDstAddr, mSocatData.inDstPort);
+					String cmd = String.format("socat %s:%d", mSocatData.inDstAddr, mSocatData.inDstPort);
+					mSocket.setFileDescriptorsForSend(new FileDescriptor[] {
+							MiscUtils.intToFileDescriptor(mSocatData.inAcceptFd),
+							MiscUtils.intToFileDescriptor(mSocatData.inConnectFd)
+					});
 					if(writeMessage(outstream, cmd)) {
 						//comand successfully was sent
 						while(true) {
@@ -145,14 +151,20 @@ public class UsernatTunnel extends VpnTunnel {
 								continue;
 							} else if(resp.startsWith("resp ")) {
 								mSocatData.outPid = Integer.valueOf(resp.substring("resp ".length()));
+								break;
 							} else if(resp.startsWith("ping")) {
 								//just skip this
+								continue;
+							} else if(resp.startsWith("log ")) {
+								mLogger.log(LOG_DEBUG, resp.substring("log ".length()));
 							} else {
 								Log.e(TAG, "Unexpected response: " + resp);
 							}
 							break;
 						} //while(true)
 					}
+					
+					mSocket.setFileDescriptorsForSend(new FileDescriptor[]{});
 				} catch(Exception e) {
 					Log.e(TAG, "Error while reading/writing a command", e);
 					mLogger.log(LOG_ERROR, "Error while reading/writing a command: ".concat(e.toString()));
@@ -160,7 +172,7 @@ public class UsernatTunnel extends VpnTunnel {
 		            isInterrupted = true;
 				} finally {
 					mSocatData.setResponseReady(true);
-					mWLock.unlock();
+					//mWLock.unlock();
 				}
 			} //if(isCommandMode)
 			
@@ -175,6 +187,8 @@ public class UsernatTunnel extends VpnTunnel {
 						continue;
 					} else if(resp.startsWith("ping")) {
 						//just skip this
+					} else if(resp.startsWith("log ")) {
+						mLogger.log(LOG_DEBUG, resp.substring("log ".length()));
 					} else {
 						Log.e(TAG, "Unexpected response: " + resp);
 						isInterrupted = true;
@@ -228,21 +242,21 @@ public class UsernatTunnel extends VpnTunnel {
 	 * @return
 	 */
 	protected synchronized int buildSocatTunnel(int fdAccept, int fdConnect, String remoteAddr, int remotePort) {
-		mWLock.lock();
+		//mWLock.lock();
 		mSocatData.clear();
 		mSocatData.inAcceptFd = fdAccept;
 		mSocatData.inConnectFd = fdConnect;
 		mSocatData.inDstAddr = remoteAddr;
 		mSocatData.inDstPort = remotePort;
-		mWLock.unlock();
+		//mWLock.unlock();
 		
 		boolean wait = true;
 		int pid = -1;
 		while(wait) {
-			mRLock.lock();
+			//mRLock.lock();
 			wait = !mSocatData.isResponseReady();
 			pid = mSocatData.outPid;
-			mRLock.unlock();
+			//mRLock.unlock();
 			try {
 				Thread.sleep(100);
 			} catch(Exception e) {
@@ -253,7 +267,24 @@ public class UsernatTunnel extends VpnTunnel {
 		return pid;
 	}
 	
-	private String readMessage(InputStream instream) throws IOException {
+	/**
+	 * This method is usually called from native code for retrieving local address assigned to 
+	 * tun0 device
+	 * @return
+	 */
+	protected int getLocalAddress4() {
+		return mVpnMgr.getLocalAddress4();
+	}
+	
+	/**
+	 * This method is usually called from native code for retrieving "remote" address
+	 * @return
+	 */
+	protected int getRemoteAddress4() {
+		return mVpnMgr.getRemoteAddress4();
+	}
+	
+	private synchronized String readMessage(InputStream instream) throws IOException {
 		String result = null;
 		boolean prologueMode = true;
         byte[] buffer = new byte[65536];
@@ -286,7 +317,6 @@ public class UsernatTunnel extends VpnTunnel {
 			
 			if(pos + numbytesread == msgLen) {
 				result = new String(buffer, 0, msgLen);
-				Log.d(TAG, result);
 				break;
 			} else {
 				pos += numbytesread;
@@ -296,9 +326,10 @@ public class UsernatTunnel extends VpnTunnel {
 		return result;
 	}
 	
-	private boolean writeMessage(OutputStream outstream, String message) throws IOException {
+	private synchronized boolean writeMessage(OutputStream outstream, String message) throws IOException {
 		if(outstream == null || message == null) {
 			//silently return
+			Log.e(TAG, "Can't send a message: output stream or message is null.");
 			return false;
 		}
 		
@@ -308,9 +339,13 @@ public class UsernatTunnel extends VpnTunnel {
 			return false;
 		}
 		
-		outstream.write((msg.length >> 8) & 0x00ff);
-		outstream.write(msg.length & 0x00ff);
-		outstream.write(msg);
+		mOutBuff[0] = (byte)((msg.length >> 8) & 0x00ff);
+		mOutBuff[1] = (byte)(msg.length & 0x00ff);
+		for(int i = 0; i < msg.length; i++) {
+			mOutBuff[i + 2] = msg[i];
+		}
+		
+		outstream.write(mOutBuff, 0, msg.length + 2);
 		
 		return true;
 	}

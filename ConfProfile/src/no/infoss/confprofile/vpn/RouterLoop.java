@@ -34,7 +34,6 @@ import android.util.Log;
 	
 	@Override
 	public void run() {
-		
 		mRouterCtx = initIpRouter();
 		if(mRouterCtx == 0) {
 			Log.e(TAG, "Can't initialize router");
@@ -52,8 +51,10 @@ import android.util.Log;
 			 * Here we set local address as 172.31.255.254.
 			 * 172.31.255.253 will be used by usernat as "remote" address.
 			 */
-			if(!mBuilder.addAddress("172.31.255.254", 30)) {
-				Log.d(TAG, "Can't add address=".concat("172.31.255.254/30"));
+			String addr = NetUtils.ip4IntToStr(mVpnMgr.getLocalAddress4());
+			int mask = mVpnMgr.getSubnetMask4();
+			if(!mBuilder.addAddress(addr, mask)) {
+				Log.d(TAG, "Can't add address=".concat(addr).concat("/").concat(String.valueOf(mask)));
 			}
 			
 			if(!mBuilder.addRoute("0.0.0.0", 0)) {
@@ -67,6 +68,7 @@ import android.util.Log;
 			Log.d(TAG, String.format("Router loop returned %d as exit code", result));
 		}
 		deinitIpRouter(mRouterCtx);
+		mRouterCtx = 0;
 	}
 	
 	public boolean isPaused() {
@@ -92,6 +94,15 @@ import android.util.Log;
 	
 	public List<Route4> getRoutes4() {
 		return getRoutes4(mRouterCtx);
+	}
+	
+	public void defaultRoute6(VpnTunnel tunnel) {
+		if(tunnel.mVpnTunnelCtx == 0) {
+			Log.w(TAG, "Tunnel " + tunnel.getTunnelId() + " is unitialized and can't be used as default route");
+			return;
+		}
+		//TODO: implement this
+		//defaultRoute6(mRouterCtx, tunnel.mVpnTunnelCtx);
 	}
 	
 	public int getMtu() {
