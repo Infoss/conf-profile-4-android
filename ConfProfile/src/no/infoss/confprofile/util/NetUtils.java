@@ -30,7 +30,7 @@ public class NetUtils {
 		int b1 = (ip4 >>> 16) & 0x000000ff;
 		int b2 = (ip4 >>> 8) & 0x000000ff;
 		int b3 = ip4 & 0x000000ff;
-		return String.format("%d\\.%d\\.%d\\.%d", b0, b1, b2, b3);
+		return String.format("%d.%d.%d.%d", b0, b1, b2, b3);
 	}
 	
 	public static int mask4StrToInt(String mask4) {
