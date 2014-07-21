@@ -1,9 +1,11 @@
 package no.infoss.confprofile.util;
 
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Method;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -17,6 +19,17 @@ import android.util.Log;
 public class MiscUtils {
 	public static final String TAG = MiscUtils.class.getSimpleName();
 	public static final String HEX = "0123456789abcdef";
+	
+	private static Method M_FD_SET;
+	
+	static {
+		try {
+			M_FD_SET = FileDescriptor.class.getDeclaredMethod("setInt$", int.class);
+		} catch (NoSuchMethodException e) {
+			Log.e(TAG, "Can't find method FileDescriptirsetInt$()", e);
+			M_FD_SET = null;
+		}
+	}
 	
 	@Deprecated
 	public static String genLibraryPath(Context ctx, ProcessBuilder pb) {	
@@ -170,5 +183,17 @@ public class MiscUtils {
 		pb.environment().put("LD_LIBRARY_PATH", ldLibraryPath);
 		
 		return pb.start();
+	}
+	
+	public static FileDescriptor intToFileDescriptor(int val) {
+		FileDescriptor fd = new FileDescriptor();
+		try {
+			M_FD_SET.invoke(fd, val);
+		} catch (Exception e) {
+			Log.e(TAG, "Can't set fd to FileDescriptor instance", e);
+			fd = null;
+		}
+		
+		return fd;
 	}
 }
