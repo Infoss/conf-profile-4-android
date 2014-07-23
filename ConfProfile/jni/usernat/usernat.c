@@ -18,6 +18,47 @@
 
 #define LOG_TAG "usernat"
 
+/**
+ * Usernat uses the following protocol to communicate with OCPA:
+ *
+ * Set socat path
+ * in: socat_path <full_socat_execuable_path>
+ * out: resp <error_code>
+ * error codes:
+ *    0 - success
+ *   -1 = failure
+ *
+ * Set accept socket descriptor (local relay)
+ * in: accept_fd
+ * ancillary data: socket descriptor
+ * out: resp <error_code>
+ * error codes:
+ *    0 - success
+ *   -1 - failure
+ *
+ * Set connect socket descriptor (outgoing connection)
+ * in: conect_fd
+ * ancillary data: socket descriptor
+ * out: resp <error_code>
+ * error codes:
+ *    0 - success
+ *   -1 - failure
+ *
+ * Fork and execute socat with provided remote address
+ * in: socat <ip>:<port>
+ * out: resp <error_code>
+ * error codes:
+ *    0 - success
+ *   -1 - fork failed
+ */
+
+#define EXIT_NO_MEMORY      1
+#define EXIT_CMD_SOCK_CONN  2
+#define EXIT_CMD_PEER_ERROR 3
+#define EXIT_CMD_PEER_HUP   4
+#define EXIT_CMD_POLL_ERROR 5
+#define EXIT_EXEC_FAILED    6
+
 static int control;
 static int fds[2];
 
@@ -92,11 +133,14 @@ static void process_socat(char* cmd, int len, int* fds) {
 	if(child == -1) {
 		//fork error
 		snprintf(buff, sizeof(buff), response_fmt, child);
+		log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while fork() %d: %s", errno, strerror(errno));
 		send_cmd(control, buff, strlen(buff));
 		return;
 	} else if(child > 0) {
 		//parent
 		snprintf(buff, sizeof(buff), response_fmt, child);
+		log_android(ANDROID_LOG_DEBUG, LOG_TAG, "Successfully forked, child pid is %d", child);
+		log_android(ANDROID_LOG_DEBUG, LOG_TAG, "Sending response %s", buff);
 		send_cmd(control, buff, strlen(buff));
 		return;
 	}
@@ -108,12 +152,13 @@ static void process_socat(char* cmd, int len, int* fds) {
 	char* params[] = {buff_from, buff_to};
 
 	snprintf(buff_from, sizeof(buff_from), "socket-fd-accept:%d", fds[0]);
-	snprintf(buff_from, sizeof(buff_from), "socket-fd-accept:%d:%s", fds[1], cmd);
+	snprintf(buff_to, sizeof(buff_to), "socket-fd-accept:%d:%s", fds[1], cmd);
+	log_android(ANDROID_LOG_ERROR, LOG_TAG, "preparing to execute ocpasocat %s %s", buff_from, buff_to);
 
 	execv("ocpasocat", params);
 
-	log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while execv()");
-	exit(-1);
+	log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while execv() %d: %s", errno, strerror(errno));
+	exit(EXIT_EXEC_FAILED);
 }
 
 static void parse_resp(char* cmd, int len) {
@@ -142,7 +187,7 @@ static void parse_cmd(char* cmd, int len, int* fds) {
 
 	if(strncmp(cmd, "halt\0", strlen("halt") + 1) == 0) {
 		log_remote(ANDROID_LOG_INFO, LOG_TAG, "Received 'halt'. Exiting with error code 0.");
-		exit(0);
+		exit(EXIT_SUCCESS);
 	}
 }
 
@@ -165,15 +210,19 @@ static int socket_process_cmsg(struct msghdr* pMsg) {
 
             if(count < 0) {
             	log_android(ANDROID_LOG_ERROR, LOG_TAG, "invalid cmsg length");
-                exit(-1);
+                exit(EXIT_CMD_PEER_ERROR);
             }
+
+            log_android(ANDROID_LOG_ERROR, LOG_TAG, "received %d fd(s)", count);
 
             int i;
             for(i = 0; i < count; i++) {
             	if(count >= 2) {
             		log_android(ANDROID_LOG_WARN, LOG_TAG, "skipping fd=%d due to insufficient storage", pDescriptors[i]);
+            		continue;
             	}
 
+            	log_android(ANDROID_LOG_WARN, LOG_TAG, "received fd=%d at position %d", pDescriptors[i], i);
             	fds[i] = pDescriptors[i];
             }
         }
@@ -210,19 +259,19 @@ static ssize_t rcvd_cmd_with_fds(int fd, void *buffer, size_t len) {
     if (ret < 0 && errno == EPIPE) {
     	log_android(ANDROID_LOG_ERROR, LOG_TAG, "End of stream %d: %s", errno, strerror(errno));
     	log_remote(ANDROID_LOG_ERROR, LOG_TAG, "End of stream %d: %s", errno, strerror(errno));
-    	exit(0);
+    	exit(EXIT_CMD_PEER_HUP);
     }
 
     if (ret < 0) {
     	log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error %d: %s", errno, strerror(errno));
     	log_remote(ANDROID_LOG_ERROR, LOG_TAG, "Error %d: %s", errno, strerror(errno));
-        exit(-1);
+        exit(EXIT_CMD_PEER_ERROR);
     }
 
     if ((msg.msg_flags & (MSG_CTRUNC | MSG_OOB | MSG_ERRQUEUE)) != 0) {
         log_android(ANDROID_LOG_ERROR, LOG_TAG, "Unexpected error or truncation during recvmsg() %d: %s", errno, strerror(errno));
 		log_remote(ANDROID_LOG_ERROR, LOG_TAG, "Unexpected error or truncation during recvmsg() %d: %s", errno, strerror(errno));
-		exit(-1);
+		exit(EXIT_CMD_PEER_ERROR);
     }
 
     if (ret >= 0) {
@@ -257,7 +306,7 @@ int main(int argc, char **argv) {
 
 	if(argc != 2) {
 		usage();
-		exit(1);
+		exit(EXIT_SUCCESS);
 	}
 
 	struct sockaddr_un remote;
@@ -268,12 +317,14 @@ int main(int argc, char **argv) {
 	addr_len = strlen(remote.sun_path) + sizeof(remote.sun_family);
 
 	if((control = socket(AF_UNIX, SOCK_STREAM, 0)) == -1) {
-		exit(2);
+		exit(EXIT_CMD_SOCK_CONN);
 	}
 
+	/*
 	if(fcntl(control, F_SETFL, O_NONBLOCK) < 0) {
 		log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Failed to set O_NONBLOCK to socket with code %d: %s", errno, strerror(errno));
 	}
+	*/
 
 	log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Connecting to control socket");
 	int tries = 5;
@@ -290,7 +341,7 @@ int main(int argc, char **argv) {
 
 	if(tries == 0) {
 		log_print(ANDROID_LOG_FATAL, LOG_TAG, "Can't connect to control socket %s", argv[1]);
-		exit(3);
+		exit(EXIT_CMD_SOCK_CONN);
 	}
 
 	if(fcntl(control, F_SETFD, FD_CLOEXEC) < 0) {
@@ -304,7 +355,7 @@ int main(int argc, char **argv) {
 	bytes = malloc(sizeof(char) * 65537);
 	if(bytes == NULL) {
 		log_print(ANDROID_LOG_DEBUG, LOG_TAG, "insufficient memory");
-		exit(4);
+		exit(EXIT_NO_MEMORY);
 	}
 
 	int res = 0;
@@ -312,38 +363,51 @@ int main(int argc, char **argv) {
 	poll_struct.fd = control;
 
 	while(true) {
-		poll_struct.events = POLLIN | POLLPRI;
+		poll_struct.events = POLLIN | POLLPRI; //POLLERR | POLLHUP will be received automatically
 		poll_struct.revents = 0;
 		res = poll(&poll_struct, 1, 1000);
-		log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Event or timeout, res=%d, errno=%d %s", res, errno, strerror(errno));
+
 		if(res > 0) {
 			log_print(ANDROID_LOG_DEBUG,
 					LOG_TAG,
 					"Start receiving data events=%08x, revents=%08x",
 					poll_struct.events,
 					poll_struct.revents);
+
+			if((poll_struct.revents & POLLHUP) != 0) {
+				log_print(ANDROID_LOG_WARN, LOG_TAG, "Remote peer closed connection");
+				exit(EXIT_CMD_PEER_HUP);
+			}
+
+			if((poll_struct.revents & POLLERR) != 0) {
+				log_print(ANDROID_LOG_ERROR, LOG_TAG, "Remote peer error");
+				exit(EXIT_CMD_PEER_ERROR);
+			}
+
 			//receive length first
 			int length = rcvd_cmd_with_fds(control, bytes, 2);
-			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "rcvd_cmd_with_fds(): res=%d, errno=%d %s", length, errno, strerror(errno));
+			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "rcvd_cmd_with_fds(): res=%d", length);
 			if(length == 0) {
 				continue;
 			}
 			length = bytes[0] << 8 | bytes[1];
 			if(length == 0xFFFF) {
-				log_print(ANDROID_LOG_DEBUG, LOG_TAG, "length is 0xffff, halting");
-				exit(-1);
+				log_print(ANDROID_LOG_DEBUG, LOG_TAG, "length is 0xffff, this is a legal way to halt");
+				exit(EXIT_SUCCESS);
 			}
 			//receive body
 			rcvd_cmd_with_fds(control, bytes + 2, length);
 			parse_cmd(bytes + 2, length, fds);
 		} else if(res == 0) {
+			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Timeout, res=%d", res);
+			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "send ping");
 			send_cmd(control, "ping", strlen("ping"));
 		} else {
 			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Error code %d: %s", errno, strerror(errno));
-			exit(-1);
+			exit(EXIT_CMD_POLL_ERROR);
 		}
 	}
 
 	free(bytes);
-	return 0;
+	return EXIT_SUCCESS;
 }
