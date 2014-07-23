@@ -30,6 +30,9 @@
 #define JNI_IPSEC_PACKAGE no_infoss_confprofile_vpn_ipsec
 #define JNI_IPSEC_PACKAGE_STRING "no/infoss/confprofile/vpn/ipsec"
 
+#define JNI_UTIL_PACKAGE no_infoss_confprofile_util
+#define JNI_UTIL_PACKAGE_STRING "no/infoss/confprofile/util"
+
 #define JNI_METHOD_PP(pack, klass, name, ret, ...) \
 	ret Java_##pack##_##klass##_##name(JNIEnv *env, jobject this, ##__VA_ARGS__)
 

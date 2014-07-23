@@ -1,5 +1,9 @@
 package no.infoss.confprofile.util;
 
+import java.io.IOException;
+
+import android.net.LocalServerSocket;
+
 public class NetUtils {
 	public static int ip4StrToInt(String ip4) {
 		int result = 0;
@@ -176,4 +180,15 @@ public class NetUtils {
 		
 		return StringUtils.join(parts, ":", false);
 	}
+	
+	public static LocalServerSocket bindLocalServerSocket(String path) throws IOException {
+		int fd = bindUnixSocket(path);
+		if(fd == -1) {
+			throw new IOException("Can't create or bind unix socket: ".concat(path));
+		}
+		
+		return new LocalServerSocket(MiscUtils.intToFileDescriptor(fd));
+	}
+	
+	private static native int bindUnixSocket(String path);
 }
