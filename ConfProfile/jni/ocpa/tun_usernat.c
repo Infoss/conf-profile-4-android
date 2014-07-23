@@ -8,6 +8,7 @@
 #include <sys/socket.h>
 #include <errno.h>
 #include <unistd.h>
+#include <fcntl.h>
 
 #include "android_log_utils.h"
 #include "android_jni.h"
@@ -169,14 +170,6 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 	if(packet->ipver == 4) {
 		uint32_t remote_addr = 0;
 
-		//TODO: remove this
-		LOGD(LOG_TAG, "find_link(): pre-2 local: %d", ctx->local4);
-		LOGD(LOG_TAG, "find_link(): pre-2 saddr: %d", packet->ip_header.v4->saddr);
-		LOGD(LOG_TAG, "find_link(): pre-2 ntohl(saddr): %d", ntohl(packet->ip_header.v4->saddr));
-		LOGD(LOG_TAG, "find_link(): pre-2 remote: %d", ctx->remote4);
-		LOGD(LOG_TAG, "find_link(): pre-2 daddr: %d", packet->ip_header.v4->daddr);
-		LOGD(LOG_TAG, "find_link(): pre-2 ntohl(daddr): %d", ntohl(packet->ip_header.v4->daddr));
-
 		if(ip4_addr_eq(ctx->local4, ntohl(packet->ip_header.v4->saddr))) {
 			//outgoing usernat packet
 			is_incoming = false;
@@ -303,7 +296,7 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 					);
 
 			if(!is_protected) {
-				LOGD(LOG_TAG, "find_link(): 13");
+				LOGE(LOG_TAG, "Can't protect socket");
 				close(result->common.sock_accept);
 				close(result->common.sock_connect);
 				link_deinit(result);
@@ -313,15 +306,20 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 
 			tmp_sa.in.sin_addr.s_addr = result->tcp4.real_dst_addr;
 
+			LOGD(LOG_TAG, "accept_fd=%d connect_fd=%d", result->common.sock_accept, result->common.sock_connect);
+			LOGD(LOG_TAG, "accept_fd=%d validity is %d", result->common.sock_accept, fcntl(result->common.sock_accept, F_GETFD));
+			LOGD(LOG_TAG, "connect_fd=%d validity is %d", result->common.sock_connect, fcntl(result->common.sock_connect, F_GETFD));
+
 			result->common.socat_pid = ctx->j_usernat_tun->buildSocatTunnel(
 					ctx->j_usernat_tun,
 					result->common.sock_accept,
 					result->common.sock_connect,
 					inet_ntoa(tmp_sa.in.sin_addr),
-					result->tcp4.real_dst_port
+					result->tcp4.real_dst_port,
+					(int64_t) result
 					);
 			if(result->common.socat_pid == -1) {
-				LOGD(LOG_TAG, "find_link(): 14");
+				LOGE(LOG_TAG, "Error while creating socat tunnel");
 				close(result->common.sock_accept);
 				free(result);
 				result = NULL;
