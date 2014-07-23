@@ -5,22 +5,27 @@ import java.io.FileDescriptor;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
+import java.net.Socket;
+import java.net.SocketAddress;
+import java.net.SocketException;
+import java.net.SocketImpl;
+import java.net.SocketImplFactory;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
-import org.bouncycastle.util.Arrays;
-
 import no.infoss.confprofile.util.MiscUtils;
-import no.infoss.confprofile.vpn.OpenVpnTunnel.VpnStatus;
+import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import android.content.Context;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
-import android.net.LocalSocketAddress;
 import android.util.Log;
 
 public class UsernatTunnel extends VpnTunnel {
@@ -36,17 +41,17 @@ public class UsernatTunnel extends VpnTunnel {
 	
 	private LocalSocket mSocket;
 	private LocalServerSocket mServerSocket;
-	private LocalSocket mServerSocketLocal;
 	
 	private ReentrantReadWriteLock mRWLock = new ReentrantReadWriteLock(true);
 	private Lock mRLock = mRWLock.readLock();
 	private Lock mWLock = mRWLock.writeLock();
-	private final SocatTunnelContext mSocatData = new SocatTunnelContext();
+	private final ConcurrentLinkedQueue<SocatTunnelContext> mQueue;
 	private final byte[] mOutBuff = new byte[65537];
 
 	public UsernatTunnel(Context ctx, RouterLoop routerLoop, VpnManagerInterface vpnMgr) {
 		super(ctx, VPN_CFG_INFO, vpnMgr);
 		mVpnServiceCtx = routerLoop.getRouterCtx();
+		mQueue = new ConcurrentLinkedQueue<SocatTunnelContext>();
 	}
 
 	@Override
@@ -70,13 +75,9 @@ public class UsernatTunnel extends VpnTunnel {
 		args.add(cacheDir.getAbsolutePath() + "/" + UsernatWorker.USERNAT);
 		args.add(socketName);
 		
-		// Could take a while to open connection
-        int tries=8;
 
-        
-        // The mServerSocketLocal is transferred to the LocalServerSocket, ignore warning
-
-        mServerSocketLocal = new LocalSocket();
+        int tries = 10;        
+        mServerSocket = null;
 
         while(tries > 0) {
         	if(mConnectionStatus == ConnectionStatus.TERMINATED) {
@@ -84,27 +85,24 @@ public class UsernatTunnel extends VpnTunnel {
         	}
         	
             try {
-                mServerSocketLocal.bind(new LocalSocketAddress(socketName,
-                        LocalSocketAddress.Namespace.FILESYSTEM));
+            	mServerSocket = NetUtils.bindLocalServerSocket(socketName);
                 Log.d(TAG, "unix socket bound at " + socketName);
                 break;
-            } catch (IOException e) {
-                // wait 300 ms before retrying
+            } catch(IOException e) {
             	Log.w(TAG, e);
                 try {
-                	Thread.sleep(300);
+                	Thread.sleep(250);
                 } catch (InterruptedException e1) {
+                	//suppress this
                 }
             }
             tries--;
-        }
-        
-        try {
-            mServerSocket = new LocalServerSocket(mServerSocketLocal.getFileDescriptor());
-            Log.d(TAG, "Management interface opened");
-        } catch (IOException e) {
-        	Log.e(TAG, "Error opening management interface");
-            VpnStatus.logException(e);
+            
+            if(tries == 0) {
+            	Log.e(TAG, "Can't connect to unix domain socket, terminating");
+            	terminateConnection();
+            	return;
+            }
         }
         
         mWorker = new UsernatWorker(this, args, new HashMap<String, String>());
@@ -117,64 +115,80 @@ public class UsernatTunnel extends VpnTunnel {
 			mSocket = mServerSocket.accept();
 			instream = mSocket.getInputStream();
 			outstream = mSocket.getOutputStream();
-            mServerSocket.close();
+			mServerSocket.close();
 		} catch (IOException e) {
 			Log.e(TAG, "Unable to accept()", e);
 			mLogger.log(LOG_ERROR, "Unable to accept() due to ".concat(e.toString()));
+			terminateConnection();
+			return;
 		}
 		
 		boolean isInterrupted = false;
 		boolean isCommandMode = false;
+		SocatTunnelContext socatData;
 		List<String> pendingReports = new LinkedList<String>();
 		
 		while(!isInterrupted) {
 			pendingReports.clear();
-			//mRLock.lock();
-			isCommandMode = mSocatData.isRequestReady() & !mSocatData.isResponseReady();
-			//mRLock.unlock();
-			
-			if(isCommandMode) {
-				//mWLock.lock();
-				try {
-					String cmd = String.format("socat %s:%d", mSocatData.inDstAddr, mSocatData.inDstPort);
-					mSocket.setFileDescriptorsForSend(new FileDescriptor[] {
-							MiscUtils.intToFileDescriptor(mSocatData.inAcceptFd),
-							MiscUtils.intToFileDescriptor(mSocatData.inConnectFd)
-					});
-					if(writeMessage(outstream, cmd)) {
-						//comand successfully was sent
-						while(true) {
-							String resp = readMessage(instream);
-							if(resp.startsWith("terminated ")) {
-								//this is just a report about terminated child
-								pendingReports.add(resp);
-								continue;
-							} else if(resp.startsWith("resp ")) {
-								mSocatData.outPid = Integer.valueOf(resp.substring("resp ".length()));
+			while((socatData = mQueue.poll()) != null) {
+				isCommandMode = socatData.isRequestReady() & !socatData.isResponseReady();
+	
+				if(isCommandMode) {
+					//mWLock.lock();
+					try {
+						String cmd = String.format("socat %s:%d", socatData.inDstAddr, socatData.inDstPort);
+						/*mSocket.setFileDescriptorsForSend(new FileDescriptor[] {
+								mServerSocket.getFileDescriptor(),
+								mSocket.getFileDescriptor()
+						});*/
+						//DatagramSocket ds = new DatagramSocket(31337);
+						//Socket ss = new Socket();
+						Log.d(TAG, "accept_fd=" + socatData.inAcceptFd + " connect_fd=" + socatData.inConnectFd);
+						mSocket.setFileDescriptorsForSend(new FileDescriptor[] {
+								MiscUtils.intToFileDescriptor(socatData.inAcceptFd)//,
+								//MiscUtils.intToFileDescriptor(socatData.inConnectFd)
+						});
+						
+						
+						Log.d(TAG, "Requesting " + cmd);
+						if(writeMessage(outstream, cmd)) {
+							//command successfully was sent
+							while(true) {
+								String resp = readMessage(instream);
+								if(resp.startsWith("terminated ")) {
+									//this is just a report about terminated child
+									pendingReports.add(resp);
+									continue;
+								} else if(resp.startsWith("resp ")) {
+									socatData.outPid = Integer.valueOf(resp.substring("resp ".length()));
+									break;
+								} else if(resp.startsWith("ping")) {
+									//just skip this
+									Log.d(TAG, "Received[1]: " + resp);
+									continue;
+								} else if(resp.startsWith("log ")) {
+									mLogger.log(LOG_DEBUG, resp.substring("log ".length()));
+								} else {
+									Log.e(TAG, "Unexpected response: " + resp);
+								}
 								break;
-							} else if(resp.startsWith("ping")) {
-								//just skip this
-								continue;
-							} else if(resp.startsWith("log ")) {
-								mLogger.log(LOG_DEBUG, resp.substring("log ".length()));
-							} else {
-								Log.e(TAG, "Unexpected response: " + resp);
-							}
-							break;
-						} //while(true)
+							} //while(true)
+						}
+					} catch(Exception e) {
+						Log.e(TAG, "Error while reading/writing a command", e);
+						mLogger.log(LOG_ERROR, "Error while reading/writing a command: ".concat(e.toString()));
+						socatData.outPid = -1;
+			            isInterrupted = true;
+					} finally {
+						socatData.setResponseReady(true);
+						mSocket.setFileDescriptorsForSend(new FileDescriptor[]{});
 					}
 					
-					mSocket.setFileDescriptorsForSend(new FileDescriptor[]{});
-				} catch(Exception e) {
-					Log.e(TAG, "Error while reading/writing a command", e);
-					mLogger.log(LOG_ERROR, "Error while reading/writing a command: ".concat(e.toString()));
-					mSocatData.outPid = -1;
-		            isInterrupted = true;
-				} finally {
-					mSocatData.setResponseReady(true);
-					//mWLock.unlock();
-				}
-			} //if(isCommandMode)
+					if(isInterrupted) {
+						break;
+					}
+				} //if(isCommandMode)
+			}
 			
 			try {
 				if(instream.available() == 0) {
@@ -187,8 +201,12 @@ public class UsernatTunnel extends VpnTunnel {
 						continue;
 					} else if(resp.startsWith("ping")) {
 						//just skip this
+						Log.d(TAG, "Received[2]: " + resp);
+						writeMessage(outstream, "resp ping");
 					} else if(resp.startsWith("log ")) {
 						mLogger.log(LOG_DEBUG, resp.substring("log ".length()));
+					} else if(resp.startsWith("resp ")) {
+						mLogger.log(LOG_DEBUG, "Stray response: " + resp.substring("log ".length()));
 					} else {
 						Log.e(TAG, "Unexpected response: " + resp);
 						isInterrupted = true;
@@ -205,7 +223,7 @@ public class UsernatTunnel extends VpnTunnel {
 			}
 		}
 		
-		mConnectionStatus = ConnectionStatus.TERMINATED;
+		terminateConnection();
 	}
 
 	@Override
@@ -230,6 +248,28 @@ public class UsernatTunnel extends VpnTunnel {
 			mConnectionStatus = ConnectionStatus.TERMINATED;
 			deinitUsernatTun(mVpnTunnelCtx);
 			mVpnTunnelCtx = 0;
+			
+			if(mSocket != null) {
+				try {
+					mSocket.getInputStream().close();
+				} catch(Exception e) { 
+					//suppress this
+				}
+				
+				try {
+					mSocket.getOutputStream().close();
+				} catch(Exception e) { 
+					//suppress this
+				}
+				
+				try {
+					mSocket.close();
+				} catch(Exception e) { 
+					//suppress this
+				} finally {
+					mSocket = null;
+				}
+			}
 		}
 	}
 	
@@ -241,30 +281,21 @@ public class UsernatTunnel extends VpnTunnel {
 	 * @param remotePort
 	 * @return
 	 */
-	protected synchronized int buildSocatTunnel(int fdAccept, int fdConnect, String remoteAddr, int remotePort) {
-		//mWLock.lock();
+	protected int buildSocatTunnel(int fdAccept, 
+			int fdConnect, 
+			String remoteAddr, 
+			int remotePort, 
+			long nativeLinkPtr) {
+		SocatTunnelContext mSocatData = new SocatTunnelContext();
 		mSocatData.clear();
 		mSocatData.inAcceptFd = fdAccept;
 		mSocatData.inConnectFd = fdConnect;
 		mSocatData.inDstAddr = remoteAddr;
 		mSocatData.inDstPort = remotePort;
-		//mWLock.unlock();
+		mSocatData.inNativeLinkPtr = nativeLinkPtr;
+		mQueue.add(mSocatData);
 		
-		boolean wait = true;
-		int pid = -1;
-		while(wait) {
-			//mRLock.lock();
-			wait = !mSocatData.isResponseReady();
-			pid = mSocatData.outPid;
-			//mRLock.unlock();
-			try {
-				Thread.sleep(100);
-			} catch(Exception e) {
-				//suppress interrupted sleep exception
-			}
-		}
-		
-		return pid;
+		return 0;
 	}
 	
 	/**
@@ -284,7 +315,7 @@ public class UsernatTunnel extends VpnTunnel {
 		return mVpnMgr.getRemoteAddress4();
 	}
 	
-	private synchronized String readMessage(InputStream instream) throws IOException {
+	private String readMessage(InputStream instream) throws IOException {
 		String result = null;
 		boolean prologueMode = true;
         byte[] buffer = new byte[65536];
@@ -326,7 +357,7 @@ public class UsernatTunnel extends VpnTunnel {
 		return result;
 	}
 	
-	private synchronized boolean writeMessage(OutputStream outstream, String message) throws IOException {
+	private boolean writeMessage(OutputStream outstream, String message) throws IOException {
 		if(outstream == null || message == null) {
 			//silently return
 			Log.e(TAG, "Can't send a message: output stream or message is null.");
@@ -362,6 +393,7 @@ public class UsernatTunnel extends VpnTunnel {
 		public int inConnectFd;
 		public String inDstAddr;
 		public int inDstPort;
+		public long inNativeLinkPtr; //used in callback method for writing pid by appropriate address
 		public int outPid;
 		private boolean mIsReady;
 		
@@ -374,12 +406,15 @@ public class UsernatTunnel extends VpnTunnel {
 			inConnectFd = -1;
 			inDstAddr = null;
 			inDstPort = 0;
+			inNativeLinkPtr = 0;
 			outPid = -1;
 			mIsReady = false;
 		}
 		
 		public boolean isRequestReady() {
-			if(inAcceptFd == -1 || inConnectFd == -1 || inDstAddr == null || inDstPort == 0) {
+			if(inAcceptFd == -1 || inConnectFd == -1 || 
+					inDstAddr == null || inDstPort == 0 || 
+					inNativeLinkPtr == 0) {
 				return false;
 			}
 			

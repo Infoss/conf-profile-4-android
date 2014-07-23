@@ -22,7 +22,7 @@ union java_UsernatTunnel_union {
 	struct java_UsernatTunnel_private private;
 };
 
-static int32_t buildSocatTunnel(java_UsernatTunnel* instance, int32_t fdAccept, int32_t fdConnect, const char* remoteAddr, int32_t remotePort) {
+static int32_t buildSocatTunnel(java_UsernatTunnel* instance, int32_t fdAccept, int32_t fdConnect, const char* remoteAddr, int32_t remotePort, int64_t nativeLinkPtr) {
 	if(instance == NULL) {
 		return -1;
 	}
@@ -41,7 +41,8 @@ static int32_t buildSocatTunnel(java_UsernatTunnel* instance, int32_t fdAccept, 
 			fdAccept,
 			fdConnect,
 			jRemoteAddr,
-			remotePort);
+			remotePort,
+			nativeLinkPtr);
 
 	if ((*jnienv)->ExceptionOccurred(jnienv)){
 		(*jnienv)->ExceptionDescribe(jnienv);
@@ -127,7 +128,7 @@ java_UsernatTunnel* wrap_into_UsernatTunnel(jobject obj) {
 	result->private.obj = (*jnienv)->NewGlobalRef(jnienv, obj);
 	jobject clazz = (*jnienv)->FindClass(jnienv, JNI_PACKAGE_STRING "/UsernatTunnel");
 	result->private.id_buildSocatTunnel =
-			(*jnienv)->GetMethodID(jnienv, clazz, "buildSocatTunnel", "(IILjava/lang/String;I)I");
+			(*jnienv)->GetMethodID(jnienv, clazz, "buildSocatTunnel", "(IILjava/lang/String;IJ)I");
 	result->private.id_getLocalAddress4 =
 				(*jnienv)->GetMethodID(jnienv, clazz, "getLocalAddress4", "()I");
 	result->private.id_getRemoteAddress4 =
