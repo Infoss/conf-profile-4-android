@@ -21,13 +21,21 @@ public class MiscUtils {
 	public static final String HEX = "0123456789abcdef";
 	
 	private static Method M_FD_SET;
+	private static Method M_FD_GET;
 	
 	static {
 		try {
 			M_FD_SET = FileDescriptor.class.getDeclaredMethod("setInt$", int.class);
 		} catch (NoSuchMethodException e) {
-			Log.e(TAG, "Can't find method FileDescriptirsetInt$()", e);
+			Log.e(TAG, "Can't find method FileDescriptor.setInt$()", e);
 			M_FD_SET = null;
+		}
+		
+		try {
+			M_FD_GET = FileDescriptor.class.getDeclaredMethod("getInt$");
+		} catch (NoSuchMethodException e) {
+			Log.e(TAG, "Can't find method FileDescriptor.getInt$()", e);
+			M_FD_GET = null;
 		}
 	}
 	
@@ -50,11 +58,17 @@ public class MiscUtils {
 		return StringUtils.join(paths, ":", true);
 	}
 	
-	public static boolean writeExecutableToCache(Context context, String filename) {
+	/**
+	 * Finds specified file in assets and writes it into application cache folder
+	 * @param context
+	 * @param filename name of asset file without ABI-specific extension
+	 * @return destination file or null, if error occurred
+	 */
+	public static File writeExecutableToCache(Context context, String filename) {
 		File dstFile = new File(context.getCacheDir(), filename);
 		if(dstFile.exists() && dstFile.canExecute()) {
 			if(!BuildConfig.DEBUG) {
-				return true;
+				return dstFile;
 			} else {
 				dstFile.delete();
 			}
@@ -103,14 +117,14 @@ public class MiscUtils {
 			
 			if(!dstFile.setExecutable(true, !BuildConfig.DEBUG)) {
 				Log.e(TAG, String.format("Failed to make ".concat(filename).concat(" executable")));
-				return false;
+				return null;
 			}
 				
 		} catch (IOException e) {
 			Log.e(TAG, "Can't write executable to cache", e);
-			return false;
+			return null;
 		}
-		return true;
+		return dstFile;
 	}
 	
 	public static boolean writeStringToFile(File dstFile, String str) {
@@ -189,11 +203,23 @@ public class MiscUtils {
 		FileDescriptor fd = new FileDescriptor();
 		try {
 			M_FD_SET.invoke(fd, val);
-		} catch (Exception e) {
+		} catch(Exception e) {
 			Log.e(TAG, "Can't set fd to FileDescriptor instance", e);
 			fd = null;
 		}
 		
 		return fd;
+	}
+	
+	public static int fileDescriptorToInt(FileDescriptor fd) {
+		int val = -1;
+		try {
+			val = (Integer) M_FD_GET.invoke(fd);
+		} catch(Exception e) {
+			Log.e(TAG, "Can't get fd from FileDescriptor instance", e);
+			val = -1;
+		}
+		
+		return val;
 	}
 }
