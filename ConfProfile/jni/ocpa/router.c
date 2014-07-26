@@ -30,7 +30,14 @@ router_ctx_t* router_init() {
     		return NULL;
     	}
 
-    	common_tun_set(&ctx->dev_tun_ctx, NULL);
+    	if(!common_tun_set(&ctx->dev_tun_ctx, NULL)) {
+    		free(ctx->rwlock4);
+    		ctx->rwlock4 = NULL;
+    		free(ctx);
+    		return NULL;
+    	}
+
+    	pthread_rwlock_wrlock(ctx->rwlock4);
     	ctx->dev_tun_ctx.send_func = dev_tun_send;
     	ctx->dev_tun_ctx.recv_func = dev_tun_recv;
     	ctx->dev_tun_ctx.router_ctx = ctx;
@@ -42,6 +49,10 @@ router_ctx_t* router_init() {
         ctx->ip_pkt.buff_len = 1500;
         ctx->ip_pkt.buff = malloc(1500);
         if(ctx->ip_pkt.buff == NULL) {
+        	common_tun_free(&ctx->dev_tun_ctx);
+        	pthread_rwlock_unlock(ctx->rwlock4);
+        	free(ctx->rwlock4);
+        	ctx->rwlock4 = NULL;
         	free(ctx);
         	return NULL;
         }
@@ -54,6 +65,7 @@ router_ctx_t* router_init() {
         ctx->routes_updated = false;
         ctx->paused = false;
         ctx->terminate = false;
+        pthread_rwlock_unlock(ctx->rwlock4);
     }
 
     return ctx;

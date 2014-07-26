@@ -18,9 +18,19 @@
 
 #define LOG_TAG "tun.c"
 
-void common_tun_set(common_tun_ctx_t* ctx, jobject jtun_instance) {
+bool common_tun_set(common_tun_ctx_t* ctx, jobject jtun_instance) {
 	if(ctx == NULL) {
-		return;
+		return false;
+	}
+
+	ctx->rwlock = malloc(sizeof(pthread_rwlock_t));
+	if(ctx->rwlock == NULL) {
+		return false;
+	}
+	if(pthread_rwlock_init(ctx->rwlock, NULL) != 0) {
+		free(ctx->rwlock);
+		ctx->rwlock = NULL;
+		return false;
 	}
 
 	ctx->local_fd = UNDEFINED_FD;
@@ -39,6 +49,8 @@ void common_tun_set(common_tun_ctx_t* ctx, jobject jtun_instance) {
 	ctx->j_vpn_tun = wrap_into_VpnTunnel(jtun_instance);
 
 	ctx->pcap_output = NULL;
+
+	return true;
 }
 
 void common_tun_free(common_tun_ctx_t* ctx) {
@@ -53,6 +65,8 @@ void common_tun_free(common_tun_ctx_t* ctx) {
 	if(ctx->remote_fd != UNDEFINED_FD) {
 		shutdown(ctx->remote_fd, SHUT_RDWR);
 	}
+
+	pthread_rwlock_wrlock(ctx->rwlock);
 
 	ctx->masquerade4 = 0;
 	ctx->use_masquerade4 = false;
@@ -70,6 +84,11 @@ void common_tun_free(common_tun_ctx_t* ctx) {
 
 	pcap_output_destroy(ctx->pcap_output);
 	ctx->pcap_output = NULL;
+
+	pthread_rwlock_unlock(ctx->rwlock);
+	pthread_rwlock_destroy(ctx->rwlock);
+	free(ctx->rwlock);
+	ctx->rwlock = NULL;
 }
 
 ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {

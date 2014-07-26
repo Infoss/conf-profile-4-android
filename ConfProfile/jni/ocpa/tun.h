@@ -9,7 +9,9 @@
 
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <jni.h>
+#include <pthread.h>
 
 #include "java_VpnTunnel.h"
 #include "pcap_output.h"
@@ -24,6 +26,7 @@ typedef ssize_t (*tun_send_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
 typedef ssize_t (*tun_recv_func_ptr)(intptr_t tun_ctx, uint8_t* buff, int len);
 
 struct common_tun_ctx_t {
+	pthread_rwlock_t* rwlock;
 	int local_fd;  //router side
 	int remote_fd; //vpn implementation side
 	uint32_t masquerade4;
@@ -46,7 +49,7 @@ struct common_tun_ctx_t {
 typedef struct common_tun_ctx_t common_tun_ctx_t;
 
 
-void common_tun_set(common_tun_ctx_t* ctx, jobject jtun_instance);
+bool common_tun_set(common_tun_ctx_t* ctx, jobject jtun_instance);
 void common_tun_free(common_tun_ctx_t* ctx);
 
 ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len);
