@@ -172,13 +172,13 @@ const struct addrname addressnames[] = {
    { "socket-connect",		&xioaddr_socket_connect },
    { "socket-datagram",		&xioaddr_socket_datagram },
 #ifdef OCPA_CHANGES
+#if WITH_LISTEN
+   { "socket-fd-accept",		&xioaddr_socket_fd_accept },
+#endif
    { "socket-fd-connect",		&xioaddr_socket_fd_connect },
 #endif /* OCPA_CHANGES */
 #if WITH_LISTEN
    { "socket-listen",		&xioaddr_socket_listen },
-#ifdef OCPA_CHANGES
-   { "socket-fd-accept",		&xioaddr_socket_fd_accept },
-#endif /* OCPA_CHANGES */
 #endif /* WITH_LISTEN */
    { "socket-recv",		&xioaddr_socket_recv },
    { "socket-recvfrom",		&xioaddr_socket_recvfrom },
