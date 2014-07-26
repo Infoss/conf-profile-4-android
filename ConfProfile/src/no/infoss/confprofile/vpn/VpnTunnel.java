@@ -255,10 +255,6 @@ public abstract class VpnTunnel implements Runnable {
 				Log.e(mInstanceLogTag, "Can't log a message, closing a logger", e);
 				close();
 			}
-			
-			if(BuildConfig.DEBUG) {
-				VpnTunnel.this.debugLogMessage(level, data);
-			}
 		}
 		
 		public void close() {
