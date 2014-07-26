@@ -10,11 +10,14 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/socket.h>
+#include <linux/in.h>
 #include <sys/un.h>
 #include <fcntl.h>
 #include <errno.h>
 #include <string.h>
 #include <poll.h>
+#include <signal.h>
+#include <sys/wait.h>
 
 #define LOG_TAG "usernat"
 
@@ -37,7 +40,7 @@
  *   -1 - failure
  *
  * Set connect socket descriptor (outgoing connection)
- * in: conect_fd
+ * in: connect_fd
  * ancillary data: socket descriptor
  * out: resp <error_code>
  * error codes:
@@ -59,8 +62,20 @@
 #define EXIT_CMD_POLL_ERROR 5
 #define EXIT_EXEC_FAILED    6
 
+#define SOCAT_PATH_BUFF_SIZE 256
+
+static char **envdata;
 static int control;
+static char* bytes;
 static int fds[2];
+static int accept_fd;
+static int connect_fd;
+static char socat_path[SOCAT_PATH_BUFF_SIZE];
+static const char* response_fmt = "resp %d\0";
+static const char* terminated_fmt = "terminated %d\0";
+static sigset_t signal_block_set;
+
+//TODO: kill all children processes on terminate
 
 static void (*log_print)(int level, char* tag, char* fmt, ...) = NULL;
 
@@ -72,8 +87,6 @@ static void log_android(int level, char* tag, char* fmt, ...) {
 	__android_log_vprint(level, tag, fmt, args);
 	va_end(args);
 }
-
-static char* bytes;
 
 static void log_remote(int level, char* tag, char* fmt, ...) {
 	unsigned int log_buff_size = 0xfffe;
@@ -107,13 +120,37 @@ send_log:
 	}
 }
 
+static void sigchld_handler(int sig) {
+	int status;
+	pid_t pid;
+
+	char buff[32];
+	memset(buff, 0, sizeof(buff));
+
+	pid = waitpid(-1, &status, WNOHANG);
+
+	if(pid > 0) {
+		if(WIFEXITED(status)) {
+			log_android(ANDROID_LOG_DEBUG, LOG_TAG, "Child exited with error code %d", WEXITSTATUS(status));
+		} else if(WIFSIGNALED(status)) {
+			log_android(ANDROID_LOG_DEBUG, LOG_TAG, "Child exited by signal %d", WTERMSIG(status));
+		} else {
+			log_android(ANDROID_LOG_DEBUG, LOG_TAG, "Child exited by unknown reason");
+		}
+
+		snprintf(buff, sizeof(buff), terminated_fmt, pid);
+		send_cmd(control, buff, strlen(buff));
+	}
+
+}
+
 static void usage() {
 	log_print(ANDROID_LOG_INFO, LOG_TAG, "usage: usernat <ctrl_unix_socket>");
 }
 
 static int find_cmd(const char* cmd, char* buff, int len) {
 	int cmd_len = strlen(cmd);
-	if(len <= cmd_len) {
+	if(len < cmd_len) {
 		return -1;
 	}
 
@@ -124,48 +161,96 @@ static int find_cmd(const char* cmd, char* buff, int len) {
 	return -1;
 }
 
-static void process_socat(char* cmd, int len, int* fds) {
-	pid_t child = fork();
-	const char* response_fmt = "resp %d\0";
+static void process_socat_path(char* cmd, int len) {
 	char buff[18];
 	memset(buff, 0, sizeof(buff));
+
+	cmd++; //cmd pointed to <space> after a command before
+	len--;
+
+	if(len > SOCAT_PATH_BUFF_SIZE - 1) {
+		snprintf(buff, sizeof(buff), response_fmt, -1);
+		send_cmd(control, buff, strlen(buff));
+		return;
+	}
+
+	memset(socat_path, 0, SOCAT_PATH_BUFF_SIZE);
+	memcpy(socat_path, cmd, len);
+
+	snprintf(buff, sizeof(buff), response_fmt, 0);
+	send_cmd(control, buff, strlen(buff));
+}
+
+static void process_accept_fd() {
+	char buff[18];
+
+	accept_fd = fds[0];
+
+	memset(buff, 0, sizeof(buff));
+	snprintf(buff, sizeof(buff), response_fmt, 0);
+	send_cmd(control, buff, strlen(buff));
+}
+
+static void process_connect_fd() {
+	char buff[18];
+
+	connect_fd = fds[0];
+
+	memset(buff, 0, sizeof(buff));
+	snprintf(buff, sizeof(buff), response_fmt, 0);
+	send_cmd(control, buff, strlen(buff));
+}
+
+static void process_socat(char* cmd, int len) {
+	char buff[18];
+	memset(buff, 0, sizeof(buff));
+
+	cmd++; //cmd pointed to <space> after a command before
+	len--;
+
+	pid_t child = fork();
 
 	if(child == -1) {
 		//fork error
 		snprintf(buff, sizeof(buff), response_fmt, child);
 		log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while fork() %d: %s", errno, strerror(errno));
 		send_cmd(control, buff, strlen(buff));
+
+		accept_fd = -1;
+		connect_fd = -1;
 		return;
 	} else if(child > 0) {
 		//parent
 		snprintf(buff, sizeof(buff), response_fmt, child);
-		log_android(ANDROID_LOG_DEBUG, LOG_TAG, "Successfully forked, child pid is %d", child);
-		log_android(ANDROID_LOG_DEBUG, LOG_TAG, "Sending response %s", buff);
 		send_cmd(control, buff, strlen(buff));
+
+		accept_fd = -1;
+		connect_fd = -1;
 		return;
 	}
 	//child == 0, it's a child
-	char buff_from[32];
-	char buff_to[32];
+	char buff_from[64];
+	char buff_to[64];
 	memset(buff_from, 0, sizeof(buff_from));
 	memset(buff_to, 0, sizeof(buff_to));
-	char* params[] = {buff_from, buff_to};
+	//"-d", "-d", "-d", "-d",
+	char* params[] = {"socat", buff_from, buff_to};
 
-	snprintf(buff_from, sizeof(buff_from), "socket-fd-accept:%d", fds[0]);
-	snprintf(buff_to, sizeof(buff_to), "socket-fd-accept:%d:%s", fds[1], cmd);
-	log_android(ANDROID_LOG_ERROR, LOG_TAG, "preparing to execute ocpasocat %s %s", buff_from, buff_to);
+	snprintf(buff_from, sizeof(buff_from), "SOCKET-FD-ACCEPT:%d", accept_fd);
+	snprintf(buff_to, sizeof(buff_to), "SOCKET-FD-CONNECT:%d:%s", connect_fd, cmd);
+	log_android(ANDROID_LOG_ERROR, LOG_TAG, "preparing to execute %s %s %s", socat_path, buff_from, buff_to);
 
-	execv("ocpasocat", params);
+	execve(socat_path, params, envdata);
 
-	log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while execv() %d: %s", errno, strerror(errno));
+	log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while execve() %d: %s", errno, strerror(errno));
 	exit(EXIT_EXEC_FAILED);
 }
 
 static void parse_resp(char* cmd, int len) {
-	log_remote(ANDROID_LOG_INFO, LOG_TAG, "Received response (%d bytes): %s", len, cmd);
+	//log_remote(ANDROID_LOG_INFO, LOG_TAG, "Received response (%d bytes): %s", len, cmd);
 }
 
-static void parse_cmd(char* cmd, int len, int* fds) {
+static void parse_cmd(char* cmd, int len) {
 	if(cmd == NULL) {
 		return;
 	}
@@ -178,23 +263,43 @@ static void parse_cmd(char* cmd, int len, int* fds) {
 		return;
 	}
 
-	param_offs = find_cmd("socat", cmd, len);
+	param_offs = find_cmd("socat_path", cmd, len);
 	if(param_offs != -1) {
-		process_socat(cmd + param_offs, len - param_offs, fds);
+		process_socat_path(cmd + param_offs, len - param_offs);
+		return;
 	}
 
-	log_remote(ANDROID_LOG_INFO, LOG_TAG, "Received command (%d bytes): %s", len, cmd);
+	param_offs = find_cmd("accept_fd", cmd, len);
+	if(param_offs != -1) {
+		process_accept_fd();
+		return;
+	}
+
+	param_offs = find_cmd("connect_fd", cmd, len);
+	if(param_offs != -1) {
+		process_connect_fd();
+		return;
+	}
+
+	param_offs = find_cmd("socat", cmd, len);
+	if(param_offs != -1) {
+		process_socat(cmd + param_offs, len - param_offs);
+		return;
+	}
+
+
 
 	if(strncmp(cmd, "halt\0", strlen("halt") + 1) == 0) {
 		log_remote(ANDROID_LOG_INFO, LOG_TAG, "Received 'halt'. Exiting with error code 0.");
 		exit(EXIT_SUCCESS);
 	}
+
+	log_remote(ANDROID_LOG_INFO, LOG_TAG, "no cmd was found");
+	log_android(ANDROID_LOG_INFO, LOG_TAG, "no cmd was found");
 }
 
 static int socket_process_cmsg(struct msghdr* pMsg) {
     struct cmsghdr *cmsgptr;
-    fds[0] = -1;
-    fds[1] = -1;
 
     for(cmsgptr = CMSG_FIRSTHDR(pMsg);
             cmsgptr != NULL; cmsgptr = CMSG_NXTHDR(pMsg, cmsgptr)) {
@@ -213,8 +318,6 @@ static int socket_process_cmsg(struct msghdr* pMsg) {
                 exit(EXIT_CMD_PEER_ERROR);
             }
 
-            log_android(ANDROID_LOG_ERROR, LOG_TAG, "received %d fd(s)", count);
-
             int i;
             for(i = 0; i < count; i++) {
             	if(count >= 2) {
@@ -222,7 +325,6 @@ static int socket_process_cmsg(struct msghdr* pMsg) {
             		continue;
             	}
 
-            	log_android(ANDROID_LOG_WARN, LOG_TAG, "received fd=%d at position %d", pDescriptors[i], i);
             	fds[i] = pDescriptors[i];
             }
         }
@@ -233,7 +335,6 @@ static int socket_process_cmsg(struct msghdr* pMsg) {
 
 static ssize_t rcvd_cmd_with_fds(int fd, void *buffer, size_t len) {
     ssize_t ret;
-    ssize_t bytesread = 0;
     struct msghdr msg;
     struct iovec iv;
     unsigned char *buf = (unsigned char *)buffer;
@@ -252,9 +353,12 @@ static ssize_t rcvd_cmd_with_fds(int fd, void *buffer, size_t len) {
     msg.msg_control = cmsgbuf;
     msg.msg_controllen = sizeof(cmsgbuf);
 
+    sigset_t old_sigset;
+    sigprocmask(SIG_BLOCK, &signal_block_set, &old_sigset);
     do {
         ret = recvmsg(fd, &msg, MSG_NOSIGNAL);
     } while (ret < 0 && errno == EINTR);
+    sigprocmask(SIG_SETMASK, &old_sigset, NULL);
 
     if (ret < 0 && errno == EPIPE) {
     	log_android(ANDROID_LOG_ERROR, LOG_TAG, "End of stream %d: %s", errno, strerror(errno));
@@ -296,17 +400,80 @@ static void send_cmd(int sock, char* cmd, int len) {
 		buff[0] = (total_len >> 8) & 0x00ff;
 		buff[1] = total_len & 0x00ff;
 		memcpy(buff + 2, cmd, total_len);
+
+		sigset_t old_sigset;
+		sigprocmask(SIG_BLOCK, &signal_block_set, &old_sigset);
 		send(sock, buff, total_len + 2, 0);
+		sigprocmask(SIG_SETMASK, &old_sigset, NULL);
+
 		free(buff);
 	}
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv, char *envp[]) {
+	envdata = envp;
+
 	log_print = log_android;
+	accept_fd = -1;
+	connect_fd = -1;
+	memset(socat_path, 0, SOCAT_PATH_BUFF_SIZE);
 
 	if(argc != 2) {
 		usage();
 		exit(EXIT_SUCCESS);
+	}
+
+	sigaddset(&signal_block_set, SIGCHLD); //we'll block SIGCHLD while performing send/receive actions
+
+	struct sigaction sigact;
+	sigemptyset(&sigact.sa_mask);
+	sigact.sa_flags = 0;
+	sigact.sa_handler = sigchld_handler;
+	sigaction(SIGCHLD, &sigact, NULL);
+
+	//"magic" parameter test performs test run
+	if(strncmp("--test", argv[1], strlen(argv[1])) == 0) {
+		printf("%s started in test mode\n", argv[0]);
+		fprintf(stdout, "stdout test");
+		fprintf(stderr, "stderr test");
+		log_print = log_android;
+		memset(socat_path, 0, SOCAT_PATH_BUFF_SIZE);
+		strcpy(socat_path, "/data/data/no.infoss.confprofile/cache/ocpasocat");
+
+		char buff_from[64];
+		char buff_to[64];
+		memset(buff_from, 0, sizeof(buff_from));
+		memset(buff_to, 0, sizeof(buff_to));
+		char* params[] = {"socat", "-d", "-d", "-d", "-d", buff_from, buff_to};
+
+		struct sockaddr_in test_sa;
+		accept_fd = socket(AF_INET, SOCK_STREAM, 0);
+		if(accept_fd < 0) {
+			printf("accept_fd = socket() failed with code %d: %s\n", errno, strerror(errno));
+		}
+
+		connect_fd = socket(AF_INET, SOCK_STREAM, 0);
+		if(connect_fd < 0) {
+			printf("connect_fd = socket() failed with code %d: %s\n", errno, strerror(errno));
+		}
+
+		test_sa.sin_family = AF_INET;
+		test_sa.sin_addr.s_addr = INADDR_ANY;
+		test_sa.sin_port = 0;
+		if(bind(accept_fd, (struct sockaddr*) &test_sa, sizeof(test_sa)) < 0) {
+			printf("bind(accept_fd) failed with code %d: %s\n", errno, strerror(errno));
+		}
+
+		snprintf(buff_from, sizeof(buff_from), "SOCKET-FD-ACCEPT:%d", accept_fd);
+		snprintf(buff_to, sizeof(buff_to), "SOCKET-FD-CONNECT:%d:192.0.43.9:80", connect_fd);
+		printf("preparing to execute %s %s %s\n", socat_path, buff_from, buff_to);
+
+		execve(socat_path, params, envdata);
+
+		printf("execve() failed with code %d: %s\n", errno, strerror(errno));
+
+		//normally unreachable
+		return EXIT_EXEC_FAILED;
 	}
 
 	struct sockaddr_un remote;
@@ -352,7 +519,7 @@ int main(int argc, char **argv) {
 	log_remote(ANDROID_LOG_DEBUG, LOG_TAG, "test");
 	//log_print = log_remote;
 
-	bytes = malloc(sizeof(char) * 65537);
+	bytes = malloc(sizeof(char) * 65538);
 	if(bytes == NULL) {
 		log_print(ANDROID_LOG_DEBUG, LOG_TAG, "insufficient memory");
 		exit(EXIT_NO_MEMORY);
@@ -385,6 +552,9 @@ int main(int argc, char **argv) {
 			}
 
 			//receive length first
+			fds[0] = -1;
+			fds[1] = -1;
+
 			int length = rcvd_cmd_with_fds(control, bytes, 2);
 			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "rcvd_cmd_with_fds(): res=%d", length);
 			if(length == 0) {
@@ -397,12 +567,16 @@ int main(int argc, char **argv) {
 			}
 			//receive body
 			rcvd_cmd_with_fds(control, bytes + 2, length);
-			parse_cmd(bytes + 2, length, fds);
+			bytes[length + 2] = 0;
+			parse_cmd(bytes + 2, length);
 		} else if(res == 0) {
-			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Timeout, res=%d", res);
-			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "send ping");
 			send_cmd(control, "ping", strlen("ping"));
 		} else {
+			if(errno == EINTR) {
+				//we were interrupted probably by SIGCHLD, just continue
+				continue;
+			}
+
 			log_print(ANDROID_LOG_DEBUG, LOG_TAG, "Error code %d: %s", errno, strerror(errno));
 			exit(EXIT_CMD_POLL_ERROR);
 		}
