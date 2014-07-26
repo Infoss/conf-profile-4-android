@@ -5,8 +5,7 @@
 *
 * This program is free software; you can redistribute it and/or modify
 * it under the terms of the GNU General Public License as published by
-* the Free Software Foundation; either version 2 of the License, or
-* (at your option) any later version.
+* the Free Software Foundation; version 2 of the License.
 *
 * This program is distributed in the hope that it will be useful,
 * but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -34,13 +33,16 @@
  * connecting by already protected (in the VpnService terms) sockets on Android.
  *
  * Main usage steps:
- * 1. Create sockets with O_CLOEXEC
+ * 1. Create sockets (check absence of O_CLOEXEC flag)
  * 2. fork()
- * 3. In the child process: exec() socat SOCKET-ACCEPT-FD:<fd1> SOCKET-CONNECT-FD:<fd2>
- */
-/* TODO: Check license. Socat uses GPLv2 only, we can't directly cast it to GPLv2-or-later.
- * But since this code is used in the standalone app, we can use GPLv2 here and GPLv2+
- * for OCPA simultaneously.
+ * 3. In the child process: exec() socat SOCKET-FD-ACCEPT:<fd1> SOCKET-FD-CONNECT:<fd2>:<ip>:<port>
+ * 4. Close sockets in the parent process
+ *
+ * License notes:
+ * This file is licensed under GPLv2.
+ * Since socat is used as standalone executable in Profile provisioning for Android, license of
+ * this file and/or socat doesn't affect the license of the rest parts of OCPA
+ * (Profile provisioning for Android).
  */
 
 #include "xiosysincludes.h"
@@ -69,13 +71,13 @@ struct connection_ctx {
 	//addresses and sizes for a...
 	//...listening socket
 	union sockaddr_union sock;
-	int sock_len;
+	size_t sock_len;
 	//...local socket
 	union sockaddr_union local;
-	int local_len;
+	size_t local_len;
 	//...remote socket
 	union sockaddr_union peer;
-	int peer_len;
+	size_t peer_len;
 
 	//connection options
 	int so_type;
@@ -86,16 +88,18 @@ struct connection_ctx {
 	struct opt *opts;
 
 	//parsed options (quick access)
-	int dofork;
+	bool dofork;
 	int backlog;
 	int maxchildren;
 	int log_level;
 };
 
 static struct connection_ctx* __ocpa_create_connection_ctx() {
+	Debug("inside __ocpa_create_connection_ctx()");
 	struct connection_ctx* ctx = (struct connection_ctx*) malloc(sizeof(struct connection_ctx));
 	if(ctx != NULL) {
-		memset(&ctx, 0, sizeof(ctx));
+		Debug("connection_ctx was successfully created");
+		memset(ctx, 0, sizeof(struct connection_ctx));
 		ctx->sock_len = sizeof(ctx->sock);
 		ctx->local_len = sizeof(ctx->local);
 		ctx->peer_len = sizeof(ctx->peer);
@@ -134,6 +138,7 @@ static int __ocpa_getpeername(int fd, struct connection_ctx* ctx) {
 static int __ocpa_get_so_type(int fd, struct connection_ctx* ctx) {
 	int tmpreadsize = sizeof(int);
 	int result = getsockopt(fd, SOL_SOCKET, SO_TYPE, &ctx->so_type, &tmpreadsize);
+	Debug4("__ocpa_get_so_type(%d, %p): getsockopt(%d, SOL_SOCKET, SO_TYPE) -> %d", fd, ctx, fd, result);
 	if(result < 0) {
 		result = errno;
 		Error3("getsockopt(%d, SOL_SOCKET, SO_TYPE) returned error code %d (%s)",
@@ -142,41 +147,50 @@ static int __ocpa_get_so_type(int fd, struct connection_ctx* ctx) {
 				strerror(result));
 		return STAT_NORETRY;
 	}
+	Debug1("ctx->so_type == %d", ctx->so_type);
 	return STAT_OK;
 }
 
 static int __ocpa_get_so_protocol(int fd, struct connection_ctx* ctx) {
 	int tmpreadsize = sizeof(int);
-	int result = getsockopt(fd, SOL_SOCKET, SO_TYPE, &ctx->so_protocol, &tmpreadsize);
+	int result = getsockopt(fd, SOL_SOCKET, SO_PROTOCOL, &ctx->so_protocol, &tmpreadsize);
+	Debug4("__ocpa_get_so_protocol(%d, %p): getsockopt(%d, SOL_SOCKET, SO_TYPE) -> %d", fd, ctx, fd, result);
 	if(result < 0) {
 		result = errno;
-		Error3("getsockopt(%d, SOL_SOCKET, SO_PROTOCOL) returned error code %d (%s)",
+		Warn3("getsockopt(%d, SOL_SOCKET, SO_PROTOCOL) returned error code %d (%s)",
 				fd,
 				result,
 				strerror(result));
 		return STAT_NORETRY;
 	}
+	Debug1("ctx->so_protocol == %d", ctx->so_protocol);
 	return STAT_OK;
 }
 
 static int __ocpa_get_so_acceptconn(int fd, struct connection_ctx* ctx) {
 	int tmpreadsize = sizeof(int);
 	int result = getsockopt(fd, SOL_SOCKET, SO_ACCEPTCONN, &ctx->so_acceptconn, &tmpreadsize);
+	Debug4("__ocpa_get_so_protocol(%d, %p): getsockopt(%d, SOL_SOCKET, SO_ACCEPTCONN) -> %d", fd, ctx, fd, result);
 	if(result < 0) {
 		result = errno;
-		Error2("getsockopt(SOL_SOCKET, SO_ACCEPTCONN) returned error code %d (%s)",
+		Warn2("getsockopt(SOL_SOCKET, SO_ACCEPTCONN) returned error code %d (%s)",
 				result,
 				strerror(result));
 		return STAT_NORETRY;
 	}
+	Debug1("ctx->so_acceptconn == %d", ctx->so_acceptconn);
 	return STAT_OK;
 }
 
 static int __ocpa_check_sockaddr(struct sockaddr* sa) {
+	char infobuff[256];
+	Debug1("__ocpa_check_sockaddr(%p)", sa);
+	Debug1("sockaddr info: %s",
+		   sockaddr_info(sa, sizeof(struct sockaddr), infobuff, sizeof(infobuff)));
 	union sockaddr_union* us = (union sockaddr_union*) sa;
 	if(us->soa.sa_family == AF_INET && us->ip4.sin_addr.s_addr == 0) {
 		//socket is not bound
-		Error("AF_INET socket is not bound");
+		Warn("AF_INET socket is not bound");
 		return STAT_NORETRY;
 	} else if(us->soa.sa_family == AF_INET6 &&
 		us->ip6.sin6_addr.s6_addr32[0] == 0 &&
@@ -184,21 +198,28 @@ static int __ocpa_check_sockaddr(struct sockaddr* sa) {
 		us->ip6.sin6_addr.s6_addr32[2] == 0 &&
 		us->ip6.sin6_addr.s6_addr32[3] == 0) {
 		//socket is not bound
-		Error("AF_INET6 socket is not bound");
+		Warn("AF_INET6 socket is not bound");
 		return STAT_NORETRY;
 	}
 	return STAT_OK;
 }
 
 static int __ocpa_check_bound(struct connection_ctx* ctx) {
-	return __ocpa_check_sockaddr(&ctx->sock.soa);
+	Debug1("__ocpa_check_bound(%p)", ctx);
+	int result = __ocpa_check_sockaddr(&ctx->sock.soa);
+	Debug2("__ocpa_check_bound(%p) -> %d", ctx, result);
+	return result;
 }
 
 static int __ocpa_check_connected(struct connection_ctx* ctx) {
-	return __ocpa_check_sockaddr(&ctx->peer.soa);
+	Debug1("__ocpa_check_connected(%p)", ctx);
+	int result = __ocpa_check_sockaddr(&ctx->peer.soa);
+	Debug2("__ocpa_check_connected(%p) -> %d", ctx, result);
+	return result;
 }
 
 static int __ocpa_check_af_inet(struct connection_ctx* ctx) {
+	Debug1("__ocpa_check_af_inet(%p)", ctx);
 	if(ctx->sock.soa.sa_family != AF_INET && ctx->sock.soa.sa_family != AF_INET6) {
 		Error1("address family %d doesn't supported", ctx->sock.soa.sa_family);
 		return STAT_NORETRY;
@@ -226,7 +247,7 @@ static int __xioopen_socket_fd_listen_loop(struct single *xfd, struct connection
 		applyopts(xfd->fd, opts, PH_PRELISTEN);
 		retropt_int(opts, OPT_BACKLOG, &ctx->backlog);
 		if(Listen(xfd->fd, ctx->backlog) < 0) {
-			Error3("listen(%d, %d): %s", xfd->fd, ctx->backlog, strerror(errno));
+			Debug3("listen(%d, %d): %s", xfd->fd, ctx->backlog, strerror(errno));
 			result = STAT_RETRYLATER;
 		}
 		/*! not sure if we should try again on retry/forever */
@@ -267,7 +288,7 @@ static int __xioopen_socket_fd_accept_loop(struct single *xfd, struct connection
 	int ps;		/* peer socket */
 	char infobuff[256];
 
-	struct opt* opts = ctx->opts;
+	struct opt* opts = ctx->opts; //This is okay since we don't modify opts
 
 	int result;
 
@@ -436,11 +457,13 @@ static int xioopen_socket_fd_accept(int argc, const char *argv[], struct opt *op
 		Warn1("garbage in parameter: \"%s\"", garbage);
 	}
 
+	Debug("pre __ocpa_create_connection_ctx()");
 	ctx = __ocpa_create_connection_ctx();
 	if(ctx == NULL) {
 		Error("Failed to allocate connection context");
 		return STAT_NORETRY;
 	}
+	ctx->opts = opts;
 
 	retropt_bool(opts, OPT_FORK, &ctx->dofork);
 
@@ -466,6 +489,7 @@ static int xioopen_socket_fd_accept(int argc, const char *argv[], struct opt *op
 		xiosetchilddied();	/* set SIGCHLD handler */
 	}
 
+	Debug("pre __ocpa_getsockname()");
 	result = __ocpa_getsockname(fromfd, ctx);
 	if(result < 0) {
 		free(ctx);
@@ -473,6 +497,7 @@ static int xioopen_socket_fd_accept(int argc, const char *argv[], struct opt *op
 	}
 
 	//check address family/protocol family
+	Debug("pre __ocpa_check_af_inet()");
 	result = __ocpa_check_af_inet(ctx);
 	if(result < 0) {
 		free(ctx);
@@ -480,12 +505,14 @@ static int xioopen_socket_fd_accept(int argc, const char *argv[], struct opt *op
 	}
 
 	//check is socket bound
+	Debug("pre __ocpa_check_bound()");
 	result = __ocpa_check_bound(ctx);
 	if(result < 0) {
 		free(ctx);
 		return result;
 	}
 
+	Debug("pre __ocpa_get_so_type()");
 	result = __ocpa_get_so_type(fromfd, ctx);
 	if(result < 0) {
 		free(ctx);
@@ -493,6 +520,7 @@ static int xioopen_socket_fd_accept(int argc, const char *argv[], struct opt *op
 	}
 
 	//check is socket in listening mode
+	Debug("pre __ocpa_get_so_acceptconn()");
 	result = __ocpa_get_so_acceptconn(fromfd, ctx);
 	if(result < 0) {
 		free(ctx);
@@ -542,7 +570,9 @@ static int xioopen_socket_fd_accept(int argc, const char *argv[], struct opt *op
 	//check is socket listening
 	if(ctx->so_acceptconn == 0 && ctx->so_type == SOCK_STREAM) {
 		//force listening
+		Debug("pre __xioopen_socket_fd_listen_loop()");
 		result = __xioopen_socket_fd_listen_loop(xfd, ctx);
+		Debug1("__xioopen_socket_fd_listen_loop() -> %d", result);
 		if(result != STAT_OK) {
 			free(ctx);
 			return result;
@@ -557,6 +587,7 @@ static int xioopen_socket_fd_accept(int argc, const char *argv[], struct opt *op
 	}
 
 	result = __xioopen_socket_fd_accept_loop(xfd, ctx);
+	Debug1("__xioopen_socket_fd_listen_loop() -> %d", result);
 	free(ctx);
 	return result;
 }
@@ -674,6 +705,8 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 	int result;
 	struct connection_ctx* ctx;
 
+	char infobuff[256];
+
 	if(argc != 2 && argc != 4) {
 		Error2("%s: wrong number of parameters (%d instead of 1 or 3)", argv[0], argc - 1);
 		return STAT_NORETRY;
@@ -733,10 +766,14 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 		return result;
 	}
 
+	Debug1("post _ocpa_getsockname() sockaddr info: %s",
+				   sockaddr_info(&ctx->sock.soa, sizeof(ctx->sock), infobuff, sizeof(infobuff)));
+
 	pf = ctx->sock.soa.sa_family;
 
 	//check is socket bound
 	result = __ocpa_check_bound(ctx);
+	Debug1("__ocpa_check_bound() -> %d", result);
 	if(result < 0) {
 		ctx->sock_len = sizeof(ctx->sock);
 		result = retropt_bind(opts,
@@ -744,10 +781,11 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 				ctx->so_type,
 				ctx->so_protocol,
 				&ctx->sock.soa,
-				(socklen_t) ctx->sock_len,
+				(socklen_t*) &ctx->sock_len,
 				3,
 				0,
 				0);
+		Debug1("retopt_bind() -> %d", result);
 		if(result != STAT_NOACTION) {
 			needbind = true;
 			ctx->sock.soa.sa_family = pf;
@@ -767,6 +805,9 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 
 	applyopts_cloexec(xfd->fd, opts);
 
+	ctx->peer.soa.sa_family = pf;
+	Debug1("pre _ocpa_getpeername() sockaddr info: %s",
+			   sockaddr_info(&ctx->peer.soa, sizeof(ctx->peer), infobuff, sizeof(infobuff)));
 	result = __ocpa_getpeername(xfd->fd, ctx);
 	if(result < 0) {
 		free(ctx);
@@ -780,23 +821,28 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 			return STAT_NORETRY;
 		}
 
-		ctx->peer_len = 0;
-		result = dalan(address, (char *)&ctx->peer.soa.sa_data, &ctx->peer_len, sizeof(ctx->peer));
-		if(result < 0) {
-			Error1("data too long: \"%s\"", address);
+		void* dst_addr = NULL;
+		if(pf == AF_INET) {
+			dst_addr = &ctx->peer.ip4.sin_addr.s_addr;
+			ctx->peer.ip4.sin_port = port;
+		} else if(pf == AF_INET6) {
+			dst_addr = ctx->peer.ip6.sin6_addr.in6_u.u6_addr8;
+			ctx->peer.ip6.sin6_port = port;
+		} else {
+			//SIGSEGV will be caught by socat handler
+			Warn1("unsupported address family^ %d", pf);
+		}
+
+		result = inet_pton(pf, address, dst_addr);
+		if(result == 0) {
+			Error1("invalid address: \"%s\"", address);
 			free(ctx);
 			return STAT_NORETRY;
-		} else if(result > 0) {
-			Error1("syntax error in \"%s\"", address);
+		} else if(result == -1) {
+			Error3("invalid address family: %d (%d: %s)", pf, errno, strerror(errno));
 			free(ctx);
 			return STAT_NORETRY;
 		}
-		ctx->peer.soa.sa_family = pf;
-		ctx->peer_len +=
-#if HAVE_STRUCT_SOCKADDR_SALEN
-		sizeof(ctx->peer.soa.sa_len) +
-#endif
-		sizeof(ctx->peer.soa.sa_family);
 	}
 
 	if((result =
