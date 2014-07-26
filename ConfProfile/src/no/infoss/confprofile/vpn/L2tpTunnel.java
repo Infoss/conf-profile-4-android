@@ -41,7 +41,7 @@ public class L2tpTunnel extends VpnTunnel {
 
 	@Override
 	public void run() {
-		if(!MiscUtils.writeExecutableToCache(mCtx, L2tpWorker.MINIVPN)) {
+		if(MiscUtils.writeExecutableToCache(mCtx, L2tpWorker.MINIVPN) == null) {
 			Log.e(TAG, "Error writing ocpamtpd");
 		}
 

@@ -101,7 +101,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 
 	@Override
 	public void run() {
-		if(!MiscUtils.writeExecutableToCache(mCtx, OpenVpnWorker.MINIVPN)) {
+		if(MiscUtils.writeExecutableToCache(mCtx, OpenVpnWorker.MINIVPN) == null) {
 			Log.e(TAG, "Error writing minivpn");
 			terminateConnection();
 			return;
