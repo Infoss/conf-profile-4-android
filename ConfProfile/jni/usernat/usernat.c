@@ -240,6 +240,105 @@ static void process_socat(char* cmd, int len) {
 	snprintf(buff_to, sizeof(buff_to), "SOCKET-FD-CONNECT:%d:%s", connect_fd, cmd);
 	log_android(ANDROID_LOG_ERROR, LOG_TAG, "preparing to execute %s %s %s", socat_path, buff_from, buff_to);
 
+	struct sockaddr_in sa;
+	int sa_len = sizeof(sa);
+	int accepted_sock = accept(accept_fd, (struct sockaddr*) &sa, &sa_len);
+	if(accepted_sock == -1) {
+		log_android(ANDROID_LOG_ERROR, LOG_TAG, "can't accept() %d: %s", errno, strerror(errno));
+		exit(EXIT_EXEC_FAILED);
+	}
+	log_android(ANDROID_LOG_DEBUG, LOG_TAG, "accept() returned %d", accepted_sock);
+
+	struct pollfd* pollfds = malloc(sizeof(struct pollfd) * 2);
+	if(pollfds == NULL) {
+		log_android(ANDROID_LOG_ERROR, LOG_TAG, "can't malloc() space for poll fds");
+		exit(EXIT_EXEC_FAILED);
+	}
+
+	uint8_t* bytebuff = malloc(1500);
+	if(bytebuff == NULL) {
+		log_android(ANDROID_LOG_ERROR, LOG_TAG, "can't malloc() space for byte buffer");
+		exit(EXIT_EXEC_FAILED);
+	}
+
+	pollfds[0].events = POLLIN | POLLPRI;
+	pollfds[0].revents = 0;
+	pollfds[0].fd = accepted_sock;
+	pollfds[1].events = POLLIN | POLLPRI;
+	pollfds[1].revents = 0;
+	pollfds[1].fd = connect_fd;
+
+	while(true) {
+		int res = poll(pollfds, 2, 500);
+		if(res > 0) {
+			if((pollfds[0].revents & POLLIN) != 0) {
+				int size = read(pollfds[0].fd, bytebuff, 1500);
+				if(size < 0) {
+					log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while read(%d) %d: %s",
+							pollfds[0].fd, errno, strerror(errno));
+					close(pollfds[0].fd);
+					close(pollfds[1].fd);
+					close(accept_fd);
+					exit(EXIT_EXEC_FAILED);
+				} else if(size > 0) {
+					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[0].fd, size);
+					size = write(pollfds[1].fd, bytebuff, size);
+					if(size < 0) {
+						log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while write(%d) %d: %s",
+								pollfds[0].fd, errno, strerror(errno));
+						close(pollfds[0].fd);
+						close(pollfds[1].fd);
+						close(accept_fd);
+						exit(EXIT_EXEC_FAILED);
+					}
+					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "write(%d) returned %d", pollfds[1].fd, size);
+				}
+			}
+
+			if((pollfds[1].revents & POLLIN) != 0) {
+				int size = read(pollfds[1].fd, bytebuff, 1500);
+				if(size < 0) {
+					log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while read(%d) %d: %s",
+							pollfds[0].fd, errno, strerror(errno));
+					close(pollfds[0].fd);
+					close(pollfds[1].fd);
+					close(accept_fd);
+					exit(EXIT_EXEC_FAILED);
+				} else if(size > 0) {
+					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[1].fd, size);
+					size = write(pollfds[0].fd, bytebuff, size);
+					if(size < 0) {
+						log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while write(%d) %d: %s",
+								pollfds[0].fd, errno, strerror(errno));
+						close(pollfds[0].fd);
+						close(pollfds[1].fd);
+						close(accept_fd);
+						exit(EXIT_EXEC_FAILED);
+					}
+					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "write(%d) returned %d", pollfds[0].fd, size);
+				}
+			}
+
+			if((pollfds[0].revents & POLLHUP) != 0) {
+				log_android(ANDROID_LOG_DEBUG, LOG_TAG, "POLLHUP from %d (accepted)", pollfds[0].fd);
+				close(pollfds[0].fd);
+				close(pollfds[1].fd);
+				close(accept_fd);
+				exit(EXIT_SUCCESS);
+			}
+
+			if((pollfds[1].revents & POLLHUP) != 0) {
+				log_android(ANDROID_LOG_DEBUG, LOG_TAG, "POLLHUP from %d (connected)", pollfds[1].fd);
+				close(pollfds[0].fd);
+				close(pollfds[1].fd);
+				close(accept_fd);
+				exit(EXIT_SUCCESS);
+			}
+		} else if(res < 0) {
+			log_android(ANDROID_LOG_ERROR, LOG_TAG, "poll() returned error %d: %s", errno, strerror(errno));
+		}
+	}
+
 	execve(socat_path, params, envdata);
 
 	log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while execve() %d: %s", errno, strerror(errno));
