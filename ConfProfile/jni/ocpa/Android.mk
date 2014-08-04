@@ -22,6 +22,7 @@ LOCAL_SRC_FILES := \
 	jni_RouterLoop.c \
 	jni_UsernatTunnel.c \
 	jni_VpnTunnel.c \
+	queues.c \
 	pcap_output.c \
 	android_log_utils.c \
     strongswan.c \
