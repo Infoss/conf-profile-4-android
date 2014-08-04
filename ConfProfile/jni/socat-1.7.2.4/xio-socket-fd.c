@@ -830,7 +830,7 @@ static int xioopen_socket_fd_connect(int argc, const char *argv[], struct opt *o
 			ctx->peer.ip6.sin6_port = port;
 		} else {
 			//SIGSEGV will be caught by socat handler
-			Warn1("unsupported address family^ %d", pf);
+			Warn1("unsupported address family: %d", pf);
 		}
 
 		result = inet_pton(pf, address, dst_addr);
