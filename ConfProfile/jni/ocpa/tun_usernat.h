@@ -9,6 +9,7 @@
 
 #include "tun.h"
 #include "java_UsernatTunnel.h"
+#include "queues.h"
 
 #define NAT_LINK_IP6  2
 #define NAT_LINK_TCP4 0
@@ -30,6 +31,8 @@ struct nat_common_link_t {
 	uint8_t link_type;
 	int sock_accept;
 	int sock_connect;
+	bool enqueue_packets;
+	queue* packets_queue;
 	pid_t socat_pid;
 	uint16_t hop_port;
 	int cycles_to_live;
