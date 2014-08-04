@@ -6,8 +6,10 @@
 
 #include <stdlib.h>
 #include "android_jni.h"
+#include "android_log_utils.h"
 #include "java_VpnTunnel.h"
 
+#define LOG_TAG "java_VpnTunnel.c"
 
 struct java_VpnTunnel_private {
 	java_VpnTunnel public;
@@ -36,6 +38,9 @@ static bool protectSocket(java_VpnTunnel* instance, int32_t sock) {
 			this_instance->private.obj,
 			this_instance->private.id_protectSocket,
 			sock);
+	LOGD(LOG_TAG, "VpnTunnel.protectSocket(%d) returned %d", sock, result);
+	jniLogException(jnienv, ANDROID_LOG_ERROR, LOG_TAG, NULL);
+	result = (result == JNI_TRUE);
 
 	if ((*jnienv)->ExceptionOccurred(jnienv)){
 		(*jnienv)->ExceptionDescribe(jnienv);
