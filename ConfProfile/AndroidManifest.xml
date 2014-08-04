@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="no.infoss.confprofile"
     android:versionCode="1"
-    android:versionName="0.1.3 (pre-alpha)" 
+    android:versionName="0.1.4 (alpha)" 
     android:installLocation="internalOnly">
 
     <uses-sdk
