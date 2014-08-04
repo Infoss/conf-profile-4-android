@@ -25,6 +25,7 @@ public class UsernatTunnel extends VpnTunnel {
 	private static final VpnConfigInfo VPN_CFG_INFO;
 	static {
 		VPN_CFG_INFO = new VpnConfigInfo();
+		VPN_CFG_INFO.configId = "0000";
 	}
 	
 	private Thread mWorkerThread;

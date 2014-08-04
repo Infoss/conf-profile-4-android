@@ -27,6 +27,8 @@ import android.app.NotificationManager;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.content.SharedPreferences.Editor;
 import android.content.res.TypedArray;
 import android.graphics.drawable.BitmapDrawable;
 import android.graphics.drawable.Drawable;
@@ -38,6 +40,7 @@ import android.util.Log;
 public class VpnManagerService extends Service implements VpnManagerInterface, ObtainOnDemandVpnsListener {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
 	
+	private static final String PREF_DEBUG_PCAP = "VpnManagerSevice_debugPcapEnabled";
 	private static final String PCAP_TUN_FILENAME_FMT = "tun(%s)-%d.pcap";
 	private static final String PCAP_NAT_FILENAME_FMT = "usernat(%s)-%d.pcap";
 	
@@ -112,6 +115,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		if(!mBindKit.bind(OcpaVpnService.class, BIND_AUTO_CREATE)) {
 			Log.e(TAG, "Can't bind OcpaVpnService");
 		}
+		
+		if(BuildConfig.DEBUG) {
+			SharedPreferences prefs = getSharedPreferences(MiscUtils.PREFERENCE_FILE, MODE_PRIVATE);
+			mDebugPcapEnabled = prefs.getBoolean(PREF_DEBUG_PCAP, false);
+		}
 	}
 	
 	@Override
@@ -176,6 +184,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			mUsernatTunnel.establishConnection(null);
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);
+			
+			if(mDebugPcapEnabled) {
+				debugStartPcap();
+			}
 			
 			List<Route4> routes4 = mRouterLoop.getRoutes4();
 			if(routes4 == null) {
@@ -421,6 +433,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		if(BuildConfig.DEBUG) {
 			if(!MiscUtils.isExternalStorageWriteable()) {
 				mDebugPcapEnabled = false;
+				storeDebugPcapEnabled(mDebugPcapEnabled);
 				return false;
 			}
 			
@@ -428,6 +441,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			if(externalFilesDir == null) {
 				//error: storage error
 				mDebugPcapEnabled = false;
+				storeDebugPcapEnabled(mDebugPcapEnabled);
 				return false;
 			}
 			
@@ -452,12 +466,20 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			}
 			
 			//capture from tunnel
-			debugStartTunnelPcap(PCAP_TUN_FILENAME_FMT, mCurrentTunnel);
-			debugStartTunnelPcap(PCAP_NAT_FILENAME_FMT, mUsernatTunnel);
+			if(mCurrentTunnel != null) {
+				debugStartTunnelPcap(PCAP_TUN_FILENAME_FMT, mCurrentTunnel);
+			}
+			
+			if(mUsernatTunnel != null) {
+				debugStartTunnelPcap(PCAP_NAT_FILENAME_FMT, mUsernatTunnel);
+			}
 			
 			mDebugPcapEnabled = true;
+			storeDebugPcapEnabled(mDebugPcapEnabled);
 			return true;
 		}
+		
+		storeDebugPcapEnabled(false);
 		return false;
 	}
 	
@@ -465,6 +487,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public boolean debugStopPcap() {
 		if(BuildConfig.DEBUG) {
 			mDebugPcapEnabled = false;
+			storeDebugPcapEnabled(mDebugPcapEnabled);
 			
 			if(mRouterLoop != null) {
 				try {
@@ -492,7 +515,16 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			
 			return true;
 		}
+		
+		storeDebugPcapEnabled(false);
 		return false;
+	}
+	
+	private void storeDebugPcapEnabled(boolean enabled) {
+		SharedPreferences prefs = getSharedPreferences(MiscUtils.PREFERENCE_FILE, MODE_PRIVATE);
+		Editor editor = prefs.edit();
+		editor.putBoolean(PREF_DEBUG_PCAP, enabled);
+		editor.commit();
 	}
 
 	/*package*/ RouterLoop getRouterLoop() {
@@ -587,13 +619,13 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			try {
 				String pcapFileName = String.format(
 						fileNameFmt, 
-						mCurrentTunnel.getTunnelId(), 
+						tunnel.getTunnelId(), 
 						System.currentTimeMillis());
 				os = new PcapOutputStream(
 						new File(externalFilesDir, pcapFileName), 
 						mRouterLoop.getMtu(), 
 						PcapOutputStream.LINKTYPE_RAW);
-				mCurrentTunnel.debugRestartPcap(os);
+				tunnel.debugRestartPcap(os);
 			} catch(Exception e) {
 				Log.e(TAG, "Restart pcap error", e);
 				if(os != null) {
