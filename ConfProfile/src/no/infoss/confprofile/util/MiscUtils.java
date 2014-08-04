@@ -17,6 +17,7 @@ import android.os.Environment;
 import android.util.Log;
 
 public class MiscUtils {
+	public static final String PREFERENCE_FILE = "confprofile.pref";
 	public static final String TAG = MiscUtils.class.getSimpleName();
 	public static final String HEX = "0123456789abcdef";
 	

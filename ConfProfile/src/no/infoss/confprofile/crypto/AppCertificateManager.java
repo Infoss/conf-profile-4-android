@@ -39,6 +39,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import no.infoss.confprofile.util.CryptoUtils;
+import no.infoss.confprofile.util.MiscUtils;
 
 import org.bouncycastle.jce.provider.BouncyCastleProvider;
 import org.bouncycastle.operator.OperatorCreationException;
@@ -152,7 +153,7 @@ public class AppCertificateManager extends CertificateManager {
 	}
 	
 	private char[] getPassword() {
-		SharedPreferences mgr = mContext.getSharedPreferences("confprofile.pref", Context.MODE_PRIVATE);
+		SharedPreferences mgr = mContext.getSharedPreferences(MiscUtils.PREFERENCE_FILE, Context.MODE_PRIVATE);
 		String password = null;
 		if(mgr.contains(PREF_PASSWORD)) {
 			password = mgr.getString(PREF_PASSWORD, null);

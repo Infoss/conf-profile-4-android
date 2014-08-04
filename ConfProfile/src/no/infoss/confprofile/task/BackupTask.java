@@ -86,8 +86,8 @@ public class BackupTask extends AsyncTask<Void, Void, Void> {
 	        zos.closeEntry();
 	        
 			//saving preferences
-	        SharedPreferences pref = mCtx.getSharedPreferences("confprofile.pref", Context.MODE_PRIVATE);
-	        entry = new ZipEntry("confprofile.pref");
+	        SharedPreferences pref = mCtx.getSharedPreferences(MiscUtils.PREFERENCE_FILE, Context.MODE_PRIVATE);
+	        entry = new ZipEntry(MiscUtils.PREFERENCE_FILE);
 	        zos.putNextEntry(entry);
 	        
 	        Gson gson = new Gson();
