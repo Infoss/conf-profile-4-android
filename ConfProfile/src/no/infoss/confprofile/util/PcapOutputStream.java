@@ -7,6 +7,8 @@ import java.io.IOException;
 import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 
+import no.infoss.confprofile.BuildConfig;
+
 public class PcapOutputStream extends BufferedOutputStream {
 	public static final String TAG = PcapOutputStream.class.getSimpleName();
 	
@@ -49,6 +51,10 @@ public class PcapOutputStream extends BufferedOutputStream {
 		byte[] hdr = valuesAsByteArray(ts_sec, ts_usec, len, origLen);
 		write(hdr);
 		write(buff, offs, len);
+		
+		if(BuildConfig.DEBUG) {
+			flush();
+		}
 	}
 	
 	private synchronized void writePcapHeader(int mtu, int linkType) throws IOException {
