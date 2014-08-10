@@ -6,9 +6,7 @@ import java.util.Arrays;
 import no.infoss.confprofile.db.Expressions.Expression;
 import android.database.sqlite.SQLiteDatabase;
 
-public class Delete extends Request {
-	private int mRowsCount;
-	
+public class Delete extends RequestWithAffectedRows {
 	private Expression mWhereExpression;
 	private ArrayList<String> mSelectionArgs = new ArrayList<String>();
 	
@@ -45,10 +43,6 @@ public class Delete extends Request {
 		mRowsCount = db.delete(mTableName, where, mSelectionArgs.toArray(new String[mSelectionArgs.size()]));
 		
 		return this;
-	}
-	
-	public int getRowsCount() {
-		return mRowsCount;
 	}
 	
 	public static final Delete delete() {

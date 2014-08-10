@@ -12,3 +12,4 @@ public abstract class Request {
 	
 	public abstract Request perform(SQLiteDatabase db);
 }
+
