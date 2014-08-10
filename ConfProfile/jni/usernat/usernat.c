@@ -337,6 +337,8 @@ static void process_socat(char* cmd, int len) {
 		} else if(res < 0) {
 			log_android(ANDROID_LOG_ERROR, LOG_TAG, "poll() returned error %d: %s", errno, strerror(errno));
 		}
+
+		//TODO: processing closed connections
 	}
 
 	execve(socat_path, params, envdata);
