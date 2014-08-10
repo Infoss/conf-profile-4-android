@@ -19,14 +19,20 @@
 
 package no.infoss.confprofile;
 
+import java.util.ArrayList;
+import java.util.LinkedList;
+import java.util.List;
+
 import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
-import no.infoss.confprofile.profile.ProfilesCursorLoader;
-import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
+import no.infoss.confprofile.profile.VpnDataCursorLoader;
+import no.infoss.confprofile.profile.data.ListItem;
+import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.task.BackupTask;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
+import no.infoss.confprofile.util.SqliteRequestThread;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
 import android.app.Activity;
@@ -47,18 +53,20 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
-import android.widget.ListAdapter;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.litecoding.classkit.view.HeaderObjectAdapter;
+import com.litecoding.classkit.view.HeaderObjectAdapter.HeaderObjectMapper;
 import com.litecoding.classkit.view.LazyCursorList;
-import com.litecoding.classkit.view.ObjectAdapter;
-import com.litecoding.classkit.view.ObjectAdapter.ObjectMapper;
 
 public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection {
 	public static final String TAG = Main.class.getSimpleName();
 	
-	private LazyCursorList<ProfileInfo> mProfileInfoList;
+	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
+	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
+	
+	private LazyCursorList<? extends ListItem> mVpnInfoList;
 	private DbOpenHelper mDbHelper;
 	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
 	private boolean mDebugPcapEnabled = false;
@@ -68,29 +76,47 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		
-		mProfileInfoList = new LazyCursorList<ProfileInfo>(ProfilesCursorLoader.PROFILE_CURSOR_MAPPER);
+		HEADER_LIST.clear();
+		HEADER_LIST.add("");
+		HEADER_LIST.add(getString(R.string.main_choose_config_label));
+		
+		DATA_LIST.clear();
+		
+		List<ListItem> cmdList = new ArrayList<ListItem>(2);
+		cmdList.add(new ListItem(getString(R.string.main_item_vpn_label), null));
+		DATA_LIST.add(cmdList);
+		
+		mVpnInfoList = new LazyCursorList<VpnData>(VpnDataCursorLoader.VPN_DATA_CURSOR_MAPPER);
+		DATA_LIST.add((LazyCursorList<ListItem>) mVpnInfoList);
+		
 		mDbHelper = DbOpenHelper.getInstance(this);
+		SqliteRequestThread.getInstance().start(this);
 		mBindKit = new SimpleServiceBindKit<VpnManagerInterface>(this, VpnManagerInterface.TAG);
 		
-		ListAdapter profileAdapter = new ObjectAdapter<ProfileInfo>(
+		HeaderObjectAdapter<ListItem, String> payloadAdapter = new HeaderObjectAdapter<ListItem, String>(
 				getLayoutInflater(), 
-				mProfileInfoList, 
+				HEADER_LIST,
+				android.R.layout.simple_list_item_1,
+				DATA_LIST, 
 				R.layout.profile_item, 
 				new PayloadInfoMapper());
 		GridView grid = (GridView) findViewById(R.id.profileGrid);
 		grid.setEmptyView(findViewById(android.R.id.empty));
-		grid.setAdapter(profileAdapter);
+		grid.setAdapter(payloadAdapter);
 		grid.setOnItemClickListener(new OnItemClickListener() {
 
 			@Override
 			public void onItemClick(AdapterView<?> parent, View view,
 					int position, long id) {
 				@SuppressWarnings("unchecked")
-				ObjectAdapter<ProfileInfo> adapter = (ObjectAdapter<ProfileInfo>) parent.getAdapter();
-				ProfileInfo info = (ProfileInfo) adapter.getItem(position);
-				Intent intent = new Intent(Main.this, ProfileDetails.class);
-				intent.putExtra(PayloadsCursorLoader.P_PROFILE_ID, info.id);
-				Main.this.startActivity(intent);
+				HeaderObjectAdapter<ListItem, String> adapter = (HeaderObjectAdapter<ListItem, String>) parent.getAdapter();
+				ListItem item = (ListItem) adapter.getItem(position);
+				
+				if(item instanceof VpnData) {
+					VpnManagerInterface vpnMgr = mBindKit.lock();
+					vpnMgr.activateVpnTunnel(((VpnData) item).getPayloadUuid());
+					mBindKit.unlock();
+				}
 			}
 		});
 		
@@ -187,12 +213,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 
 	@Override
 	public Loader<Cursor> onCreateLoader(int id, Bundle params) {
-		return new ProfilesCursorLoader(this, id, params, mDbHelper);
+		return new PayloadsCursorLoader(this, id, params, mDbHelper);
 	}
 
 	@Override
 	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
-		mProfileInfoList.populateFrom(data, true);
+		mVpnInfoList.populateFrom(data, true);
 	}
 
 	@Override
@@ -220,7 +246,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	}
 	
 	private void backupData() {
-		new BackupTask(this).execute();
+		if(BuildConfig.DEBUG) {
+			new BackupTask(this).execute();
+		}
 	}
 	
 	private void startStopDebugPcap() {
@@ -246,10 +274,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		mBindKit.unlock();
 	}
 	
-	private static class PayloadInfoMapper implements ObjectMapper<ProfileInfo> {
+	private static class PayloadInfoMapper implements HeaderObjectMapper<ListItem, String> {
 
 		@Override
-		public View prepareView(int position, View convertView, ProfileInfo data) {
+		public View prepareView(int position, View convertView, ListItem data) {
 			if(convertView == null) {
 				return convertView;
 			}
@@ -271,16 +299,30 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		}
 		
 		@Override
-		public void mapData(int position, View view, ProfileInfo data) {
+		public void mapData(int position, View view, ListItem data) {
 			TextView text;
 			text = (TextView) view.findViewById(R.id.profileName);
 			if(text != null) {
-				text.setText(data.name);
+				text.setText(data.getMainText());
 			}
 			
 			text = (TextView) view.findViewById(R.id.profileDetails);
 			if(text != null) {
-				text.setText(data.id);
+				text.setText("");
+			}
+		}
+		
+		@Override
+		public View prepareHeaderView(int position, View convertView, String data) {
+			// TODO Auto-generated method stub
+			return null;
+		}
+
+		@Override
+		public void mapHeader(int position, View view, String data) {
+			View v = view.findViewById(android.R.id.text1);
+			if(v != null && v instanceof TextView) {
+				((TextView) v).setText(data);
 			}
 		}
 		
