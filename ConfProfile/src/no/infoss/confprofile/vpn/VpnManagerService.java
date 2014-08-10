@@ -80,6 +80,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	private VpnTunnel mCurrentTunnel = null;
 	private VpnTunnel mUsernatTunnel = null;
+	private String mPendingVpnTunnelUuid = null;
 	
 	private boolean mIsRequestActive = false;
 	private boolean mReevaluateOnRequest = false;
@@ -177,7 +178,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		OcpaVpnInterface vpnService = mBindKit.lock();
 		try {
 			mCurrLocalNetConfig = LOCAL_NET_CONFIGS.get(0);
-			mRouterLoop = new RouterLoop(this, vpnService.createBuilderAdapter("OCPA"));
+			mRouterLoop = new RouterLoop(this, vpnService.createBuilderAdapter("OpenProfile"));
 			mRouterLoop.startLoop();
 			
 			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
@@ -559,6 +560,15 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		// TODO Auto-generated method stub
 		mIsRequestActive = false;
 		Log.e(TAG, "Error while getting On-Demand VPN configuration");
+	}
+	
+	@Override
+	public void activateVpnTunnel(String uuid) {
+		if(!mIsVpnServiceStarted) {
+			mPendingVpnTunnelUuid = uuid;
+			startVpnService();
+			return;
+		}
 	}
 	
 	private void initIcons() {

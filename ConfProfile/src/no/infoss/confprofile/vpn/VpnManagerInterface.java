@@ -28,6 +28,8 @@ public interface VpnManagerInterface extends IInterface {
 	 */
 	public void notifyVpnIsUnsupported();
 	
+	public void activateVpnTunnel(String uuid);
+	
 	public int getLocalAddress4();
 	public int getRemoteAddress4();
 	public int getSubnetMask4();
