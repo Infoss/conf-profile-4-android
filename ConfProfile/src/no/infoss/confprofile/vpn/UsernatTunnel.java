@@ -44,14 +44,7 @@ public class UsernatTunnel extends VpnTunnel {
 	}
 
 	@Override
-	public void run() {
-		File socatFile = MiscUtils.writeExecutableToCache(mCtx, UsernatWorker.SOCAT);
-		if(socatFile == null) {
-			Log.e(TAG, "Error writing socat");
-			terminateConnection();
-			return;
-		}
-		
+	public void run() {		
 		if(MiscUtils.writeExecutableToCache(mCtx, UsernatWorker.USERNAT) == null) {
 			Log.e(TAG, "Error writing usernat");
 			terminateConnection();
@@ -120,7 +113,7 @@ public class UsernatTunnel extends VpnTunnel {
 		String resp;
 		
 		try {
-			cmd = String.format("socat_path %s", socatFile.getAbsolutePath());
+			cmd = String.format("socat_path %s", ""); //obsoleted item
 			processRequestSync(instream, outstream, cmd, pendingReports);
 		} catch(Exception e) {
 			teardown(e, String.format("Error while performing cmd '%s' :", cmd));

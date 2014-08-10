@@ -10,7 +10,6 @@ subproject_PATHS := openssl \
 					strongswan \
 					ocpa \
 					usernat \
-					socat-1.7.2.4
 
 include $(addprefix $(LOCAL_PATH)/,$(addsuffix /Android.mk, \
 		$(subproject_PATHS)))
