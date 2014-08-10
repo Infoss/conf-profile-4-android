@@ -12,6 +12,7 @@ public abstract class BaseQueryCursorLoader extends CursorLoader {
 	public static final int STMT_SELECT = 0;
 	public static final int STMT_INSERT = 1;
 	public static final int STMT_DELETE = 2;
+	public static final int STMT_UPDATE = 4;
 	
 	public static final String PREFIX = "no.infoss.data.";
 	public static final String P_BATCH_MODE = PREFIX.concat("P_BATCH_MODE");
