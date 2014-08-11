@@ -59,6 +59,7 @@ public class ParsePlistTask extends AsyncTask<Uri, Void, Integer> {
 				
 				HttpGet getRequest = new HttpGet(uri.toString());
 				getRequest.setHeader("User-Agent", userAgent);
+				getRequest.setHeader("Connection", "close");
 				
 				HttpResponse resp = client.execute(getRequest);
 				mHttpStatusCode = resp.getStatusLine().getStatusCode();
