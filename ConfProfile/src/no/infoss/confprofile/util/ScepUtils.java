@@ -13,6 +13,8 @@ import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.security.spec.InvalidKeySpecException;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
 
 import javax.security.auth.x500.X500Principal;
 
@@ -72,9 +74,15 @@ public class ScepUtils {
 				   KeyStoreException {
 		ScepStruct result = new ScepStruct();
 		//prepare SCEP
+		Map<String, String> headers = new HashMap<String, String>();
+		headers.put("User-Agent", userAgent);
+		headers.put("Connection", "close");
+		HttpClientTransportFactory factory = new HttpClientTransportFactory(ctx, headers);
+		headers.clear();
+		
 		//TODO: be less optimistic when verify a certificate
 		Client scepClient = new Client(new URL(scepPayload.getURL()), new OptimisticCertificateVerifier());
-		scepClient.setTransportFactory(new HttpClientTransportFactory(ctx, userAgent));
+		scepClient.setTransportFactory(factory);
 		Capabilities caps = scepClient.getCaCapabilities();
 		String sigAlg = caps.getStrongestSignatureAlgorithm();
 		

@@ -7,6 +7,9 @@ import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLEncoder;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
 
 import no.infoss.confprofile.util.HttpUtils;
 
@@ -34,13 +37,25 @@ public class HttpClientTransport extends AbstractTransport {
 	@SuppressWarnings("unused")
 	private Context mCtx;
 	private final Method mMethod;
-	private final String mUserAgent;
+	private final Map<String, String> mAdditionalHeaders;
 	
+	@Deprecated
 	protected HttpClientTransport(Context ctx, URL url, Method method, String userAgent) {
+		this(ctx, url, method, (Map<String, String>) null);
+		mAdditionalHeaders.put("User-Agent", userAgent);
+	}
+	
+	protected HttpClientTransport(Context ctx, 
+			URL url, 
+			Method method, 
+			Map<String, String> additionalHeaders) {
 		super(url);
 		mCtx = ctx;
 		mMethod = method;
-		mUserAgent = userAgent;
+		mAdditionalHeaders = new HashMap<String, String>();
+		if(additionalHeaders != null) {
+			mAdditionalHeaders.putAll(additionalHeaders);
+		}
 	}
 
 	@Override
@@ -73,8 +88,10 @@ public class HttpClientTransport extends AbstractTransport {
 		HttpPost request;
 	    try {
 	    	request = new HttpPost(url.toURI());
+	    	for(Entry<String, String> entry : mAdditionalHeaders.entrySet()) {
+	    		request.setHeader(entry.getKey(), entry.getValue());
+	    	}
 	    	request.setHeader("Content-Type", "application/octet-stream");
-	    	request.setHeader("User-Agent", mUserAgent);
 	    } catch (URISyntaxException e) {
 	        throw new TransportException(e);
 	    }
@@ -140,7 +157,9 @@ public class HttpClientTransport extends AbstractTransport {
         HttpGet request;
         try {
             request = new HttpGet(url.toURI());
-            request.setHeader("User-Agent", mUserAgent);
+            for(Entry<String, String> entry : mAdditionalHeaders.entrySet()) {
+            	request.setHeader(entry.getKey(), entry.getValue());
+            }
         } catch (URISyntaxException e) {
             throw new TransportException(e);
         }
