@@ -18,6 +18,8 @@
 #include <poll.h>
 #include <signal.h>
 #include <sys/wait.h>
+#include <sys/time.h>
+#include <sys/resource.h>
 
 #define LOG_TAG "usernat"
 
@@ -216,6 +218,9 @@ static void process_socat(char* cmd, int len) {
 		log_android(ANDROID_LOG_ERROR, LOG_TAG, "Error while fork() %d: %s", errno, strerror(errno));
 		send_cmd(control, buff, strlen(buff));
 
+		shutdown(accept_fd, SHUT_RDWR);
+		shutdown(connect_fd, SHUT_RDWR);
+
 		accept_fd = -1;
 		connect_fd = -1;
 		return;
@@ -224,6 +229,8 @@ static void process_socat(char* cmd, int len) {
 		snprintf(buff, sizeof(buff), response_fmt, child);
 		send_cmd(control, buff, strlen(buff));
 
+		close(accept_fd);
+		close(connect_fd);
 		accept_fd = -1;
 		connect_fd = -1;
 		return;
@@ -245,9 +252,12 @@ static void process_socat(char* cmd, int len) {
 	int accepted_sock = accept(accept_fd, (struct sockaddr*) &sa, &sa_len);
 	if(accepted_sock == -1) {
 		log_android(ANDROID_LOG_ERROR, LOG_TAG, "can't accept() %d: %s", errno, strerror(errno));
+		shutdown(accept_fd, SHUT_RDWR);
+		shutdown(connect_fd, SHUT_RDWR);
 		exit(EXIT_EXEC_FAILED);
 	}
 	log_android(ANDROID_LOG_DEBUG, LOG_TAG, "accept() returned %d", accepted_sock);
+	close(accept_fd);
 
 	struct pollfd* pollfds = malloc(sizeof(struct pollfd) * 2);
 	if(pollfds == NULL) {
@@ -278,7 +288,6 @@ static void process_socat(char* cmd, int len) {
 							pollfds[0].fd, errno, strerror(errno));
 					close(pollfds[0].fd);
 					close(pollfds[1].fd);
-					close(accept_fd);
 					exit(EXIT_EXEC_FAILED);
 				} else if(size > 0) {
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[0].fd, size);
@@ -288,7 +297,6 @@ static void process_socat(char* cmd, int len) {
 								pollfds[0].fd, errno, strerror(errno));
 						close(pollfds[0].fd);
 						close(pollfds[1].fd);
-						close(accept_fd);
 						exit(EXIT_EXEC_FAILED);
 					}
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "write(%d) returned %d", pollfds[1].fd, size);
@@ -302,7 +310,6 @@ static void process_socat(char* cmd, int len) {
 							pollfds[0].fd, errno, strerror(errno));
 					close(pollfds[0].fd);
 					close(pollfds[1].fd);
-					close(accept_fd);
 					exit(EXIT_EXEC_FAILED);
 				} else if(size > 0) {
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[1].fd, size);
@@ -312,7 +319,6 @@ static void process_socat(char* cmd, int len) {
 								pollfds[0].fd, errno, strerror(errno));
 						close(pollfds[0].fd);
 						close(pollfds[1].fd);
-						close(accept_fd);
 						exit(EXIT_EXEC_FAILED);
 					}
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "write(%d) returned %d", pollfds[0].fd, size);
@@ -323,7 +329,6 @@ static void process_socat(char* cmd, int len) {
 				log_android(ANDROID_LOG_DEBUG, LOG_TAG, "POLLHUP from %d (accepted)", pollfds[0].fd);
 				close(pollfds[0].fd);
 				close(pollfds[1].fd);
-				close(accept_fd);
 				exit(EXIT_SUCCESS);
 			}
 
@@ -331,7 +336,6 @@ static void process_socat(char* cmd, int len) {
 				log_android(ANDROID_LOG_DEBUG, LOG_TAG, "POLLHUP from %d (connected)", pollfds[1].fd);
 				close(pollfds[0].fd);
 				close(pollfds[1].fd);
-				close(accept_fd);
 				exit(EXIT_SUCCESS);
 			}
 		} else if(res < 0) {
@@ -346,7 +350,6 @@ static void process_socat(char* cmd, int len) {
 
 	shutdown(pollfds[0].fd, SHUT_RDWR);
 	shutdown(pollfds[1].fd, SHUT_RDWR);
-	shutdown(accept_fd, SHUT_RDWR);
 	exit(EXIT_EXEC_FAILED);
 }
 
@@ -516,6 +519,19 @@ static void send_cmd(int sock, char* cmd, int len) {
 
 int main(int argc, char **argv, char *envp[]) {
 	envdata = envp;
+
+	errno = 0;
+	int priority = getpriority(PRIO_PROCESS, 0);
+	if(priority == -1 && errno != 0) {
+		log_android(ANDROID_LOG_WARN, LOG_TAG, "can't getpriority() %d: %s", errno, strerror(errno));
+	} else {
+		if(priority + 10 <= PRIO_MAX) {
+			priority += 10;
+		}
+		if(setpriority(PRIO_PROCESS, 0, priority) == -1) {
+			log_android(ANDROID_LOG_WARN, LOG_TAG, "can't setpriority() %d: %s", errno, strerror(errno));
+		}
+	}
 
 	log_print = log_android;
 	accept_fd = -1;
