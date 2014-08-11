@@ -78,9 +78,6 @@ ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 		return -1;
 	}
 
-	LOGD(LOG_TAG, "usernat_tun_send(): incoming");
-	log_dump_packet(LOG_TAG, buff, len);
-
 	//we received this packet from TUN device
 	usernat_tun_ctx_t* ctx = (usernat_tun_ctx_t*) tun_ctx;
 	ocpa_ip_packet_t packet;
@@ -173,8 +170,6 @@ ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 		return 0;
 	}
 
-	LOGD(LOG_TAG, "write it back to the tun device");
-	log_dump_packet(LOG_TAG, buff, len);
 	pthread_rwlock_rdlock(ctx->common.router_ctx->rwlock4);
 	len = write(ctx->common.router_ctx->dev_tun_ctx.local_fd, buff, len);
 	pthread_rwlock_unlock(ctx->common.router_ctx->rwlock4);
@@ -262,8 +257,6 @@ void usernat_set_pid_for_link(intptr_t tun_ctx, intptr_t link_ptr, int pid) {
 		pthread_rwlock_rdlock(ctx->common.router_ctx->rwlock4);
 		queue_link* ql;
 		while((ql = queue_get(q)) != NULL) {
-			LOGE(LOG_TAG, "Writing enqueued packet");
-			log_dump_packet(LOG_TAG, ql->buff, ql->size);
 			write(ctx->common.router_ctx->dev_tun_ctx.local_fd, ql->buff, ql->size);
 			queue_link_deinit(ql);
 		}
@@ -300,9 +293,6 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 		return NULL;
 	}
 
-	LOGD(LOG_TAG, "find_link()");
-	log_dump_packet(LOG_TAG, packet->buff, packet->buff_len);
-
 	nat_link_t* result = NULL;
 
 	uint16_t local_port = 0;
@@ -324,13 +314,6 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 			local_port = packet->src_port;
 			remote_addr = ntohl(packet->ip_header.v4->daddr);
 			remote_port = packet->dst_port;
-			/*//DEBUG code for bypassing requests to litecoding.com only
-			if(remote_addr != 0x6b15e782) {
-				LOGD(LOG_TAG, "find_link(): not a litecoding.com request, remote_addr=%08x instead of 6b15e782", remote_addr);
-				pthread_rwlock_unlock(ctx->common.rwlock);
-				return NULL;
-			}
-			*/
 		} else {
 			//stray packet
 			LOGD(LOG_TAG, "find_link(): stray packet");
@@ -370,29 +353,8 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 				return NULL;
 			}
 
-			/*
-			LOGD(LOG_TAG, "find_link(): protecting socket %d", result->common.sock_connect);
-
-			pthread_rwlock_rdlock(ctx->common.rwlock);
-			bool is_protected = ctx->common.j_vpn_tun->protectSocket(
-					ctx->common.j_vpn_tun,
-					result->common.sock_connect
-					);
-			pthread_rwlock_unlock(ctx->common.rwlock);
-
-			if(!is_protected) {
-				LOGE(LOG_TAG, "Can't protect socket");
-				close(result->common.sock_accept);
-				close(result->common.sock_connect);
-				link_deinit(result);
-				result = NULL;
-				return NULL;
-			}
-			*/
-
 			sockaddr_uni tmp_sa;
 
-			LOGD(LOG_TAG, "find_link(): adding a link");
 			//adding a link
 			pthread_rwlock_wrlock(ctx->common.rwlock);
 			result->common.next = ctx->links;
@@ -439,25 +401,17 @@ static nat_link_t* find_link4(nat_link_t* root_link, uint8_t local_link_type, ui
 		return NULL;
 	}
 
-	LOGD(LOG_TAG, "find_link(%p, %d, %08x:%d, %08x:%d)",
-			root_link,
-			local_link_type,
-			local_addr, local_port,
-			remote_addr, remote_port);
-
 	nat_link_t* curr_link = root_link;
 	while(curr_link != NULL) {
 		LOGD(LOG_TAG, "find_link(): trying link %p", curr_link);
 		if((curr_link->common.link_type & NAT_LINK_IP6) != 0) {
 			//this is IPv6 link, skipping
-			LOGD(LOG_TAG, "find_link(): skip IPv6 (%d)", curr_link->common.link_type);
 			curr_link = curr_link->common.next;
 			continue;
 		}
 
 		if(curr_link->common.link_type != local_link_type) {
 			//this is IPv4 link, but protocol doesn't match
-			LOGD(LOG_TAG, "find_link(): link_type is %d instead of %d", curr_link->common.link_type, local_link_type);
 			curr_link = curr_link->common.next;
 			continue;
 		}
@@ -465,9 +419,6 @@ static nat_link_t* find_link4(nat_link_t* root_link, uint8_t local_link_type, ui
 		if(!ip4_addr_eq(curr_link->ip4.real_src_addr, local_addr) ||
 				local_port != curr_link->ip4.real_src_port) {
 			//local address doesn't match
-			LOGD(LOG_TAG, "find_link(): local addr doesnt match %08x:%d instead of %08x:%d",
-					curr_link->ip4.real_src_addr, curr_link->ip4.real_src_port,
-					local_addr, local_port);
 			curr_link = curr_link->common.next;
 			continue;
 		}
@@ -477,29 +428,21 @@ static nat_link_t* find_link4(nat_link_t* root_link, uint8_t local_link_type, ui
 			if(!(ip4_addr_eq(curr_link->common.usernat_ctx->remote4, remote_addr) &&
 					remote_port == curr_link->common.hop_port)) {
 				//remote address doesn't match
-				LOGD(LOG_TAG, "Skip link %p (incoming mode) with real_dst_addr=%08x:%d",
-						curr_link,
-						curr_link->ip4.real_dst_addr, curr_link->ip4.real_dst_port);
 				curr_link = curr_link->common.next;
 				continue;
 			}
 
 			//we'll exit this loop by the following break
-			LOGD(LOG_TAG, "find_link(): found");
 		} else {
 			//outgoing packet
 			if(!(ip4_addr_eq(curr_link->ip4.real_dst_addr, remote_addr) &&
 					remote_port == curr_link->ip4.real_dst_port)) {
 				//remote address doesn't match
-				LOGD(LOG_TAG, "Skip link %p (outgoing mode) with real_dst_addr=%08x:%d",
-						curr_link,
-						curr_link->ip4.real_dst_addr, curr_link->ip4.real_dst_port);
 				curr_link = curr_link->common.next;
 				continue;
 			}
 
 			//we'll exit this loop by the following break
-			LOGD(LOG_TAG, "find_link(): found");
 		}
 
 		break;

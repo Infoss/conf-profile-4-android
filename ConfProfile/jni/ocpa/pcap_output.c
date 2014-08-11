@@ -42,7 +42,6 @@ pcap_output_t* pcap_output_init(jobject jpcap) {
 }
 
 void pcap_output_reset(pcap_output_t* output, jobject jpcap_new) {
-	LOGD(LOG_TAG, "pcap_output_reset(%p, %p)", output, jpcap_new);
 	if(output == NULL) {
 		LOGE(LOG_TAG, "returning from pcap_output_reset()");
 		return;
@@ -72,7 +71,6 @@ void pcap_output_reset(pcap_output_t* output, jobject jpcap_new) {
 }
 
 void pcap_output_write(pcap_output_t* output, uint8_t* buff, int32_t offs, int32_t len) {
-	LOGD(LOG_TAG, "pcap_output_write(%p, %p, %d, %d)", output, buff, offs, len);
 	if(output == NULL || output->_jclass == NULL || output->_jwriteID == NULL || offs < 0) {
 		LOGE(LOG_TAG, "returning from pcap_output_write()");
 		return;
@@ -81,9 +79,7 @@ void pcap_output_write(pcap_output_t* output, uint8_t* buff, int32_t offs, int32
 	JNIEnv* jnienv;
 	bool need_detach = androidjni_attach_thread(&jnienv);
 	jbyteArray jarr = (*jnienv)->NewByteArray(jnienv, len);
-	LOGD(LOG_TAG, "SetByteArrayRegion(%p, %p, %d, %d, %p)", jnienv, jarr, 0, len, buff + offs);
 	(*jnienv)->SetByteArrayRegion(jnienv, jarr, 0, len, buff + offs);
-	LOGD(LOG_TAG, "CallVoidMethod(%p, %p, %p, %p, %d, %d)", jnienv, output->jpcap, output->_jwriteID, jarr, 0, len);
 	(*jnienv)->CallVoidMethod(jnienv, output->jpcap, output->_jwriteID, jarr, 0, len);
 	if ((*jnienv)->ExceptionOccurred(jnienv)){
 		(*jnienv)->ExceptionDescribe(jnienv);
@@ -96,7 +92,6 @@ void pcap_output_write(pcap_output_t* output, uint8_t* buff, int32_t offs, int32
 }
 
 void pcap_output_flush(pcap_output_t* output) {
-	LOGD(LOG_TAG, "pcap_output_flush(%p)", output);
 	if(output == NULL || output->jpcap == NULL) {
 		LOGE(LOG_TAG, "returning from pcap_output_flush()");
 		return;
@@ -111,7 +106,6 @@ void pcap_output_flush(pcap_output_t* output) {
 }
 
 void pcap_output_close(pcap_output_t* output) {
-	LOGD(LOG_TAG, "pcap_output_close(%p)", output);
 	if(output == NULL || output->jpcap == NULL) {
 		LOGE(LOG_TAG, "returning from pcap_output_close()");
 		return;
