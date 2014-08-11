@@ -51,7 +51,7 @@ public class ObtainOnDemandVpns extends AsyncTask<Void, Void, Integer> {
 			Cursor payloads = mPayloadsPerformance.perform();
 			if(payloads.moveToFirst()) {
 				while(!payloads.isAfterLast()) {
-					String data = payloads.getString(2);
+					String data = payloads.getString(3);
 					Payload payload = PayloadFactory.createPayload(gson.fromJson(data, Dictionary.class));
 					if(payload instanceof VpnPayload) {
 						VpnPayload vpnPayload = (VpnPayload) payload;
