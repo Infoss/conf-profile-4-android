@@ -151,7 +151,7 @@ public class TmpCertificateManager extends CertificateManager {
 		AsymmetricCipherKeyPair keypair = CryptoUtils.genBCRSAKeypair(2048);
 		Certificate cert = CryptoUtils.createCert(
 				null, 
-				"DN=self-signed OCMS Android cert", 
+				"DN=self-signed OpenProfile Android cert", 
 				keypair, 
 				"SHA1WithRSAEncryption");
 		mKeys.put(DEFAULT_KEY_ALIAS, CryptoUtils.getRSAPrivateKey(keypair));
