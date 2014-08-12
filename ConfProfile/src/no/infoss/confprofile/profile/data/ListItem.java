@@ -1,59 +1,40 @@
 package no.infoss.confprofile.profile.data;
 
+import no.infoss.confprofile.model.ListItemModel;
+
 public class ListItem {
-	private String mMainText;
-	private String mSubText;
-	private int mLayoutId;
-	private int mRootViewId;
+	private final String mMainText;
+	private final String mSubText;
+	private ListItemModel mModel;
 	
 	public ListItem() {
-		
+		this(null, null);
 	}
 	
 	public ListItem(String mainText, String subText) {
-		this();
-		
-		setMainText(mainText);
-		setSubText(subText);
-	}
-	
-	public String getMainText() {
-		return mMainText;
-	}
-	
-	public void setMainText(String mainText) {
-		this.mMainText = mainText;
-	}
-	
-	public String getSubText() {
-		return mSubText;
-	}
-	
-	public void setSubText(String subText) {
-		this.mSubText = subText;
+		mMainText = mainText;
+		mSubText = subText;
 	}
 
-	public int getLayoutId() {
-		return mLayoutId;
+	public ListItemModel getModel() {
+		return mModel;
 	}
 
+	public void setModel(ListItemModel mModel) {
+		this.mModel = mModel;
+		applyData();
+	}
+	
 	/**
-	 * Set layout id which is used when new view should be instantiated.
-	 * @param layoutId
+	 * Override this method to allow automatic pushing data to model after setModel() call. 
 	 */
-	public void setLayoutId(int layoutId) {
-		this.mLayoutId = layoutId;
+	public void applyData() {
+		ListItemModel model = getModel();
+		if(model != null) {
+			model.setMainText(mMainText);
+			model.setSubText(mSubText);
+			model.applyModel();
+		}
 	}
 
-	public int getRootViewId() {
-		return mRootViewId;
-	}
-
-	/**
-	 * Set root view id as hint for checking is provided view can be converted into current item view. 
-	 * @param rootViewId
-	 */
-	public void setRootViewId(int rootViewId) {
-		this.mRootViewId = rootViewId;
-	}
 }
