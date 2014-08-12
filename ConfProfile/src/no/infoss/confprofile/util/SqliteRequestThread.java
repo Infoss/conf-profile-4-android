@@ -26,7 +26,7 @@ public class SqliteRequestThread extends Thread {
 	}
 	
 	public synchronized void start(Context ctx) {
-		if(getState() == State.RUNNABLE) {
+		if(getState() == State.NEW) {
 			DbOpenHelper helper = DbOpenHelper.getInstance(ctx);
 			mDb = helper.getWritableDatabase();
 			start();
