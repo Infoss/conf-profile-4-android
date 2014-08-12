@@ -1,11 +1,14 @@
 package no.infoss.confprofile.profile;
 
+import no.infoss.confprofile.R;
 import no.infoss.confprofile.db.Expressions;
 import no.infoss.confprofile.db.Expressions.Expression;
 import no.infoss.confprofile.db.Insert;
 import no.infoss.confprofile.db.QueryBuilder;
 import no.infoss.confprofile.db.Select;
 import no.infoss.confprofile.db.Update;
+import no.infoss.confprofile.model.CompositeListItemModel;
+import no.infoss.confprofile.model.ImageViewModel;
 import no.infoss.confprofile.profile.data.VpnData;
 import android.content.ContentValues;
 import android.content.Context;
@@ -36,12 +39,18 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 
 		@Override
 		public VpnData mapRowToObject(Cursor cursor) {
+			CompositeListItemModel model = new CompositeListItemModel();
+			ImageViewModel iconModel = new ImageViewModel(android.R.id.icon2);
+			iconModel.setImageResourceId(R.drawable.arrow);
+			model.addMapping(iconModel);
+			
 			VpnData data = new VpnData();
 			data.setPayloadUuid(cursor.getString(0));
 			data.setUserDefinedName(cursor.getString(1));
 			data.setOverridePrimary(cursor.getInt(2) != 0);
 			data.setOnDemandEnabled(cursor.getInt(3) != 0);
 			data.setOnDemandEnabledByUser(cursor.getInt(4) != 0);
+			data.setModel(model);
 			return data;
 		}
 	};
