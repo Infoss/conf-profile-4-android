@@ -71,7 +71,7 @@ public class VpnPayload extends Payload {
 	}
 	
 	public String getUserDefinedName() {
-		return getPayloadContentAsDictionary().getString(KEY_USER_DEFINED_NAME);
+		return mDict.getString(KEY_USER_DEFINED_NAME);
 	}
 	
 	public boolean isOverridePrimary() {
