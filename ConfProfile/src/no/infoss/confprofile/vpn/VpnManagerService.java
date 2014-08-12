@@ -163,6 +163,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnServiceStarted() {
+		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
+		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_STARTED);
+		sendBroadcast(intent);
+		
 		if(mUsernatTunnel != null) {
 			mUsernatTunnel.terminateConnection();
 		}
@@ -218,6 +223,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnServiceRevoked() {
+		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
+		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_REVOKED);
+		sendBroadcast(intent);
+		
 		if(mCurrentTunnel != null) {
 			mCurrentTunnel.terminateConnection();
 		}

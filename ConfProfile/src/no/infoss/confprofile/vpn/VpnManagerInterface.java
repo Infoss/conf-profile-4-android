@@ -7,6 +7,17 @@ import android.os.IInterface;
 public interface VpnManagerInterface extends IInterface {
 	public static final String TAG = VpnManagerInterface.class.getSimpleName();
 	
+	public static final String BROADCAST_VPN_EVENT = 
+			VpnManagerInterface.class.getCanonicalName().concat(".VPN_EVENT");
+	
+	public static final String KEY_EVENT_TYPE = "EVENT_TYPE";
+	public static final String TYPE_SERVICE_STATE_CHANGED = "SERVICE_STATE_CHANGED";
+	public static final String TYPE_TUNNEL_STATE_CHANGED = "TUNNEL_STATE_CHANGED";
+	
+	public static final String KEY_SERVICE_STATE = "SERVICE_STATE";
+	public static final int SERVICE_STATE_REVOKED = 0;
+	public static final int SERVICE_STATE_STARTED = 1;
+	
 	public void startVpnService();
 	public void notifyVpnServiceStarted();
 	public void notifyVpnServiceRevoked();
