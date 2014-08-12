@@ -9,6 +9,7 @@ import java.util.List;
 
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.crypto.CertificateManager;
+import no.infoss.confprofile.db.Insert;
 import no.infoss.confprofile.format.ConfigurationProfile;
 import no.infoss.confprofile.format.ConfigurationProfile.Payload;
 import no.infoss.confprofile.format.RootCertPayload;
@@ -19,9 +20,12 @@ import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
+import no.infoss.confprofile.profile.VpnDataCursorLoader;
 import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.ScepUtils;
 import no.infoss.confprofile.util.ScepUtils.ScepStruct;
+import no.infoss.confprofile.util.SqliteRequestThread;
+import android.content.ContentValues;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -101,6 +105,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 				}			
 			}
 			//END Phase 3
+			SqliteRequestThread.getInstance().start(mCtx);
 			
 			//perform some actions in background
 			List<Action> actions = new LinkedList<Action>();
@@ -163,6 +168,30 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 					instAction.profileId = profileId;
 					BaseQueryCursorLoader.perform(
 							PayloadsCursorLoader.create(mCtx, 0, instAction.asBundle(), mDbHelper));
+					
+					if(instAction.payload instanceof VpnPayload) {
+						VpnPayload vpnPayload = (VpnPayload) instAction.payload;
+						
+						//TODO: do somethind gith these strange stray keys
+						int overridePrimary = 0;
+						if(vpnPayload.getIpv4() != null) {
+							overridePrimary = vpnPayload.getIpv4().getInteger(VpnPayload.KEY_OVERRIDE_PRIMARY, 0);
+						}
+						int onDemandEnabled = 0; 
+						if(vpnPayload.getVpn() != null) {
+							onDemandEnabled = vpnPayload.getVpn().getInteger(VpnPayload.KEY_ON_DEMAND_ENABLED, 0);
+						}
+						
+						ContentValues values = new ContentValues();
+						values.put(VpnDataCursorLoader.COL_PAYLOAD_UUID, vpnPayload.getPayloadUUID());
+						values.put(VpnDataCursorLoader.COL_USER_DEFINED_NAME, vpnPayload.getUserDefinedName());
+						values.put(VpnDataCursorLoader.COL_OVERRIDE_PRIMARY, overridePrimary);
+						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED, onDemandEnabled);
+						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED_BY_USER, 0);
+						Insert request = Insert.insert().into(VpnDataCursorLoader.TABLE).values(values);
+						
+						SqliteRequestThread.getInstance().request(request, null);
+					}
 				}
 			}
 			actions.clear();
