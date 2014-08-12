@@ -23,6 +23,10 @@ import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 
+import no.infoss.confprofile.model.CompositeListItemModel;
+import no.infoss.confprofile.model.ImageViewModel;
+import no.infoss.confprofile.model.Model;
+import no.infoss.confprofile.model.SwitchModel;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.VpnDataCursorLoader;
@@ -35,9 +39,11 @@ import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.Loader;
 import android.content.ServiceConnection;
 import android.database.Cursor;
@@ -53,6 +59,7 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.ImageView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -65,8 +72,26 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
+	private static final CompositeListItemModel VPN_LIST_ITEM_MODEL = new CompositeListItemModel();
+	private static final CompositeListItemModel STATUS_LIST_ITEM_MODEL = new CompositeListItemModel();
 	
+	static {
+		SwitchModel switchModel = new SwitchModel(R.id.switchWidget);
+		VPN_LIST_ITEM_MODEL.addMapping(switchModel);
+		VPN_LIST_ITEM_MODEL.setLayoutId(R.layout.simple_list_item_2_switch);
+		VPN_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_switch);
+		
+		ImageViewModel imageViewModel = new ImageViewModel(android.R.id.icon);
+		imageViewModel.setImageResourceId(R.drawable.arrow);
+		STATUS_LIST_ITEM_MODEL.addMapping(imageViewModel);
+		STATUS_LIST_ITEM_MODEL.setLayoutId(R.layout.simple_list_item_2_image);
+		STATUS_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_image);
+	}
+	
+	private BroadcastReceiver mVpnEvtReceiver;
 	private HeaderObjectAdapter<ListItem, String> mPayloadAdapter;
+	private ListItem mVpnListItem;
+	private ListItem mStatusListItem;
 	private LazyCursorList<? extends ListItem> mVpnInfoList;
 	private DbOpenHelper mDbHelper;
 	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
@@ -77,26 +102,74 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
 		
+		mVpnEvtReceiver = new BroadcastReceiver() {
+
+			@Override
+			public void onReceive(Context context, Intent intent) {
+				String evtType = intent.getStringExtra(VpnManagerInterface.KEY_EVENT_TYPE);
+				if(VpnManagerInterface.TYPE_SERVICE_STATE_CHANGED.equals(evtType)) {
+					int serviceState = intent.getIntExtra(
+							VpnManagerInterface.KEY_SERVICE_STATE, 
+							VpnManagerInterface.SERVICE_STATE_REVOKED);
+					
+					if(serviceState == VpnManagerInterface.SERVICE_STATE_STARTED) {
+						VPN_LIST_ITEM_MODEL.setEnabled(true);
+					} else {
+						VPN_LIST_ITEM_MODEL.setEnabled(false);
+						SwitchModel swModel =  (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
+						swModel.setChecked(false);
+					}
+					VPN_LIST_ITEM_MODEL.applyModel();
+				}
+			}
+			
+		};
+		
 		HEADER_LIST.clear();
 		HEADER_LIST.add("");
 		HEADER_LIST.add(getString(R.string.main_choose_config_label));
 		
 		DATA_LIST.clear();
 		
-		ListItem listItem;
 		List<ListItem> cmdList = new ArrayList<ListItem>(2);
 		
 		//adding VPN list item
-		listItem = new ListItem(getString(R.string.main_item_vpn_label), null);
-		listItem.setLayoutId(R.layout.simple_list_item_2_switch);
-		listItem.setRootViewId(R.id.simple_list_item_2_switch);
-		cmdList.add(listItem);
+		VPN_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+			
+			@Override
+			public void onClick(Model model, View v) {
+				Toast.makeText(Main.this, "VPN_LIST_ITEM_MODEL onClick()", Toast.LENGTH_SHORT).show();
+				/*
+				if(item instanceof VpnData) {
+					VpnManagerInterface vpnMgr = mBindKit.lock();
+					vpnMgr.activateVpnTunnel(((VpnData) item).getPayloadUuid());
+					mBindKit.unlock();
+				}
+				*/
+			}
+		});
+		mVpnListItem = new ListItem(getString(R.string.main_item_vpn_label), null);
+		mVpnListItem.setModel(VPN_LIST_ITEM_MODEL);
+		cmdList.add(mVpnListItem);
 		
 		//adding VPN list item
-		listItem = new ListItem(getString(R.string.main_item_status_label), null);
-		listItem.setLayoutId(R.layout.simple_list_item_2_image);
-		listItem.setRootViewId(R.id.simple_list_item_2_image);
-		cmdList.add(listItem);
+		STATUS_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+			
+			@Override
+			public void onClick(Model model, View v) {
+				Toast.makeText(Main.this, "STATUS_LIST_ITEM_MODEL onClick()", Toast.LENGTH_SHORT).show();
+				/*
+				if(item instanceof VpnData) {
+					VpnManagerInterface vpnMgr = mBindKit.lock();
+					vpnMgr.activateVpnTunnel(((VpnData) item).getPayloadUuid());
+					mBindKit.unlock();
+				}
+				*/
+			}
+		});
+		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
+		mStatusListItem.setModel(STATUS_LIST_ITEM_MODEL);
+		cmdList.add(mStatusListItem);
 		
 		DATA_LIST.add(cmdList);
 		
@@ -110,9 +183,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		mPayloadAdapter = new HeaderObjectAdapter<ListItem, String>(
 				getLayoutInflater(), 
 				HEADER_LIST,
-				android.R.layout.simple_list_item_1,
-				DATA_LIST, 
-				R.layout.profile_item, 
+				R.layout.simple_list_item_1_header,
+				DATA_LIST,
+				R.layout.list_item_1_images,
+				//R.layout.profile_item, 
 				new PayloadInfoMapper(this));
 		GridView grid = (GridView) findViewById(R.id.profileGrid);
 		grid.setEmptyView(findViewById(android.R.id.empty));
@@ -126,11 +200,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				HeaderObjectAdapter<ListItem, String> adapter = (HeaderObjectAdapter<ListItem, String>) parent.getAdapter();
 				ListItem item = (ListItem) adapter.getItem(position);
 				
-				if(item instanceof VpnData) {
-					VpnManagerInterface vpnMgr = mBindKit.lock();
-					vpnMgr.activateVpnTunnel(((VpnData) item).getPayloadUuid());
-					mBindKit.unlock();
-				}
+				//TODO: what to do here?
 			}
 		});
 		
@@ -146,6 +216,15 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		Bundle params = new Bundle();
 		params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
 		getLoaderManager().restartLoader(0, params, this);
+		
+		registerReceiver(mVpnEvtReceiver, new IntentFilter(VpnManagerInterface.BROADCAST_VPN_EVENT));
+	}
+	
+	@Override
+	protected void onPause() {
+		super.onPause();
+		
+		unregisterReceiver(mVpnEvtReceiver);
 	}
 	
 	@Override
@@ -303,52 +382,31 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			
 			if(convertView == null) {
 				//We don't have a view to convert, but...
-				if(data == null || data.getLayoutId() == 0) {
+				if(data == null || data.getModel() == null || data.getModel().getLayoutId() == 0) {
 					//We don't know what kind of view should be created,
 					//adapter will create default view
 					return null;
 				} else {
-					convertView = inflater.inflate(data.getLayoutId(), null);
+					convertView = inflater.inflate(data.getModel().getLayoutId(), null);
 					viewAlreadyCreated = true;
 				}
 			}
 			
 			viewId = convertView.getId();
 			if(!viewAlreadyCreated) {
-				if((data == null || data.getLayoutId() == 0) && viewId != R.id.profileListItem) {
+				if((data == null || data.getModel() == null || data.getModel().getLayoutId() == 0)) {
 					return null;
-				} else if(data.getLayoutId() != viewId) {
-					convertView = inflater.inflate(data.getLayoutId(), null);
+				} else if(data.getModel().getLayoutId() != viewId) {
+					convertView = inflater.inflate(data.getModel().getLayoutId(), null);
 				}
 			}
-			
-			setText(convertView, R.id.profileName, null);
-			setText(convertView, R.id.profileDetails, null);
 			
 			return convertView;
 		}
 		
 		@Override
 		public void mapData(int position, View view, ListItem data) {
-			switch(view.getId()) {
-			case R.id.simple_list_item_2_switch: {
-				setText(view, android.R.id.text1, data.getMainText());
-				setText(view, android.R.id.text2, data.getSubText());
-				break;
-			}
-			case R.id.simple_list_item_2_image: {
-				setText(view, android.R.id.text1, data.getMainText());
-				setText(view, android.R.id.text2, data.getSubText());
-				break;
-			}
-			case R.id.profileListItem:
-			default: {
-				setText(view, R.id.profileName, data.getMainText());
-				setText(view, R.id.profileDetails, data.getSubText());
-				break;
-			}
-			}
-			
+			data.getModel().bind(view);			
 		}
 		
 		@Override
@@ -373,19 +431,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			
 			return result;
 		}
-		
-		private ImageView setImage(View rootView, int id, int resourceId) {
-			ImageView result = null;
-			
-			View testView = rootView.findViewById(id);
-			if(testView != null && testView instanceof ImageView) {
-				result = (ImageView) testView;
-				result.setImageResource(resourceId);
-			}
-			
-			return result;
-		}
-		
 		
 	}
 
