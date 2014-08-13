@@ -62,34 +62,11 @@ public class SqliteRequestThread extends Thread {
 			try {
 				data.request.perform(mDb);
 				if(data.callback != null) {
-					if(data.request instanceof RequestWithAffectedRows) {
-						mHandler.post(new Runnable() {
-							
-							@Override
-							public void run() {
-								SqliteUpdateDeleteCallback cb = (SqliteUpdateDeleteCallback) data.callback;
-								cb.onSqliteUpdateDeleteSuccess((RequestWithAffectedRows) data.request);
-							}
-						});
-						
-					} else if(data.request instanceof Insert) {
-						mHandler.post(new Runnable() {
-							
-							@Override
-							public void run() {
-								SqliteInsertCallback cb = (SqliteInsertCallback) data.callback;
-								cb.onSqliteInsertSuccess((Insert) data.request);
-							}
-						});
-					} else {
-						mHandler.post(new Runnable() {
-							
-							@Override
-							public void run() {
-								data.callback.onSqliteRequestSuccess(data.request);
-							}
-						});
-						
+					postCallbacks(data);
+				}
+				if(data.isSyncRequest) {
+					synchronized(data) {
+						data.notify();
 					}
 				}
 			} catch(Exception e) {
@@ -118,6 +95,68 @@ public class SqliteRequestThread extends Thread {
 		}
 	}
 	
+	private void postCallbacks(final RequestData data) {
+		if(data.request instanceof RequestWithAffectedRows) {
+			mHandler.post(new Runnable() {
+				
+				@Override
+				public void run() {
+					SqliteUpdateDeleteCallback cb = (SqliteUpdateDeleteCallback) data.callback;
+					cb.onSqliteUpdateDeleteSuccess((RequestWithAffectedRows) data.request);
+				}
+			});
+			
+		} else if(data.request instanceof Insert) {
+			mHandler.post(new Runnable() {
+				
+				@Override
+				public void run() {
+					SqliteInsertCallback cb = (SqliteInsertCallback) data.callback;
+					cb.onSqliteInsertSuccess((Insert) data.request);
+				}
+			});
+		} else {
+			mHandler.post(new Runnable() {
+				
+				@Override
+				public void run() {
+					data.callback.onSqliteRequestSuccess(data.request);
+				}
+			});
+		}
+	}
+	
+	/**
+	 * Perform synchronous request
+	 * @param request
+	 */
+	public void request(Request request) {
+		if(request == null) {
+			return;
+		}
+		
+		RequestData data = new RequestData();
+		data.request = request;
+		data.callback = null;
+		data.isSyncRequest = true;
+		mQueue.add(data);
+		synchronized(data) {
+			while(true) {
+				try {
+					data.wait();
+					break;
+				} catch(Exception e) {
+					//wait interrupted
+				}
+			}
+		}
+	}
+	
+	/**
+	 * Perform asynchronous request
+	 * @param request
+	 * @param callback
+	 */
 	public synchronized void request(Request request, SqliteRequestCallback callback) {
 		if(request == null) {
 			return;
@@ -169,5 +208,6 @@ public class SqliteRequestThread extends Thread {
 	private static class RequestData {
 		public Request request;
 		public SqliteRequestCallback callback;
+		public boolean isSyncRequest = false;
 	}
 }
