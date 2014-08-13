@@ -7,6 +7,13 @@
 	<string name="main_choose_config_label">choose a configuration&#8230;</string>
 	<string name="main_item_vpn_label">VPN</string>
 	<string name="main_item_status_label">Status</string>
+	<string name="main_item_status_disconnected_label">Disconnected</string>
+	<string name="main_item_status_connecting_label">Connecting</string>
+	<string name="main_item_status_connected_label">Connected</string>
+	<string name="main_item_status_unsupported_label">Unsupported firmware version</string>
+	<string name="main_item_status_locked_label">VPN is locked by system</string>
+	<string name="main_vpn_item_on_demand_label">Connect On Demand</string>
+	
 	<string name="menu_vpn">VPN</string>
 	<string name="menu_profiles">Profiles</string>
 	<string name="menu_info">Info</string>
