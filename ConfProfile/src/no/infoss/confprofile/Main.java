@@ -22,9 +22,11 @@ package no.infoss.confprofile;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Stack;
 
 import no.infoss.confprofile.model.CompositeListItemModel;
 import no.infoss.confprofile.model.ImageViewModel;
+import no.infoss.confprofile.model.ListItemModel;
 import no.infoss.confprofile.model.Model;
 import no.infoss.confprofile.model.SwitchModel;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
@@ -58,8 +60,6 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
-import android.widget.ImageView;
-import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -70,10 +70,17 @@ import com.litecoding.classkit.view.LazyCursorList;
 public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection {
 	public static final String TAG = Main.class.getSimpleName();
 	
+	private static final String ACTION_SERVICE_INFO = Main.class.getCanonicalName().concat(".SERVICE_INFO");
+	private static final String ACTION_VPN_INFO = Main.class.getCanonicalName().concat(".VPN_INFO");
+	
+	private static final IntentFilter INTENT_FILTER = new IntentFilter(VpnManagerInterface.BROADCAST_VPN_EVENT);
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
 	private static final CompositeListItemModel VPN_LIST_ITEM_MODEL = new CompositeListItemModel();
 	private static final CompositeListItemModel STATUS_LIST_ITEM_MODEL = new CompositeListItemModel();
+	
+	private static final List<String> SINGLE_EMPTY_HEADER_LIST = new ArrayList<String>(1);
+	private static final List<List<ListItem>> VPN_DATA_LIST = new LinkedList<List<ListItem>>();
 	
 	static {
 		SwitchModel switchModel = new SwitchModel(R.id.switchWidget);
@@ -88,6 +95,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		STATUS_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_image);
 	}
 	
+	private final Stack<Intent> mIntentStack = new Stack<Intent>();;
 	private BroadcastReceiver mVpnEvtReceiver;
 	private HeaderObjectAdapter<ListItem, String> mPayloadAdapter;
 	private ListItem mVpnListItem;
@@ -101,6 +109,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.main);
+		
+		setActionBarDisplayHomeAsUp(getIntent());
 		
 		mVpnEvtReceiver = new BroadcastReceiver() {
 
@@ -124,6 +134,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			}
 			
 		};
+		
+		SINGLE_EMPTY_HEADER_LIST.clear();
+		SINGLE_EMPTY_HEADER_LIST.add("");
 		
 		HEADER_LIST.clear();
 		HEADER_LIST.add("");
@@ -158,6 +171,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			@Override
 			public void onClick(Model model, View v) {
 				Toast.makeText(Main.this, "STATUS_LIST_ITEM_MODEL onClick()", Toast.LENGTH_SHORT).show();
+				Intent intent = new Intent(Main.this, Main.class);
+				intent.setAction(ACTION_SERVICE_INFO);
+				startActivity(intent);
 				/*
 				if(item instanceof VpnData) {
 					VpnManagerInterface vpnMgr = mBindKit.lock();
@@ -187,7 +203,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				DATA_LIST,
 				R.layout.list_item_1_images,
 				//R.layout.profile_item, 
-				new PayloadInfoMapper(this));
+				new ListItemMapper(this));
 		GridView grid = (GridView) findViewById(R.id.profileGrid);
 		grid.setEmptyView(findViewById(android.R.id.empty));
 		grid.setAdapter(mPayloadAdapter);
@@ -199,8 +215,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				@SuppressWarnings("unchecked")
 				HeaderObjectAdapter<ListItem, String> adapter = (HeaderObjectAdapter<ListItem, String>) parent.getAdapter();
 				ListItem item = (ListItem) adapter.getItem(position);
-				
-				//TODO: what to do here?
+				ListItemModel model = item.getModel();
+				if(model instanceof OnItemClickListener) {
+					((OnItemClickListener) model).onItemClick(parent, view, position, id);
+				}
 			}
 		});
 		
@@ -210,14 +228,31 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	}
 	
 	@Override
+	protected void onNewIntent(Intent intent) {
+		super.onNewIntent(intent);
+		
+		setActionBarDisplayHomeAsUp(intent);
+		
+		if(ACTION_SERVICE_INFO.equals(intent.getAction())) {
+			
+		} else if(ACTION_VPN_INFO.equals(intent.getAction())) {
+			
+		}
+	}
+	
+	@Override
 	protected void onResume() {
 		super.onResume();
 		
-		Bundle params = new Bundle();
-		params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
-		getLoaderManager().restartLoader(0, params, this);
+		Intent intent = mIntentStack.peek();
 		
-		registerReceiver(mVpnEvtReceiver, new IntentFilter(VpnManagerInterface.BROADCAST_VPN_EVENT));
+		if(Intent.ACTION_MAIN.equals(intent.getAction())) {
+			Bundle params = new Bundle();
+			params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
+			getLoaderManager().restartLoader(0, params, this);
+		}
+			
+		registerReceiver(mVpnEvtReceiver, INTENT_FILTER);
 	}
 	
 	@Override
@@ -267,6 +302,14 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		Intent intent = null;
 		
 		switch(item.getItemId()) {
+		case android.R.id.home: {
+			mIntentStack.pop(); //pop current intent and resend parent intent
+			intent = mIntentStack.pop();
+			if(intent != null) {
+				startActivity(intent);
+			}
+			return true;
+		}
 		case R.id.menu_item_go_profiles: {
 			return true;
 		}
@@ -331,6 +374,18 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			mBindKit.unlock();
 		}
 	}
+	
+	private void setActionBarDisplayHomeAsUp(Intent intent) {
+		if(mIntentStack.size() == 0){
+			intent = new Intent(this, Main.class);
+			intent.setAction(Intent.ACTION_MAIN);
+			getActionBar().setDisplayHomeAsUpEnabled(false);
+		} else {
+			getActionBar().setDisplayHomeAsUpEnabled(true);
+		}
+		
+		mIntentStack.push(intent);
+	}
 
 	@Override
 	public void onServiceDisconnected(ComponentName name) {
@@ -366,10 +421,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		mBindKit.unlock();
 	}
 	
-	private static class PayloadInfoMapper implements HeaderObjectMapper<ListItem, String> {
+	private static class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
 		private Context mCtx;
 		
-		public PayloadInfoMapper(Context ctx) {
+		public ListItemMapper(Context ctx) {
 			mCtx = ctx;
 		}
 
