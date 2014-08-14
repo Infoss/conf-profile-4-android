@@ -6,10 +6,12 @@ import no.infoss.confprofile.db.Expressions.Expression;
 import no.infoss.confprofile.db.Insert;
 import no.infoss.confprofile.db.QueryBuilder;
 import no.infoss.confprofile.db.Select;
+import no.infoss.confprofile.db.Transaction;
 import no.infoss.confprofile.db.Update;
 import no.infoss.confprofile.model.CompositeListItemModel;
 import no.infoss.confprofile.model.ImageViewModel;
 import no.infoss.confprofile.profile.data.VpnData;
+import no.infoss.confprofile.util.SqliteRequestThread;
 import android.content.ContentValues;
 import android.content.Context;
 import android.database.Cursor;
@@ -106,9 +108,9 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 			SQLiteDatabase db = mDbHelper.getWritableDatabase();
 			
 			if(mQueryType == STMT_INSERT) {
-				insert(db);
+				insert();
 			} else if(mQueryType == STMT_UPDATE) {
-				update(db);
+				update();
 			}
 			
 			Select select = QueryBuilder.select().from(TABLE);
@@ -125,47 +127,42 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 			return result;
 		}
 		
-		private void insert(SQLiteDatabase db) {
+		private void insert() {
 			if(mNewPayloadUuid != null && 
 					mNewUserDefinedName != null && 
 					mNewOverridePrimary != null && 
 					mNewOnDemandEnabled != null && 
 					mNewOnDemandEnabledByUser != null) {	
-				db.beginTransaction();
-				try {
-					for(int i = 0; i < mNewPayloadUuid.length; i++) {
-						ContentValues values = new ContentValues();
-						values.put(COL_PAYLOAD_UUID, mNewPayloadUuid[i]);
-						values.put(COL_USER_DEFINED_NAME, mNewUserDefinedName[i]);
-						values.put(COL_OVERRIDE_PRIMARY, mNewOverridePrimary[i] ? 1 : 0);
-						values.put(COL_ON_DEMAND_ENABLED, mNewOnDemandEnabled[i] ? 1 : 0);
-						values.put(COL_ON_DEMAND_ENABLED_BY_USER, mNewOnDemandEnabledByUser[i] ? 1 : 0);
-						Insert.insert().into(TABLE).values(values).perform(db);
-					}
-					db.setTransactionSuccessful();
-				} finally {
-					db.endTransaction();
+				Transaction transaction = new Transaction();
+				
+				for(int i = 0; i < mNewPayloadUuid.length; i++) {
+					ContentValues values = new ContentValues();
+					values.put(COL_PAYLOAD_UUID, mNewPayloadUuid[i]);
+					values.put(COL_USER_DEFINED_NAME, mNewUserDefinedName[i]);
+					values.put(COL_OVERRIDE_PRIMARY, mNewOverridePrimary[i] ? 1 : 0);
+					values.put(COL_ON_DEMAND_ENABLED, mNewOnDemandEnabled[i] ? 1 : 0);
+					values.put(COL_ON_DEMAND_ENABLED_BY_USER, mNewOnDemandEnabledByUser[i] ? 1 : 0);
+					transaction.addRequest(Insert.insert().into(TABLE).values(values));
 				}
+				
+				SqliteRequestThread.getInstance().request(transaction);
 			}
 		}
 		
-		private void update(SQLiteDatabase db) {
+		private void update() {
 			if(mNewOnDemandEnabledByUser != null && 
 					mNewOnDemandEnabledByUser.length == 1) {
-				db.beginTransaction();
-				try {
-					ContentValues values = new ContentValues();
-					values.put(COL_ON_DEMAND_ENABLED_BY_USER, mNewOnDemandEnabledByUser[0] ? 1 : 0);
-					Update request = Update.update().table(TABLE).values(values);
-					if(mSelectBy != null) {
-						Expression expr = Expressions.column(mSelectBy).eq(Expressions.literal(mSelectValue));
-						request.where(expr, new Object[0]);
-					}
-					request.perform(db);
-					db.setTransactionSuccessful();
-				} finally {
-					db.endTransaction();
+				ContentValues values = new ContentValues();
+				values.put(COL_ON_DEMAND_ENABLED_BY_USER, mNewOnDemandEnabledByUser[0] ? 1 : 0);
+				Update request = Update.update().table(TABLE).values(values);
+				if(mSelectBy != null) {
+					Expression expr = Expressions.column(mSelectBy).eq(Expressions.literal(mSelectValue));
+					request.where(expr, new Object[0]);
 				}
+				
+				Transaction transaction = new Transaction();
+				transaction.addRequest(request);
+				SqliteRequestThread.getInstance().request(transaction);
 			}
 		}
 	}
