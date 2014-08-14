@@ -2,9 +2,7 @@ package no.infoss.confprofile.vpn;
 
 import java.io.File;
 import java.security.KeyStoreException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
-import java.security.UnrecoverableKeyException;
 import java.security.cert.Certificate;
 import java.security.cert.CertificateEncodingException;
 import java.security.cert.CertificateException;
@@ -37,7 +35,6 @@ public class IpSecTunnel extends VpnTunnel {
 	private String mLogFile;
 	private volatile String mCurrentCertificateAlias;
 	private volatile String mCurrentUserCertificateAlias;
-	private VpnManagerInterface mVpnMgr;
 	
 	/**
 	 * as defined in charonservice.h
@@ -53,17 +50,18 @@ public class IpSecTunnel extends VpnTunnel {
 	/*from IpSecVpnStateService*/
 	private long mConnectionID = 0;
 	private final List<VpnStateListener> mListeners = new ArrayList<VpnStateListener>();
-	private State mState = State.DISABLED;
 	private ErrorState mError = ErrorState.NO_ERROR;
 	private ImcState mImcState = ImcState.UNKNOWN;
 	private final LinkedList<RemediationInstruction> mRemediationInstructions = new LinkedList<RemediationInstruction>();
 	
+	/*
 	public enum State {
-		DISABLED,
-		CONNECTING,
-		CONNECTED,
-		DISCONNECTING,
+		DISABLED, //map to ConnectionStatus.DISCONNECTED
+		CONNECTING, //map to ConnectionStatus.CONNECTING
+		CONNECTED, //map to ConnectionStatus.CONNECTED
+		DISCONNECTING, //map to ConnectionStatus.DISCONNECTING
 	}
+	*/
 
 	public enum ErrorState {
 		NO_ERROR,
@@ -105,10 +103,10 @@ public class IpSecTunnel extends VpnTunnel {
 							terminateConnection();
 						}
 					} else {
-						setState(State.DISCONNECTING);
+						setState(ConnectionStatus.DISCONNECTING);
 						deinitializeCharon();
 						
-						setState(State.DISABLED);
+						setState(ConnectionStatus.DISCONNECTED);
 						Log.i(TAG, "ipsec stopped");
 						break;
 					}
@@ -116,7 +114,7 @@ public class IpSecTunnel extends VpnTunnel {
 					wait();
 				} catch (InterruptedException ex) {
 					terminateConnection();
-					setState(State.DISABLED);
+					setState(ConnectionStatus.DISCONNECTED);
 				}
 			}
 		}		
@@ -156,7 +154,11 @@ public class IpSecTunnel extends VpnTunnel {
 	@Override
 	public void terminateConnection() {
 		mIsTerminating = true;
-		notifyAll();
+		
+		synchronized (this) {
+			notifyAll();
+		}
+		
 		if(mVpnTunnelCtx != 0) {
 			deinitIpSecTun(mVpnTunnelCtx);
 			mVpnTunnelCtx = 0;
@@ -223,15 +225,11 @@ public class IpSecTunnel extends VpnTunnel {
 	 *
 	 * @param state current state
 	 */
-	private void setState(final State state) {
+	private void setState(final ConnectionStatus state) {
 		notifyListeners(new Callable<Boolean>() {
 			@Override
 			public Boolean call() throws Exception {
-				if (IpSecTunnel.this.mState != state) {
-					IpSecTunnel.this.mState = state;
-					return true;
-				}
-				return false;
+				return IpSecTunnel.this.setConnectionStatus(state);
 			}
 		});
 	}
@@ -305,7 +303,7 @@ public class IpSecTunnel extends VpnTunnel {
 				/* we ignore this as we use closeaction=restart */
 				break;
 			case STATE_CHILD_SA_UP:
-				setState(State.CONNECTED);
+				setState(ConnectionStatus.CONNECTED);
 				break;
 			case STATE_AUTH_ERROR:
 				setErrorDisconnect(ErrorState.AUTH_FAILED);
@@ -443,17 +441,9 @@ public class IpSecTunnel extends VpnTunnel {
 
 		try {
 			result = (PrivateKey) certMgr.getKey(userCertUuid);
-		} catch (NoSuchAlgorithmException e) {
-			e.printStackTrace();
-			throw new InterruptedException();
-		} catch (UnrecoverableKeyException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			throw new InterruptedException();
-		} catch (KeyStoreException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-			throw new InterruptedException();
+		} catch (Exception e) {
+			mLogger.logException(LOG_ERROR, "Can't get a key from internal certificate manager", e);
+			throw new InterruptedException(); 
 		}
 		
 		return result;
@@ -552,7 +542,7 @@ public class IpSecTunnel extends VpnTunnel {
 			public Boolean call() throws Exception
 			{
 				IpSecTunnel.this.mConnectionID++;
-				IpSecTunnel.this.mState = State.CONNECTING;
+				IpSecTunnel.this.setConnectionStatus(ConnectionStatus.CONNECTING);
 				IpSecTunnel.this.mError = ErrorState.NO_ERROR;
 				IpSecTunnel.this.mImcState = ImcState.UNKNOWN;
 				IpSecTunnel.this.mRemediationInstructions.clear();
