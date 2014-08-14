@@ -4,6 +4,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
+import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Map;
@@ -33,7 +34,7 @@ public abstract class VpnTunnel implements Runnable {
 	protected Thread mThread;
 	protected Context mCtx;
 	protected VpnConfigInfo mCfg;
-	protected ConnectionStatus mConnectionStatus;
+	private ConnectionStatus mConnectionStatus;
 	protected ConnectionError mConnectionError;
 	protected long mVpnServiceCtx; //native
 	protected long mVpnTunnelCtx; //native
@@ -103,6 +104,16 @@ public abstract class VpnTunnel implements Runnable {
 	
 	/*package*/ void processDied() {
 		//default implementation
+	}
+	
+	protected boolean setConnectionStatus(ConnectionStatus status) {
+		if(status != mConnectionStatus) {
+			mConnectionStatus = status;
+			mVpnMgr.notifyTunnelStateChanged();
+			return true;
+		}
+		
+		return false;
 	}
 	
 	protected void setMasqueradeIp4Mode(boolean isOn) {
@@ -191,6 +202,7 @@ public abstract class VpnTunnel implements Runnable {
 		private SimpleDateFormat mFmt = new SimpleDateFormat("HH:mm:ss.SSS");
 		private File mLogFile;
 		private OutputStream mOs;
+		private PrintWriter mWriter;
 		
 		private synchronized void init() {
 			if(mIsInitialized || mIsDeactivated) {
@@ -222,6 +234,8 @@ public abstract class VpnTunnel implements Runnable {
 				SimpleDateFormat dateFmt = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
 				mOs.write(String.format(headerFmt, dateFmt.format(new Date())).getBytes("UTF-8"));
 				
+				mWriter = new PrintWriter(mOs);
+				
 				mIsInitialized = true;
 			} catch(Exception e) {
 				Log.e(mInstanceLogTag, "Can't init logger", e);
@@ -250,6 +264,40 @@ public abstract class VpnTunnel implements Runnable {
 				synchronized(mFmt) {
 					String logMsg = String.format(LOG_FMT, mFmt.format(new Date()), level, data);
 					mOs.write(logMsg.getBytes("UTF-8"));
+				}
+			} catch(Exception e) {
+				Log.e(mInstanceLogTag, "Can't log a message, closing a logger", e);
+				close();
+			}
+		}
+		
+		public synchronized void logException(int level, String data, Exception ex) {
+			if(BuildConfig.DEBUG) {
+				VpnTunnel.this.debugLogMessage(level, data);
+			}
+			
+			if(mIsDeactivated) {
+				return;
+			}
+			
+			if(!mIsInitialized) {
+				init();
+			}
+			
+			if(!mIsInitialized) {
+				return;
+			}
+			
+			try {
+				synchronized(mFmt) {
+					String logMsg = String.format(LOG_FMT, mFmt.format(new Date()), level, data);
+					mOs.write(logMsg.getBytes("UTF-8"));
+					if(ex != null) {
+						mWriter.print("\n");
+						ex.printStackTrace(mWriter);
+						mWriter.print("\n");
+						mWriter.flush();
+					}
 				}
 			} catch(Exception e) {
 				Log.e(mInstanceLogTag, "Can't log a message, closing a logger", e);
