@@ -37,15 +37,15 @@ import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.task.BackupTask;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.util.SqliteRequestThread;
+import no.infoss.confprofile.util.VpnEventReceiver;
+import no.infoss.confprofile.util.VpnEventReceiver.VpnEventListener;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
-import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.Loader;
 import android.content.ServiceConnection;
 import android.database.Cursor;
@@ -67,13 +67,12 @@ import com.litecoding.classkit.view.HeaderObjectAdapter;
 import com.litecoding.classkit.view.HeaderObjectAdapter.HeaderObjectMapper;
 import com.litecoding.classkit.view.LazyCursorList;
 
-public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection {
+public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection, VpnEventListener {
 	public static final String TAG = Main.class.getSimpleName();
 	
 	private static final String ACTION_SERVICE_INFO = Main.class.getCanonicalName().concat(".SERVICE_INFO");
 	private static final String ACTION_VPN_INFO = Main.class.getCanonicalName().concat(".VPN_INFO");
 	
-	private static final IntentFilter INTENT_FILTER = new IntentFilter(VpnManagerInterface.BROADCAST_VPN_EVENT);
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
 	private static final CompositeListItemModel VPN_LIST_ITEM_MODEL = new CompositeListItemModel();
@@ -96,7 +95,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	}
 	
 	private final Stack<Intent> mIntentStack = new Stack<Intent>();;
-	private BroadcastReceiver mVpnEvtReceiver;
+	private VpnEventReceiver mVpnEvtReceiver;
 	private HeaderObjectAdapter<ListItem, String> mPayloadAdapter;
 	private ListItem mVpnListItem;
 	private ListItem mStatusListItem;
@@ -105,6 +104,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
 	private boolean mDebugPcapEnabled = false;
 	
+	private volatile boolean mServiceStateReceived;
+	private volatile boolean mTunnelStateReceived;
+	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
@@ -112,28 +114,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		setActionBarDisplayHomeAsUp(getIntent());
 		
-		mVpnEvtReceiver = new BroadcastReceiver() {
-
-			@Override
-			public void onReceive(Context context, Intent intent) {
-				String evtType = intent.getStringExtra(VpnManagerInterface.KEY_EVENT_TYPE);
-				if(VpnManagerInterface.TYPE_SERVICE_STATE_CHANGED.equals(evtType)) {
-					int serviceState = intent.getIntExtra(
-							VpnManagerInterface.KEY_SERVICE_STATE, 
-							VpnManagerInterface.SERVICE_STATE_REVOKED);
-					
-					if(serviceState == VpnManagerInterface.SERVICE_STATE_STARTED) {
-						VPN_LIST_ITEM_MODEL.setEnabled(true);
-					} else {
-						VPN_LIST_ITEM_MODEL.setEnabled(false);
-						SwitchModel swModel =  (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-						swModel.setChecked(false);
-					}
-					VPN_LIST_ITEM_MODEL.applyModel();
-				}
-			}
-			
-		};
+		mServiceStateReceived = false;
+		mTunnelStateReceived = false;
+		
+		mVpnEvtReceiver = new VpnEventReceiver(this, this);
 		
 		SINGLE_EMPTY_HEADER_LIST.clear();
 		SINGLE_EMPTY_HEADER_LIST.add("");
@@ -151,16 +135,14 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			
 			@Override
 			public void onClick(Model model, View v) {
-				Toast.makeText(Main.this, "VPN_LIST_ITEM_MODEL onClick()", Toast.LENGTH_SHORT).show();
-				/*
-				if(item instanceof VpnData) {
-					VpnManagerInterface vpnMgr = mBindKit.lock();
-					vpnMgr.activateVpnTunnel(((VpnData) item).getPayloadUuid());
-					mBindKit.unlock();
+				VpnManagerInterface vpnMgr = mBindKit.lock();
+				if(vpnMgr != null) {
+					vpnMgr.startVpnService();
 				}
-				*/
+				mBindKit.unlock();
 			}
 		});
+		
 		mVpnListItem = new ListItem(getString(R.string.main_item_vpn_label), null);
 		mVpnListItem.setModel(VPN_LIST_ITEM_MODEL);
 		cmdList.add(mVpnListItem);
@@ -174,15 +156,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				Intent intent = new Intent(Main.this, Main.class);
 				intent.setAction(ACTION_SERVICE_INFO);
 				startActivity(intent);
-				/*
-				if(item instanceof VpnData) {
-					VpnManagerInterface vpnMgr = mBindKit.lock();
-					vpnMgr.activateVpnTunnel(((VpnData) item).getPayloadUuid());
-					mBindKit.unlock();
-				}
-				*/
 			}
 		});
+		
 		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
 		mStatusListItem.setModel(STATUS_LIST_ITEM_MODEL);
 		cmdList.add(mStatusListItem);
@@ -202,7 +178,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				R.layout.simple_list_item_1_header,
 				DATA_LIST,
 				R.layout.list_item_1_images,
-				//R.layout.profile_item, 
 				new ListItemMapper(this));
 		GridView grid = (GridView) findViewById(R.id.profileGrid);
 		grid.setEmptyView(findViewById(android.R.id.empty));
@@ -251,15 +226,19 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
 			getLoaderManager().restartLoader(0, params, this);
 		}
-			
-		registerReceiver(mVpnEvtReceiver, INTENT_FILTER);
+		
+		//registerReceiver(mVpnEvtReceiver, INTENT_FILTER);
+		mVpnEvtReceiver.register();
+		receiveServiceState();
 	}
 	
 	@Override
 	protected void onPause() {
 		super.onPause();
 		
-		unregisterReceiver(mVpnEvtReceiver);
+		mVpnEvtReceiver.unregister();
+		mServiceStateReceived = false;
+		mTunnelStateReceived = false;
 	}
 	
 	@Override
@@ -363,10 +342,14 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	@Override
 	public void onServiceConnected(ComponentName name, IBinder service) {
+		receiveServiceState();
+		receiveTunnelState();
+		
 		VpnManagerInterface vpnMgr = mBindKit.lock();
 		try {
 			if(vpnMgr != null) {
-				vpnMgr.startVpnService();
+				//TODO: start or not to start VPN tunnel immediately, that is the question
+				//vpnMgr.startVpnService();
 				mDebugPcapEnabled = vpnMgr.isDebugPcapEnabled();
 				invalidateOptionsMenu();
 			}
@@ -374,6 +357,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			mBindKit.unlock();
 		}
 	}
+	
+	@Override
+	public void onServiceDisconnected(ComponentName name) {
+		// nothing to do here
+	}
+	
 	
 	private void setActionBarDisplayHomeAsUp(Intent intent) {
 		if(mIntentStack.size() == 0){
@@ -386,11 +375,125 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mIntentStack.push(intent);
 	}
-
-	@Override
-	public void onServiceDisconnected(ComponentName name) {
-		// nothing to do here
+	
+	private void receiveServiceState() {
+		VpnManagerInterface vpnMgr = mBindKit.lock();
+		try {
+			if(vpnMgr != null) {
+				onReceivedServiceState(vpnMgr.getVpnServiceState(), false);
+			}
+		} catch(Exception e) {
+			Log.e(TAG, "Exception while receiving service state", e);
+		} finally {
+			mBindKit.unlock();
+		}
 	}
+	
+	private void receiveTunnelState() {
+		VpnManagerInterface vpnMgr = mBindKit.lock();
+		try {
+			if(vpnMgr != null) {
+				onReceivedTunnelState(vpnMgr.getVpnTunnelId(), vpnMgr.getVpnTunnelState(), false);
+			}
+		} catch(Exception e) {
+			Log.e(TAG, "Exception while receiving service state", e);
+		} finally {
+			mBindKit.unlock();
+		}
+	}
+	
+	@Override
+	public void onReceivedServiceState(int state, boolean isBroadcast) {
+		if(!isBroadcast && mServiceStateReceived) {
+			return;
+		}
+		
+		mServiceStateReceived = true;
+		
+		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
+		
+		switch(state) {
+		case VpnManagerInterface.SERVICE_STATE_STARTED: {
+			VPN_LIST_ITEM_MODEL.setEnabled(true);
+			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_enabled_label));
+			swModel.setEnabled(true);
+			break;
+		}
+		case VpnManagerInterface.SERVICE_STATE_REVOKED: {
+			VPN_LIST_ITEM_MODEL.setEnabled(false);
+			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_disabled_label));
+			swModel.setChecked(false);
+			swModel.setEnabled(true);
+			break;
+		}
+		case VpnManagerInterface.SERVICE_STATE_LOCKED: {
+			VPN_LIST_ITEM_MODEL.setEnabled(false);
+			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_locked_label));
+			swModel.setChecked(false);
+			swModel.setEnabled(true);
+			break;
+		}
+		case VpnManagerInterface.SERVICE_STATE_UNSUPPORTED: {
+			VPN_LIST_ITEM_MODEL.setEnabled(false);
+			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_unsupported_label));
+			swModel.setChecked(false);
+			swModel.setEnabled(false);
+			break;
+		}
+		default: {
+			Log.e(TAG, "Received unexpected service state (" + 
+					state + 
+					(isBroadcast ? ") by broadcast" : ") from binder"));
+			break;
+		}
+		}
+		
+		VPN_LIST_ITEM_MODEL.applyModel();
+	}
+	
+	@Override
+	public void onReceivedTunnelState(String tunnelId, int state, boolean isBroadcast) {
+		if(!isBroadcast && mTunnelStateReceived) {
+			return;
+		}
+		
+		mTunnelStateReceived = true;
+		
+		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
+		
+		switch(state) {
+		case VpnManagerInterface.TUNNEL_STATE_TERMINATED:
+		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTED: {
+			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnected_label));
+			swModel.setChecked(false);
+			break;
+		}
+		case VpnManagerInterface.TUNNEL_STATE_CONNECTING: {
+			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
+			swModel.setChecked(true);
+			break;
+		}
+		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
+			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
+			swModel.setChecked(true);
+			break;
+		}
+		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING: {
+			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnecting_label));
+			break;
+		}
+		default: {
+			Log.e(TAG, "Received unexpected tunnel state (" + 
+					state + 
+					(isBroadcast ? ") by broadcast" : ") from binder"));
+			break;
+		}
+		}
+		
+		VPN_LIST_ITEM_MODEL.applyModel();
+		STATUS_LIST_ITEM_MODEL.applyModel();
+	}
+
 	
 	private void backupData() {
 		if(BuildConfig.DEBUG) {
