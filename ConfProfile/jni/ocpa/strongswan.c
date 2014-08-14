@@ -840,7 +840,7 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlo
 
 	lib->plugins->status(lib->plugins, LEVEL_CTRL);
 	//TODO: uncomment after debugging
-/*
+
 	// add handler for SEGV and ILL etc.
 	action.sa_handler = segv_handler;
 	action.sa_flags = 0;
@@ -850,7 +850,7 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlo
 	sigaction(SIGBUS, &action, NULL);
 	action.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &action, NULL);
-*/
+
 	// start daemon (i.e. the threads in the thread-pool)
 	charon->start(charon);
 
