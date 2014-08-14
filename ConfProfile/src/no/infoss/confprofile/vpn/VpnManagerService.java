@@ -74,7 +74,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	private NetworkStateListener mNetworkListener;
 	
 	private SimpleServiceBindKit<OcpaVpnInterface> mBindKit;
-	private boolean mIsVpnServiceStarted = false;
+	private int mVpnServiceState;
 	
 	private RouterLoop mRouterLoop = null;
 	
@@ -98,9 +98,12 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	@Override
 	public void onCreate() {
 		super.onCreate();
+		
 		mNetworkListener = new NetworkStateListener(getApplicationContext(), this);
 		obtainOnDemandVpns();
 		initIcons();
+		
+		mVpnServiceState = SERVICE_STATE_REVOKED;
 		
 		mNtfMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
 		String title = getResources().getString(R.string.notification_title_preparing);
@@ -153,7 +156,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void startVpnService() {
-		if(!mIsVpnServiceStarted) {
+		if(mVpnServiceState != SERVICE_STATE_STARTED) {
 			Intent intent = new Intent(this, StartVpn.class);
 			intent.setAction(StartVpn.ACTION_CALL_PREPARE);
 			intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -162,8 +165,16 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	@Override
+	public int getVpnServiceState() {
+		return mVpnServiceState;
+	}
+	
+	@Override
 	public void notifyVpnServiceStarted() {
+		mVpnServiceState = SERVICE_STATE_STARTED;
+		
 		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.setPackage(getPackageName());
 		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_STARTED);
 		sendBroadcast(intent);
@@ -207,10 +218,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			mBindKit.unlock();
 		}
 		
-		
-		
-		mIsVpnServiceStarted = true;
-		
 		String title = getResources().getString(R.string.notification_title_connecting);
 		String text = getResources().getString(R.string.notification_text_connecting);
 		Notification notification = buildNotification(
@@ -223,7 +230,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnServiceRevoked() {
+		mVpnServiceState = SERVICE_STATE_REVOKED;
+		
 		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.setPackage(getPackageName());
 		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_REVOKED);
 		sendBroadcast(intent);
@@ -251,7 +261,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 				title, 
 				text);
 		mNtfMgr.notify(R.string.app_name, notification);
-		mIsVpnServiceStarted = false;
 	}
 	
 	@Override
@@ -259,13 +268,25 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		ConnectionStatus tunStatus = ConnectionStatus.DISCONNECTED;
 		ConnectionStatus natStatus = ConnectionStatus.DISCONNECTED;
 		
+		String tunId = null;
+		String usernatId = null;
+		
 		if(mCurrentTunnel != null) {
 			tunStatus = mCurrentTunnel.getConnectionStatus();
+			tunId = mCurrentTunnel.getTunnelId();
 		}
 		
 		if(mUsernatTunnel != null) {
 			natStatus = mUsernatTunnel.getConnectionStatus();
+			usernatId = mUsernatTunnel.getTunnelId();
 		}
+		
+		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.setPackage(getPackageName());
+		intent.putExtra(KEY_EVENT_TYPE, TYPE_TUNNEL_STATE_CHANGED);
+		intent.putExtra(KEY_TUNNEL_ID, tunId);
+		intent.putExtra(KEY_TUNNEL_STATE, connectionStatusToInt(tunStatus));
+		sendBroadcast(intent);
 		
 		String title;
 		String text;
@@ -364,6 +385,14 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnLockedBySystem() {
+		mVpnServiceState = SERVICE_STATE_LOCKED;
+		
+		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.setPackage(getPackageName());
+		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
+		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_LOCKED);
+		sendBroadcast(intent);
+		
 		String title = getResources().getString(R.string.notification_title_error_always_on);
 		String text = getResources().getString(R.string.notification_text_error_always_on);
 		Notification notification = buildNotification(
@@ -376,6 +405,14 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyVpnIsUnsupported() {
+		mVpnServiceState = SERVICE_STATE_UNSUPPORTED;
+		
+		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.setPackage(getPackageName());
+		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
+		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_UNSUPPORTED);
+		sendBroadcast(intent);
+		
 		String title = getResources().getString(R.string.notification_title_error_unsupported);
 		String text = getResources().getString(R.string.notification_text_error_unsupported);
 		Notification notification = buildNotification(
@@ -403,6 +440,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		return res;
 	}
 	
+	@Override
 	public boolean protect(Socket socket) {
 		boolean res = false;
 		OcpaVpnInterface vpnService = mBindKit.lock();
@@ -574,11 +612,29 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void activateVpnTunnel(String uuid) {
-		if(!mIsVpnServiceStarted) {
+		if(mVpnServiceState != SERVICE_STATE_STARTED) {
 			mPendingVpnTunnelUuid = uuid;
 			startVpnService();
 			return;
 		}
+	}
+	
+	@Override
+	public String getVpnTunnelId() {
+		if(mCurrentTunnel == null) {
+			return null;
+		}
+		
+		return mCurrentTunnel.getTunnelId();
+	}
+	
+	@Override
+	public int getVpnTunnelState() {
+		if(mCurrentTunnel == null) {
+			return TUNNEL_STATE_DISCONNECTED;
+		}
+		
+		return connectionStatusToInt(mCurrentTunnel.getConnectionStatus());
 	}
 	
 	private void initIcons() {
@@ -616,6 +672,35 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		compatBuilder.setOngoing(true);
 		
 		return compatBuilder.build();
+	}
+	
+	private int connectionStatusToInt(ConnectionStatus status) {
+		int retVal = TUNNEL_STATE_DISCONNECTED;
+		switch (status) {
+		case CONNECTING: {
+			retVal = TUNNEL_STATE_CONNECTING;
+			break;
+		}
+		case CONNECTED: {
+			retVal = TUNNEL_STATE_CONNECTED;
+			break;
+		}
+		case DISCONNECTING: {
+			retVal = TUNNEL_STATE_DISCONNECTING;
+			break;
+		}
+		case TERMINATED: {
+			retVal = TUNNEL_STATE_TERMINATED;
+			break;
+		}
+		case DISCONNECTED:
+		default: {
+			retVal = TUNNEL_STATE_DISCONNECTED;
+			break;
+		}
+		}
+		
+		return retVal;
 	}
 	
 	private boolean debugStartTunnelPcap(String fileNameFmt, VpnTunnel tunnel) {

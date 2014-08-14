@@ -17,8 +17,19 @@ public interface VpnManagerInterface extends IInterface {
 	public static final String KEY_SERVICE_STATE = "SERVICE_STATE";
 	public static final int SERVICE_STATE_REVOKED = 0;
 	public static final int SERVICE_STATE_STARTED = 1;
+	public static final int SERVICE_STATE_LOCKED = -1;
+	public static final int SERVICE_STATE_UNSUPPORTED = -2;
+	
+	public static final String KEY_TUNNEL_ID = "TUNNEL_ID";
+	public static final String KEY_TUNNEL_STATE = "TUNNEL_STATE";
+	public static final int TUNNEL_STATE_DISCONNECTED = 0;
+	public static final int TUNNEL_STATE_CONNECTING = 1;
+	public static final int TUNNEL_STATE_CONNECTED = 2;
+	public static final int TUNNEL_STATE_DISCONNECTING = 3;
+	public static final int TUNNEL_STATE_TERMINATED = 4;
 	
 	public void startVpnService();
+	public int getVpnServiceState();
 	public void notifyVpnServiceStarted();
 	public void notifyVpnServiceRevoked();
 	public void notifyTunnelStateChanged();
@@ -40,6 +51,8 @@ public interface VpnManagerInterface extends IInterface {
 	public void notifyVpnIsUnsupported();
 	
 	public void activateVpnTunnel(String uuid);
+	public String getVpnTunnelId();
+	public int getVpnTunnelState();
 	
 	public int getLocalAddress4();
 	public int getRemoteAddress4();
