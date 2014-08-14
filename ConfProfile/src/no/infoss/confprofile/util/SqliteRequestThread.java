@@ -129,10 +129,11 @@ public class SqliteRequestThread extends Thread {
 	/**
 	 * Perform synchronous request
 	 * @param request
+	 * @return the same object for chaining
 	 */
-	public void request(Request request) {
+	public Request request(Request request) {
 		if(request == null) {
-			return;
+			return request;
 		}
 		
 		RequestData data = new RequestData();
@@ -150,6 +151,8 @@ public class SqliteRequestThread extends Thread {
 				}
 			}
 		}
+		
+		return request;
 	}
 	
 	/**
