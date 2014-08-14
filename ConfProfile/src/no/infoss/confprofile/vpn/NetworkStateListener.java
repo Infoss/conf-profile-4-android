@@ -1,6 +1,6 @@
 package no.infoss.confprofile.vpn;
 
-import android.content.BroadcastReceiver;
+import no.infoss.confprofile.util.BroadcastReceiverEx;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -8,21 +8,18 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 
-public class NetworkStateListener extends BroadcastReceiver {
-	private final Context mCtx;
+public class NetworkStateListener extends BroadcastReceiverEx<VpnManagerInterface> {
+	public static final IntentFilter FILTER = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
+	
 	private final ConnectivityManager mConnMgr;
 	private final WifiManager mWifiMgr;
 	private final NetworkConfig mNetworkConfig;
-	
-	private boolean mIsRegistered = false;
-	private final Object mRegisterLock = new Object();
-	private VpnManagerInterface mListener;
 
 	public NetworkStateListener(Context context, VpnManagerInterface listener) {
-		mCtx = context;
-		mListener = listener;
-		mConnMgr = (ConnectivityManager) mCtx.getSystemService(Context.CONNECTIVITY_SERVICE);
-		mWifiMgr = (WifiManager) mCtx.getSystemService(Context.WIFI_SERVICE);
+		super(context, listener);
+		
+		mConnMgr = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+		mWifiMgr = (WifiManager) getContext().getSystemService(Context.WIFI_SERVICE);
 		mNetworkConfig = new NetworkConfig(true);
 		updateConfig(false);
 	}
@@ -31,32 +28,18 @@ public class NetworkStateListener extends BroadcastReceiver {
 		return mNetworkConfig;
 	}
 	
-	public boolean isRegistered() {
-		return mIsRegistered;
-	}
-
 	public void register() {
-		synchronized(mRegisterLock) {
-			if(!mIsRegistered) {
-				mIsRegistered = true;
-				mCtx.registerReceiver(this, new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION));
-				updateConfig(false);
-			}
-		}
-	}
-
-	public void unregister() {
-		synchronized(mRegisterLock) {
-			if(mIsRegistered) {
-				mCtx.unregisterReceiver(this);
-				mIsRegistered = false;
-			}
-		}
+		register(FILTER);
 	}
 
 	@Override
 	public void onReceive(Context context, Intent intent) {
 		updateConfig(intent.getBooleanExtra(ConnectivityManager.EXTRA_IS_FAILOVER, false));
+	}
+	
+	@Override
+	protected void onRegistered() {
+		updateConfig(false);
 	}
 
 	private synchronized void updateConfig(boolean isFailover) {
@@ -65,8 +48,8 @@ public class NetworkStateListener extends BroadcastReceiver {
 			//disconnected
 			//TODO: notify about changed network connectivity
 			mNetworkConfig.setActive(false);
-			if(mListener != null) {
-				mListener.notifyConnectivityLost(mNetworkConfig, isFailover);
+			if(getListener() != null) {
+				getListener().notifyConnectivityLost(mNetworkConfig, isFailover);
 			}
 			return;
 		}
@@ -96,8 +79,8 @@ public class NetworkStateListener extends BroadcastReceiver {
 		}
 		
 		//TODO: add DNS addresses && domains
-		if(mListener != null) {
-			mListener.notifyConnectivityChanged(mNetworkConfig, isFailover);
+		if(getListener() != null) {
+			getListener().notifyConnectivityChanged(mNetworkConfig, isFailover);
 		}
 	}
 }
