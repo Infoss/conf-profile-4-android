@@ -43,23 +43,25 @@ public class OpenVpnTunnel extends VpnTunnel {
 	
 	
 	private LocalSocket mSocket;
-	private LinkedList<FileDescriptor> mFDList=new LinkedList<FileDescriptor>();
+	private LinkedList<FileDescriptor> mFDList = new LinkedList<FileDescriptor>();
     private LocalServerSocket mServerSocket;
-	private boolean mReleaseHold=true;
-	private boolean mWaitingForRelease=false;
-	private long mLastHoldRelease=0;
+	private boolean mReleaseHold = true;
+	private boolean mWaitingForRelease = false;
+	private long mLastHoldRelease = 0;
 
     private LocalSocket mServerSocketLocal;
 
-    enum pauseReason {
+    enum PauseReason {
         noNetwork,
         userPause,
         screenOff
     }
 
 	int mBytecountInterval = 2;
+	long mBytesIn;
+	long mBytesOut;
     
-    private pauseReason lastPauseReason = pauseReason.noNetwork;
+    private PauseReason mLastPauseReason = PauseReason.noNetwork;
 	
 	
 	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
@@ -80,7 +82,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 	@SuppressWarnings("unchecked")
 	@Override
 	public void establishConnection(Map<String, Object> options) {
-		if(mConnectionStatus != ConnectionStatus.DISCONNECTED) {
+		if(getConnectionStatus() != ConnectionStatus.DISCONNECTED) {
 			return;
 		}
 		
@@ -91,8 +93,8 @@ public class OpenVpnTunnel extends VpnTunnel {
 	}
 	
 	public void terminateConnection() {
-		if(mConnectionStatus != ConnectionStatus.TERMINATED) {
-			mConnectionStatus = ConnectionStatus.TERMINATED;
+		if(getConnectionStatus() != ConnectionStatus.TERMINATED) {
+			setConnectionStatus(ConnectionStatus.TERMINATED);
 			managmentCommand("signal SIGINT\n");
 			deinitOpenVpnTun(mVpnTunnelCtx);
 			mVpnTunnelCtx = 0;
@@ -106,6 +108,9 @@ public class OpenVpnTunnel extends VpnTunnel {
 			terminateConnection();
 			return;
 		}
+		
+		mBytesIn = 0;
+		mBytesOut = 0;
 		
 		byte[] buffer = new byte[2048];
 		String pendingInput = "";
@@ -134,7 +139,7 @@ public class OpenVpnTunnel extends VpnTunnel {
         mServerSocketLocal = new LocalSocket();
 
         while(tries > 0) {
-        	if(mConnectionStatus == ConnectionStatus.TERMINATED) {
+        	if(getConnectionStatus() == ConnectionStatus.TERMINATED) {
         		return;
         	}
         	
@@ -158,9 +163,10 @@ public class OpenVpnTunnel extends VpnTunnel {
             mServerSocket = new LocalServerSocket(mServerSocketLocal.getFileDescriptor());
             Log.d(TAG, "Management interface opened");
         } catch (IOException e) {
-        	Log.e(TAG, "Error opening management interface");
-            VpnStatus.logException(e);
+        	mLogger.logException(LOG_ERROR, "Error opening management interface", e);
         }
+        
+        setConnectionStatus(ConnectionStatus.CONNECTING);
         
         mWorker = new OpenVpnWorker(this, args, null);
 		mWorkerThread = new Thread(mWorker, "OpenVpn worker");
@@ -182,7 +188,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 				try {
 					fds = mSocket.getAncillaryFileDescriptors();
 				} catch (IOException e) {
-					VpnStatus.logException("Error reading fds from socket", e);
+					mLogger.logException(LOG_INFO, "Error reading fds from socket", e);
 				}
 				if(fds != null){
                     Collections.addAll(mFDList, fds);
@@ -195,11 +201,12 @@ public class OpenVpnTunnel extends VpnTunnel {
 				pendingInput = processInput(pendingInput);
 			}
 		} catch (IOException e) {
-            if (!e.getMessage().equals("socket closed"))
-                VpnStatus.logException(e);
+            if(!e.getMessage().equals("socket closed")) {
+            	mLogger.logException(LOG_INFO, "Exception on the tunnel loop", e);
+            }
 		}
 		
-		mConnectionStatus = ConnectionStatus.TERMINATED;
+		setConnectionStatus(ConnectionStatus.TERMINATED);
 	}
 
 	public void managmentCommand(String cmd) {
@@ -331,13 +338,11 @@ public class OpenVpnTunnel extends VpnTunnel {
 		if(mReleaseHold) {
 			releaseHoldCmd();
 		} else { 
-			mWaitingForRelease=true;
-
-            VpnStatus.updateStatePause(lastPauseReason);
-
-
+			mWaitingForRelease = true;
+            //VpnStatus.updateStatePause(mLastPauseReason);
 		}
 	}
+    
 	private void releaseHoldCmd() {
 		if ((System.currentTimeMillis()- mLastHoldRelease) < 5000) {
 			try {
@@ -378,7 +383,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 		if(proxyaddr instanceof InetSocketAddress ){
 			InetSocketAddress isa = (InetSocketAddress) proxyaddr;
 			
-			VpnStatus.logInfo("R.string.using_proxy", isa.getHostName(), isa.getPort());
+			mLogger.log(LOG_INFO, "Using proxy " + isa.getHostName() + ":" + isa.getPort());
 			
 			String proxycmd = String.format(Locale.ENGLISH,"proxy HTTP %s %d\n", isa.getHostName(),isa.getPort());
 			managmentCommand(proxycmd);
@@ -391,10 +396,16 @@ public class OpenVpnTunnel extends VpnTunnel {
 		String[] args = argument.split(",",3);
 		String currentstate = args[1];
 
-		if(args[2].equals(",,"))
-			VpnStatus.updateStateString(currentstate, "");
-		else
-			VpnStatus.updateStateString(currentstate, args[2]);
+		mLogger.log(LOG_INFO, "State changed to " + currentstate + " (" + args[2] + ")");
+		if("CONNECTED".equalsIgnoreCase(currentstate)) {
+			setConnectionStatus(ConnectionStatus.CONNECTED);
+		} else if("RECONNECTING".equalsIgnoreCase(currentstate)) {
+			setConnectionStatus(ConnectionStatus.CONNECTING);
+		} else if("EXITING".equalsIgnoreCase(currentstate)) {
+			setConnectionStatus(ConnectionStatus.DISCONNECTING);
+		} else {
+			setConnectionStatus(ConnectionStatus.CONNECTING);
+		}
 	}
 
 	private void processByteCount(String argument) {
@@ -403,8 +414,8 @@ public class OpenVpnTunnel extends VpnTunnel {
 		long in = Long.parseLong(argument.substring(0, comma));
 		long out = Long.parseLong(argument.substring(comma + 1));
 
-		VpnStatus.updateByteCount(in, out);
-		
+		mBytesIn += in;
+		mBytesOut += out;
 	}
 
 	private void processNeedCommand(String argument) {
@@ -430,7 +441,7 @@ public class OpenVpnTunnel extends VpnTunnel {
             }  else if (routeparts.length >= 3) {
                 addRoute4(routeparts[0], routeparts[1], routeparts[2], null);
             } else {
-                VpnStatus.logError("Unrecognized ROUTE cmd:" + Arrays.toString(routeparts) + " | " + argument);
+            	mLogger.log(LOG_ERROR, "Unrecognized ROUTE cmd:" + Arrays.toString(routeparts) + " | " + argument);
             }
 		} else if ("ROUTE6".equals(needed)) {
             String[] routeparts = extra.split(" ");
@@ -521,7 +532,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 				return;
 			}
 		} catch (StringIndexOutOfBoundsException sioob) {
-			VpnStatus.logError("Could not parse management Password command: " + argument);
+			mLogger.log(LOG_ERROR, "Could not parse management Password command: " + argument);
 			return;
 		}
 
@@ -540,13 +551,14 @@ public class OpenVpnTunnel extends VpnTunnel {
 			managmentCommand(cmd);
 		} else {
 			String logFmt = "Openvpn requires Authentication type '%s' but no credentials are available";
-			VpnStatus.logError(String.format(logFmt, needed));
+			mLogger.log(LOG_ERROR, String.format(logFmt, needed));
 		}
 
 	}
 
 	private void proccessPWFailed(String needed, String args) {
-		VpnStatus.updateStateString("AUTH_FAILED", needed + args, "R.string.state_auth_failed", "ConnectionStatus.LEVEL_AUTH_FAILED");
+		mLogger.log(LOG_ERROR, "Auth failed " + needed + args);
+		mConnectionError = ConnectionError.AUTH_FAILED;
 	}
 
     public void networkChange() {
@@ -563,7 +575,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 		} else {
             // If signalusr1 is called update the state string
             // if there is another for stopping
-            VpnStatus.updateStatePause(lastPauseReason);
+            //VpnStatus.updateStatePause(mLastPauseReason);
 		}
 	}
 
@@ -586,15 +598,15 @@ public class OpenVpnTunnel extends VpnTunnel {
         managmentCommand("\nEND\n");
 	}
 
-	public void pause(pauseReason reason) {
-        lastPauseReason = reason;
+	public void pause(PauseReason reason) {
+        mLastPauseReason = reason;
 		signalusr1();
 	}
 
 	public void resume() {
 		releaseHold();
         /* Reset the reason why we are disconnected */
-        lastPauseReason = pauseReason.noNetwork;
+        mLastPauseReason = PauseReason.noNetwork;
 	}
 
 	public boolean stopVpn() {
@@ -752,61 +764,5 @@ public class OpenVpnTunnel extends VpnTunnel {
         }
     }
 
-	static class VpnStatus {
-		public static void logError(String format) {
-			Log.e(TAG, format);
-		}
-
-		public static void updateStateString(String string, String string2,
-				String string3, String string4) {
-			// TODO Auto-generated method stub
-			
-		}
-
-		public static void logInfo(String string, String hostName, int port) {
-			Log.i(TAG, String.format("%s %s:%d", string, hostName, port));
-		}
-
-		public static void logMessageOpenVPN(
-				int level,
-				int ovpnlevel, String msg) {
-			Log.d(TAG, String.format("[level=%d] %s", ovpnlevel, msg));
-		}
-
-		public static void updateStateString(String currentstate, String string) {
-			Log.d(TAG, "updateState from " + currentstate + " to " + string);
-		}
-
-		public static void updateByteCount(long in, long out) {
-			// TODO Auto-generated method stub
-			
-		}
-
-		public static void updateStatePause(pauseReason lastPauseReason) {
-			// TODO Auto-generated method stub
-			
-		}
-
-		public static void logException(String string, Exception exp) {
-			Log.e(TAG, string, exp);
-		}
-
-		public static void logWarning(String string) {
-			Log.w(TAG, string);
-		}
-
-		public static void logException(IOException e) {
-			Log.e(TAG, "", e);
-		}
-
-		public static void logException(String string, IOException e) {
-			Log.e(TAG, string, e);
-		}
-
-		public static void logInfo(String string) {
-			Log.i(TAG, string);
-		}
-		
-	}
 }
 

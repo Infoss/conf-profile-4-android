@@ -51,7 +51,6 @@ public class OpenVpnWorker extends AbstractWorker {
                 logLevel = Math.max(4, logLevel);
             }
 
-            //TODO: print OpenVPN log level if needed 
             mTunnel.mLogger.log(logStatus, line);
         } else {
             mTunnel.mLogger.log(VpnTunnel.LOG_INFO, line);
