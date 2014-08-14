@@ -22,7 +22,7 @@ public class SimpleModel implements Model, View.OnClickListener {
 	
 	@Override
 	public final void bind(View view) {
-		if(mBoundView != null) {
+		if(mBoundView != null & mBoundView != view) {
 			doUnbind(mBoundView);
 		}
 		
@@ -139,6 +139,7 @@ public class SimpleModel implements Model, View.OnClickListener {
 	
 	protected void doUnbind(View view) {
 		view.setOnClickListener(null);
+		view.setClickable(false);
 	}
 	
 	protected void doApplyModel(View view) {

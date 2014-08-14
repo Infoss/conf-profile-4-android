@@ -54,4 +54,17 @@ public class CompositeListItemModel extends SimpleListItemModel {
 			}
 		}
 	}
+	
+	@Override
+	protected void doApplyModel(View view) {
+		super.doApplyModel(view);
+		
+		int count = mMappings.size();
+		for(int i = 0; i < count; i++) {
+			Model entry = mMappings.valueAt(i);
+			if(entry != null) {
+				entry.applyModel();
+			}
+		}
+	}
 }

@@ -99,6 +99,7 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 		super.doBind(view);
 		if(!mPreferOnClickListener) {
 			view.setOnClickListener(null);
+			view.setClickable(false);
 		}
 	}
 	
