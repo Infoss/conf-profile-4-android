@@ -63,7 +63,7 @@ public class UsernatTunnel extends VpnTunnel {
         mServerSocket = null;
 
         while(tries > 0) {
-        	if(getConnectionStatus() == ConnectionStatus.TERMINATED) {
+        	if(isTerminated()) {
         		return;
         	}
         	
@@ -212,7 +212,7 @@ public class UsernatTunnel extends VpnTunnel {
 
 	@Override
 	public void terminateConnection() {
-		if(getConnectionStatus() != ConnectionStatus.TERMINATED) {
+		if(!isTerminated()) {
 			setConnectionStatus(ConnectionStatus.TERMINATED);
 			deinitUsernatTun(mVpnTunnelCtx);
 			mVpnTunnelCtx = 0;
