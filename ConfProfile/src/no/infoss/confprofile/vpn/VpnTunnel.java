@@ -93,6 +93,10 @@ public abstract class VpnTunnel implements Runnable {
 		return mConnectionError;
 	}
 	
+	public final boolean isTerminated() {
+		return (mConnectionStatus == ConnectionStatus.TERMINATED);
+	}
+	
 	public void startLoop() {
 		mThread.setName(getThreadName());
 		mThread.start();
