@@ -93,7 +93,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 	}
 	
 	public void terminateConnection() {
-		if(getConnectionStatus() != ConnectionStatus.TERMINATED) {
+		if(!isTerminated()) {
 			setConnectionStatus(ConnectionStatus.TERMINATED);
 			managmentCommand("signal SIGINT\n");
 			deinitOpenVpnTun(mVpnTunnelCtx);
@@ -139,7 +139,7 @@ public class OpenVpnTunnel extends VpnTunnel {
         mServerSocketLocal = new LocalSocket();
 
         while(tries > 0) {
-        	if(getConnectionStatus() == ConnectionStatus.TERMINATED) {
+        	if(isTerminated()) {
         		return;
         	}
         	
@@ -206,7 +206,7 @@ public class OpenVpnTunnel extends VpnTunnel {
             }
 		}
 		
-		setConnectionStatus(ConnectionStatus.TERMINATED);
+		terminateConnection();
 	}
 
 	public void managmentCommand(String cmd) {
