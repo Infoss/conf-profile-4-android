@@ -8,13 +8,26 @@ import android.content.Intent;
 import android.net.VpnService;
 import android.os.Binder;
 import android.os.IBinder;
+import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
+import android.os.RemoteException;
 import android.util.Log;
 
 public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 	public static final String TAG = OcpaVpnService.class.getSimpleName();
 	
-	private Binder mBinder = new Binder();
+	private Binder mBinder = new Binder() {
+		@Override
+		protected boolean onTransact(int code, Parcel data, Parcel reply, int flags) 
+				throws RemoteException {
+			if(code == IBinder.LAST_CALL_TRANSACTION) {
+				onRevoke();
+				return true;
+			}
+			
+			return super.onTransact(code, data, reply, flags);
+		}
+	};
 	
 	private SimpleServiceBindKit<VpnManagerService> mBindKit;
 
