@@ -17,6 +17,7 @@ import java.util.concurrent.Callable;
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
+import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
 import no.infoss.confprofile.vpn.ipsec.imc.ImcState;
 import no.infoss.confprofile.vpn.ipsec.imc.RemediationInstruction;
 import android.content.Context;
@@ -29,7 +30,6 @@ public class IpSecTunnel extends VpnTunnel {
 
 	public static final boolean BYOD = false;
 
-	private boolean mIsTerminating;
 	private Map<String, Object> mOptions;	
 	public static final String LOG_FILE = "charon.log";
 	private String mLogFile;
@@ -83,18 +83,17 @@ public class IpSecTunnel extends VpnTunnel {
 	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg, vpnMgr);
 		mVpnServiceCtx = vpnServiceCtx;
-		mIsTerminating = false;
 	}
 
 	@Override
 	public void run() {
-		while (true) {
-			synchronized (this) {
+		while(true) {
+			synchronized(this) {
 				try {
-					if (!mIsTerminating) {
+					if(!isTerminated()) {
 						startConnection();
 
-						if (initializeCharon(mLogFile, getEnableBYOD(), mVpnTunnelCtx)) {
+						if(initializeCharon(mLogFile, getEnableBYOD(), mVpnTunnelCtx)) {
 							Log.i(TAG, "charon started");
 							initiate(getIdentifier(), getRemoteAddress(), getUsername(),getPassword());
 						} else {
@@ -103,18 +102,15 @@ public class IpSecTunnel extends VpnTunnel {
 							terminateConnection();
 						}
 					} else {
-						setState(ConnectionStatus.DISCONNECTING);
 						deinitializeCharon();
-						
-						setState(ConnectionStatus.DISCONNECTED);
 						Log.i(TAG, "ipsec stopped");
 						break;
 					}
 
 					wait();
-				} catch (InterruptedException ex) {
+				} catch(InterruptedException ex) {
+					setState(ConnectionStatus.DISCONNECTING);
 					terminateConnection();
-					setState(ConnectionStatus.DISCONNECTED);
 				}
 			}
 		}		
@@ -127,7 +123,7 @@ public class IpSecTunnel extends VpnTunnel {
 
 	@Override
 	public void establishConnection(Map<String, Object> options) {
-		if(mIsTerminating) {
+		if(isTerminated()) {
 			return;
 		}
 
@@ -153,16 +149,21 @@ public class IpSecTunnel extends VpnTunnel {
 
 	@Override
 	public void terminateConnection() {
-		mIsTerminating = true;
+		if(!isTerminated()) {
+			setConnectionStatus(ConnectionStatus.TERMINATED);
+			
+			if(mVpnTunnelCtx != 0) {
+				//TODO: call RouterLoop.removeTunnel(this)
+				mVpnMgr.intlRemoveTunnel(this);
+				deinitIpSecTun(mVpnTunnelCtx);
+				mVpnTunnelCtx = 0;
+			}
+		}
 		
-		synchronized (this) {
+		synchronized(this) {
 			notifyAll();
 		}
 		
-		if(mVpnTunnelCtx != 0) {
-			deinitIpSecTun(mVpnTunnelCtx);
-			mVpnTunnelCtx = 0;
-		}
 	}
 
 	public void onNetworkChanged(boolean disconnected) {
@@ -285,7 +286,7 @@ public class IpSecTunnel extends VpnTunnel {
 	 * @param error error state
 	 */
 	private void setErrorDisconnect(ErrorState error) {
-		if (!mIsTerminating) {
+		if(!isTerminated()) {
 			setError(error);
 			terminateConnection();
 		}
