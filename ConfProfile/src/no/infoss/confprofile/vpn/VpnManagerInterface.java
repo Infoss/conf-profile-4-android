@@ -66,4 +66,7 @@ public interface VpnManagerInterface extends IInterface {
 	public boolean isDebugPcapEnabled();
 	public boolean debugStartPcap();
 	public boolean debugStopPcap();
+	
+	//methods need to be refactored/removed
+	public void intlRemoveTunnel(VpnTunnel vpnTunnel);
 }

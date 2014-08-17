@@ -105,6 +105,15 @@ import android.util.Log;
 		//defaultRoute6(mRouterCtx, tunnel.mVpnTunnelCtx);
 	}
 	
+	public void removeTunnel(VpnTunnel tunnel) {
+		if(tunnel == null) {
+			Log.w(TAG, "Trying to remove null tunnel");
+			return;
+		}
+		
+		removeTunnel(mRouterCtx, tunnel.mVpnTunnelCtx);
+	}
+	
 	public int getMtu() {
 		return mMtu;
 	}
@@ -141,6 +150,7 @@ import android.util.Log;
 	/*package*/ native void defaultRoute4(long routerCtx, long tunCtx);
 	/*package*/ native void removeRoute4(long routerCtx, int ip4, int mask);
 	/*package*/ native List<Route4> getRoutes4(long routerCtx);
+	/*package*/ native void removeTunnel(long routerCtx, long tunCtx);
 	/*package*/ native boolean isPausedRouterLoop(long routerCtx);
 	/*package*/ native boolean pauseRouterLoop(long routerCtx, boolean pause);
 	/*package*/ native void terminateRouterLoop(long routerCtx);

@@ -749,6 +749,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		return false; //BuildConfig.DEBUG is false
 	}
 	
+	public void intlRemoveTunnel(VpnTunnel vpnTunnel) {
+		mRouterLoop.removeTunnel(vpnTunnel);
+	}
+	
 	public static class VpnConfigInfo {
 		public static final String PARAMS_IPSEC = "IPSec";
 		public static final String PARAMS_PPP = "PPP";
