@@ -36,6 +36,11 @@ public abstract class VpnTunnel implements Runnable {
 	protected VpnConfigInfo mCfg;
 	private ConnectionStatus mConnectionStatus;
 	protected ConnectionError mConnectionError;
+	private Date mConnectedSince;
+	private String mServerName;
+	private String mLocalAddress;
+	private String mRemoteAddress;
+	
 	protected long mVpnServiceCtx; //native
 	protected long mVpnTunnelCtx; //native
 	
@@ -65,6 +70,10 @@ public abstract class VpnTunnel implements Runnable {
 		
 		mConnectionStatus = ConnectionStatus.DISCONNECTED;
 		mConnectionError = ConnectionError.NO_ERROR;
+		mConnectedSince = null;
+		mServerName = null;
+		mLocalAddress = null;
+		mRemoteAddress = null;
 		
 		mVpnMgr = vpnMgr;
 	}
@@ -83,6 +92,15 @@ public abstract class VpnTunnel implements Runnable {
 	
 	public final Context getContext() {
 		return mCtx;
+	}
+	
+	public final TunnelInfo getInfo() {
+		return new TunnelInfo(getTunnelId(), 
+				VpnManagerService.connectionStatusToInt(getConnectionStatus()), 
+				mConnectedSince, 
+				mServerName, 
+				mLocalAddress, 
+				mRemoteAddress);
 	}
 	
 	public final ConnectionStatus getConnectionStatus() {
@@ -112,12 +130,27 @@ public abstract class VpnTunnel implements Runnable {
 	
 	protected boolean setConnectionStatus(ConnectionStatus status) {
 		if(status != mConnectionStatus) {
+			if(status == ConnectionStatus.CONNECTED) {
+				mConnectedSince = new Date();
+			}
 			mConnectionStatus = status;
 			mVpnMgr.notifyTunnelStateChanged();
 			return true;
 		}
 		
 		return false;
+	}
+	
+	protected void setServerName(String serverName) {
+		
+	}
+	
+	protected void setLocalAddress(String localAddress) {
+		
+	}
+	
+	protected void setRemoteAddress(String remoteAddress) {
+		
 	}
 	
 	protected void setMasqueradeIp4Mode(boolean isOn) {
@@ -312,6 +345,33 @@ public abstract class VpnTunnel implements Runnable {
 		public void close() {
 			mIsInitialized = false;
 			mIsDeactivated = true;
+		}
+	}
+	
+	public static class TunnelInfo {
+		public final String uuid;
+		public final int state;
+		public final Date connectedSince;
+		public final String serverName;
+		public final String localAddress;
+		public final String remoteAddress;
+		
+		public TunnelInfo(String uuid, 
+				int state, 
+				Date connectedSince, 
+				String serverName, 
+				String localAddress, 
+				String remoteAddress) {
+			this.uuid = uuid;
+			this.state = state;
+			if(connectedSince != null) {
+				this.connectedSince = new Date(connectedSince.getTime());
+			} else {
+				this.connectedSince = null;
+			}
+			this.serverName = serverName;
+			this.localAddress = localAddress;
+			this.remoteAddress = remoteAddress;
 		}
 	}
 }
