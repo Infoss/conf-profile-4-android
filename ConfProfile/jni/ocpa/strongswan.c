@@ -746,6 +746,7 @@ static void charonservice_deinit(JNIEnv *env)
 	this->attr->destroy(this->attr);
 	(*env)->DeleteGlobalRef(env, this->jtunnel);
 	ipsec_tun_deinit(this->tunnel_ctx);
+	this->tunnel_ctx = NULL;
 	free(this);
 	charonservice = NULL;
 }
