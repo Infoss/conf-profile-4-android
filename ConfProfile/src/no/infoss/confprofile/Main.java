@@ -20,6 +20,7 @@
 package no.infoss.confprofile;
 
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
@@ -28,11 +29,13 @@ import no.infoss.confprofile.model.CompositeListItemModel;
 import no.infoss.confprofile.model.ImageViewModel;
 import no.infoss.confprofile.model.ListItemModel;
 import no.infoss.confprofile.model.Model;
+import no.infoss.confprofile.model.SimpleListItemModel;
 import no.infoss.confprofile.model.SwitchModel;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.VpnDataCursorLoader;
 import no.infoss.confprofile.profile.data.ListItem;
+import no.infoss.confprofile.profile.data.MutableListItem;
 import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.task.BackupTask;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
@@ -41,6 +44,7 @@ import no.infoss.confprofile.util.VpnEventReceiver;
 import no.infoss.confprofile.util.VpnEventReceiver.VpnEventListener;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
+import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.ComponentName;
@@ -79,7 +83,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private static final CompositeListItemModel STATUS_LIST_ITEM_MODEL = new CompositeListItemModel();
 	
 	private static final List<String> SINGLE_EMPTY_HEADER_LIST = new ArrayList<String>(1);
+	private static final List<String> DOUBLE_EMPTY_HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> VPN_DATA_LIST = new LinkedList<List<ListItem>>();
+	private static final List<List<ListItem>> STATUS_LIST = new LinkedList<List<ListItem>>();
 	
 	static {
 		SwitchModel switchModel = new SwitchModel(R.id.switchWidget);
@@ -94,15 +100,23 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		STATUS_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_image);
 	}
 	
-	private final Stack<Intent> mIntentStack = new Stack<Intent>();;
+	private final Stack<Intent> mIntentStack = new Stack<Intent>();
 	private VpnEventReceiver mVpnEvtReceiver;
+	private GridView mGrid;
 	private HeaderObjectAdapter<ListItem, String> mPayloadAdapter;
+	private HeaderObjectAdapter<ListItem, String> mPayloadInfoAdapter;
+	private HeaderObjectAdapter<ListItem, String> mStatusAdapter;
 	private ListItem mVpnListItem;
 	private ListItem mStatusListItem;
+	private MutableListItem mStatusServerListItem;
+	private MutableListItem mStatusConnectTimeListItem;
+	private MutableListItem mStatusConnectedToListItem;
+	private MutableListItem mStatusIpAddressListItem;
 	private LazyCursorList<? extends ListItem> mVpnInfoList;
 	private DbOpenHelper mDbHelper;
 	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
 	private boolean mDebugPcapEnabled = false;
+	private Thread mUpdateTimerThread;
 	
 	private volatile boolean mServiceStateReceived;
 	private volatile boolean mTunnelStateReceived;
@@ -114,75 +128,24 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		setActionBarDisplayHomeAsUp(getIntent());
 		
+		mBindKit = new SimpleServiceBindKit<VpnManagerInterface>(this, VpnManagerInterface.TAG);
+		mDbHelper = DbOpenHelper.getInstance(this);
+		SqliteRequestThread.getInstance().start(this);
+		
 		mServiceStateReceived = false;
 		mTunnelStateReceived = false;
 		
 		mVpnEvtReceiver = new VpnEventReceiver(this, this);
 		
-		SINGLE_EMPTY_HEADER_LIST.clear();
-		SINGLE_EMPTY_HEADER_LIST.add("");
+		initModels();
+		initHeaders();
+		initData();
+		initAdapters();
 		
-		HEADER_LIST.clear();
-		HEADER_LIST.add("");
-		HEADER_LIST.add(getString(R.string.main_choose_config_label));
-		
-		DATA_LIST.clear();
-		
-		List<ListItem> cmdList = new ArrayList<ListItem>(2);
-		
-		//adding VPN list item
-		VPN_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
-			
-			@Override
-			public void onClick(Model model, View v) {
-				VpnManagerInterface vpnMgr = mBindKit.lock();
-				if(vpnMgr != null) {
-					vpnMgr.startVpnService();
-				}
-				mBindKit.unlock();
-			}
-		});
-		
-		mVpnListItem = new ListItem(getString(R.string.main_item_vpn_label), null);
-		mVpnListItem.setModel(VPN_LIST_ITEM_MODEL);
-		cmdList.add(mVpnListItem);
-		
-		//adding VPN list item
-		STATUS_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
-			
-			@Override
-			public void onClick(Model model, View v) {
-				Toast.makeText(Main.this, "STATUS_LIST_ITEM_MODEL onClick()", Toast.LENGTH_SHORT).show();
-				Intent intent = new Intent(Main.this, Main.class);
-				intent.setAction(ACTION_SERVICE_INFO);
-				startActivity(intent);
-			}
-		});
-		
-		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
-		mStatusListItem.setModel(STATUS_LIST_ITEM_MODEL);
-		cmdList.add(mStatusListItem);
-		
-		DATA_LIST.add(cmdList);
-		
-		mVpnInfoList = new LazyCursorList<VpnData>(VpnDataCursorLoader.VPN_DATA_CURSOR_MAPPER);
-		DATA_LIST.add((LazyCursorList<ListItem>) mVpnInfoList);
-		
-		mDbHelper = DbOpenHelper.getInstance(this);
-		SqliteRequestThread.getInstance().start(this);
-		mBindKit = new SimpleServiceBindKit<VpnManagerInterface>(this, VpnManagerInterface.TAG);
-		
-		mPayloadAdapter = new HeaderObjectAdapter<ListItem, String>(
-				getLayoutInflater(), 
-				HEADER_LIST,
-				R.layout.simple_list_item_1_header,
-				DATA_LIST,
-				R.layout.list_item_1_images,
-				new ListItemMapper(this));
-		GridView grid = (GridView) findViewById(R.id.profileGrid);
-		grid.setEmptyView(findViewById(android.R.id.empty));
-		grid.setAdapter(mPayloadAdapter);
-		grid.setOnItemClickListener(new OnItemClickListener() {
+		mGrid = (GridView) findViewById(R.id.profileGrid);
+		mGrid.setEmptyView(findViewById(android.R.id.empty));
+		mGrid.setAdapter(mPayloadAdapter);
+		mGrid.setOnItemClickListener(new OnItemClickListener() {
 
 			@Override
 			public void onItemClick(AdapterView<?> parent, View view,
@@ -209,9 +172,14 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		setActionBarDisplayHomeAsUp(intent);
 		
 		if(ACTION_SERVICE_INFO.equals(intent.getAction())) {
-			
+			mGrid.setAdapter(mStatusAdapter);
+			mStatusAdapter.notifyDataSetChanged();
 		} else if(ACTION_VPN_INFO.equals(intent.getAction())) {
-			
+			mGrid.setAdapter(mPayloadInfoAdapter);
+			mPayloadInfoAdapter.notifyDataSetChanged();
+		} else {
+			mGrid.setAdapter(mPayloadAdapter);
+			mPayloadAdapter.notifyDataSetChanged();
 		}
 	}
 	
@@ -227,7 +195,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			getLoaderManager().restartLoader(0, params, this);
 		}
 		
-		//registerReceiver(mVpnEvtReceiver, INTENT_FILTER);
 		mVpnEvtReceiver.register();
 		receiveServiceState();
 	}
@@ -282,10 +249,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		switch(item.getItemId()) {
 		case android.R.id.home: {
-			mIntentStack.pop(); //pop current intent and resend parent intent
-			intent = mIntentStack.pop();
-			if(intent != null) {
-				startActivity(intent);
+			if(mIntentStack.size() >= 2) {
+				mIntentStack.pop(); //pop current intent and resend parent intent
+				intent = mIntentStack.pop();
+				if(intent != null) {
+					startActivity(intent);
+				}
 			}
 			return true;
 		}
@@ -363,6 +332,134 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		// nothing to do here
 	}
 	
+	private void initHeaders() {
+		SINGLE_EMPTY_HEADER_LIST.clear();
+		SINGLE_EMPTY_HEADER_LIST.add("");
+		
+		DOUBLE_EMPTY_HEADER_LIST.clear();
+		DOUBLE_EMPTY_HEADER_LIST.add("");
+		DOUBLE_EMPTY_HEADER_LIST.add("");
+		
+		HEADER_LIST.clear();
+		HEADER_LIST.add("");
+		HEADER_LIST.add(getString(R.string.main_choose_config_label));
+	}
+	
+	private void initModels() {
+		//adding VPN list item
+		VPN_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+			
+			@Override
+			public void onClick(Model model, View v) {
+				VpnManagerInterface vpnMgr = mBindKit.lock();
+				if(vpnMgr != null) {
+					vpnMgr.startVpnService();
+				}
+				mBindKit.unlock();
+			}
+		});
+		
+		//adding VPN list item
+		STATUS_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+			
+			@Override
+			public void onClick(Model model, View v) {
+				//Toast.makeText(Main.this, "STATUS_LIST_ITEM_MODEL onClick()", Toast.LENGTH_SHORT).show();
+				Intent intent = new Intent(Main.this, Main.class);
+				intent.setAction(ACTION_SERVICE_INFO);
+				startActivity(intent);
+			}
+		});
+	}
+	
+	private void initData() {
+		initVpnData();
+		initVpnInfoData();
+		initStatusData();
+	}
+	
+	private void initVpnData() {
+		DATA_LIST.clear();
+		
+		List<ListItem> cmdList = new ArrayList<ListItem>(2);
+		
+		mVpnListItem = new ListItem(getString(R.string.main_item_vpn_label), null);
+		mVpnListItem.setModel(VPN_LIST_ITEM_MODEL);
+		cmdList.add(mVpnListItem);
+		
+		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
+		mStatusListItem.setModel(STATUS_LIST_ITEM_MODEL);
+		cmdList.add(mStatusListItem);
+		
+		DATA_LIST.add(cmdList);
+		
+		mVpnInfoList = new LazyCursorList<VpnData>(VpnDataCursorLoader.VPN_DATA_CURSOR_MAPPER);
+		DATA_LIST.add((LazyCursorList<ListItem>) mVpnInfoList);
+	}
+	
+	private void initVpnInfoData() {
+		VPN_DATA_LIST.clear();
+		
+		List<ListItem> cmdList = new ArrayList<ListItem>(1);
+		
+		VPN_DATA_LIST.add(cmdList);
+	}
+	
+	private void initStatusData() {
+		STATUS_LIST.clear();
+		
+		List<ListItem> cmdList = null; 
+		cmdList = new ArrayList<ListItem>(1);
+		mStatusServerListItem = new MutableListItem(getString(R.string.main_status_item_server_label), "");
+		mStatusServerListItem.setModel(new SimpleListItemModel());
+		cmdList.add(mStatusServerListItem);
+		
+		STATUS_LIST.add(cmdList);
+		
+		cmdList = new ArrayList<ListItem>(3);
+		mStatusConnectTimeListItem = new MutableListItem(getString(R.string.main_status_item_connect_time_label), "");
+		mStatusConnectTimeListItem.setModel(new SimpleListItemModel());
+		cmdList.add(mStatusConnectTimeListItem);
+		
+		mStatusConnectedToListItem = new MutableListItem(getString(R.string.main_status_item_connected_to_label), "");
+		mStatusConnectedToListItem.setModel(new SimpleListItemModel());
+		cmdList.add(mStatusConnectedToListItem);
+		
+		mStatusIpAddressListItem = new MutableListItem(getString(R.string.main_status_item_ip_address_label), "");
+		mStatusIpAddressListItem.setModel(new SimpleListItemModel());
+		cmdList.add(mStatusIpAddressListItem);
+		
+		STATUS_LIST.add(cmdList);
+	}
+	
+	private void initAdapters() {
+		ListItemMapper mapper = new ListItemMapper(this);
+		mPayloadAdapter = new HeaderObjectAdapter<ListItem, String>(
+				getLayoutInflater(), 
+				HEADER_LIST,
+				R.layout.simple_list_item_1_header,
+				DATA_LIST,
+				R.layout.list_item_1_images,
+				mapper);
+		
+		mPayloadInfoAdapter = new HeaderObjectAdapter<ListItem, String>(
+				getLayoutInflater(), 
+				SINGLE_EMPTY_HEADER_LIST,
+				R.layout.simple_list_item_1_header,
+				VPN_DATA_LIST,
+				R.layout.list_item_1_images,
+				mapper);
+		
+		mStatusAdapter = new HeaderObjectAdapter<ListItem, String>(
+				getLayoutInflater(), 
+				DOUBLE_EMPTY_HEADER_LIST,
+				R.layout.simple_list_item_1_header,
+				STATUS_LIST,
+				R.layout.simple_list_item_2_image,
+				mapper);
+		
+	}
+	
 	
 	private void setActionBarDisplayHomeAsUp(Intent intent) {
 		if(mIntentStack.size() == 0){
@@ -393,7 +490,26 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		VpnManagerInterface vpnMgr = mBindKit.lock();
 		try {
 			if(vpnMgr != null) {
-				onReceivedTunnelState(vpnMgr.getVpnTunnelId(), vpnMgr.getVpnTunnelState(), false);
+				TunnelInfo info = vpnMgr.getVpnTunnelInfo();
+				if(info != null) {
+					onReceivedTunnelState(
+							info.uuid, 
+							info.state, 
+							info.connectedSince,
+							info.serverName,
+							info.remoteAddress,
+							info.localAddress,
+							false);
+				} else {
+					onReceivedTunnelState(
+							null, 
+							VpnManagerService.TUNNEL_STATE_DISCONNECTED, 
+							null,
+							null,
+							null,
+							null,
+							false);
+				}
 			}
 		} catch(Exception e) {
 			Log.e(TAG, "Exception while receiving service state", e);
@@ -452,7 +568,13 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	}
 	
 	@Override
-	public void onReceivedTunnelState(String tunnelId, int state, boolean isBroadcast) {
+	public void onReceivedTunnelState(final String tunnelId, 
+			final int state, 
+			final Date date,
+			String serverName,
+			String remoteAddress,
+			String localAddress,
+			final boolean isBroadcast) {
 		if(!isBroadcast && mTunnelStateReceived) {
 			return;
 		}
@@ -476,6 +598,49 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
 			swModel.setChecked(true);
+			
+			mStatusServerListItem.setSubText(serverName);
+			mStatusConnectTimeListItem.setSubText("");
+			mStatusConnectedToListItem.setSubText(remoteAddress);
+			mStatusIpAddressListItem.setSubText(localAddress);
+			
+			
+			if(mUpdateTimerThread != null) {
+				mUpdateTimerThread.interrupt();
+				mUpdateTimerThread = null;
+			}
+			
+			mUpdateTimerThread = new Thread(new Runnable() {
+				
+				@Override
+				public void run() {
+					while(!Thread.interrupted()) {
+						try {
+							long diff = ((new Date()).getTime() - date.getTime()) / 1000;
+							long diffSec = diff % 60;
+							long diffMin = ((diff - diffSec) / 60) % 60;
+							long diffHrs = (((diff - diffSec) / 60) - diffMin) / 60;
+							
+							String result = null;
+							if(diffHrs > 0) {
+								result = String.format("%d:%02d:%02d", diffHrs, diffMin, diffSec);
+							} else { 
+								result = String.format("%d:%02d", diffMin, diffSec);
+							}
+							
+							mStatusConnectTimeListItem.setSubText(result);
+							mStatusConnectTimeListItem.applyData();
+							mStatusAdapter.notifyDataSetChanged();
+							
+							Thread.sleep(1000);
+						} catch(Exception e) {
+							//suppress this
+						}
+					}
+				}
+			});
+			mUpdateTimerThread.start();
+			
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING: {
