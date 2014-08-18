@@ -6,6 +6,7 @@ import java.security.PrivateKey;
 import java.security.Security;
 import java.security.cert.Certificate;
 import java.util.Collections;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -21,6 +22,7 @@ import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
 import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
+import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
 import no.infoss.jcajce.InfossJcaProvider;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -173,8 +175,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public void notifyVpnServiceStarted() {
 		mVpnServiceState = SERVICE_STATE_STARTED;
 		
-		Intent intent = new Intent(BROADCAST_VPN_EVENT);
-		intent.setPackage(getPackageName());
+		Intent intent = createBroadcastIntent();
 		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_STARTED);
 		sendBroadcast(intent);
@@ -232,8 +233,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public void notifyVpnServiceRevoked() {
 		mVpnServiceState = SERVICE_STATE_REVOKED;
 		
-		Intent intent = new Intent(BROADCAST_VPN_EVENT);
-		intent.setPackage(getPackageName());
+		Intent intent = createBroadcastIntent();
 		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_REVOKED);
 		sendBroadcast(intent);
@@ -265,15 +265,22 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	@Override
 	public void notifyTunnelStateChanged() {
-		ConnectionStatus tunStatus = ConnectionStatus.DISCONNECTED;
+		int tunStatus = connectionStatusToInt(ConnectionStatus.DISCONNECTED);
 		ConnectionStatus natStatus = ConnectionStatus.DISCONNECTED;
+		Intent intent = createBroadcastIntent();
 		
 		String tunId = null;
 		String usernatId = null;
 		
 		if(mCurrentTunnel != null) {
-			tunStatus = mCurrentTunnel.getConnectionStatus();
-			tunId = mCurrentTunnel.getTunnelId();
+			TunnelInfo info = mCurrentTunnel.getInfo();
+			tunId = info.uuid;
+			tunStatus = info.state;
+			
+			intent.putExtra(KEY_CONNECTED_SINCE, info.connectedSince);
+			intent.putExtra(KEY_SERVER_NAME, info.serverName);
+			intent.putExtra(KEY_REMOTE_ADDRESS, info.remoteAddress);
+			intent.putExtra(KEY_LOCAL_ADDRESS, info.localAddress);
 		}
 		
 		if(mUsernatTunnel != null) {
@@ -281,11 +288,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			usernatId = mUsernatTunnel.getTunnelId();
 		}
 		
-		Intent intent = new Intent(BROADCAST_VPN_EVENT);
-		intent.setPackage(getPackageName());
+		
 		intent.putExtra(KEY_EVENT_TYPE, TYPE_TUNNEL_STATE_CHANGED);
 		intent.putExtra(KEY_TUNNEL_ID, tunId);
-		intent.putExtra(KEY_TUNNEL_STATE, connectionStatusToInt(tunStatus));
+		intent.putExtra(KEY_TUNNEL_STATE, tunStatus);
 		sendBroadcast(intent);
 		
 		String title;
@@ -387,8 +393,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public void notifyVpnLockedBySystem() {
 		mVpnServiceState = SERVICE_STATE_LOCKED;
 		
-		Intent intent = new Intent(BROADCAST_VPN_EVENT);
-		intent.setPackage(getPackageName());
+		Intent intent = createBroadcastIntent();
 		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_LOCKED);
 		sendBroadcast(intent);
@@ -407,8 +412,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public void notifyVpnIsUnsupported() {
 		mVpnServiceState = SERVICE_STATE_UNSUPPORTED;
 		
-		Intent intent = new Intent(BROADCAST_VPN_EVENT);
-		intent.setPackage(getPackageName());
+		Intent intent = createBroadcastIntent();
 		intent.putExtra(KEY_EVENT_TYPE, TYPE_SERVICE_STATE_CHANGED);
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_UNSUPPORTED);
 		sendBroadcast(intent);
@@ -611,30 +615,22 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	}
 	
 	@Override
+	public TunnelInfo getVpnTunnelInfo() {
+		VpnTunnel tun = mCurrentTunnel;
+		if(tun == null) {
+			return null;
+		}
+		
+		return tun.getInfo();
+	}
+	
+	@Override
 	public void activateVpnTunnel(String uuid) {
 		if(mVpnServiceState != SERVICE_STATE_STARTED) {
 			mPendingVpnTunnelUuid = uuid;
 			startVpnService();
 			return;
 		}
-	}
-	
-	@Override
-	public String getVpnTunnelId() {
-		if(mCurrentTunnel == null) {
-			return null;
-		}
-		
-		return mCurrentTunnel.getTunnelId();
-	}
-	
-	@Override
-	public int getVpnTunnelState() {
-		if(mCurrentTunnel == null) {
-			return TUNNEL_STATE_DISCONNECTED;
-		}
-		
-		return connectionStatusToInt(mCurrentTunnel.getConnectionStatus());
 	}
 	
 	private void initIcons() {
@@ -672,35 +668,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		compatBuilder.setOngoing(true);
 		
 		return compatBuilder.build();
-	}
-	
-	private int connectionStatusToInt(ConnectionStatus status) {
-		int retVal = TUNNEL_STATE_DISCONNECTED;
-		switch (status) {
-		case CONNECTING: {
-			retVal = TUNNEL_STATE_CONNECTING;
-			break;
-		}
-		case CONNECTED: {
-			retVal = TUNNEL_STATE_CONNECTED;
-			break;
-		}
-		case DISCONNECTING: {
-			retVal = TUNNEL_STATE_DISCONNECTING;
-			break;
-		}
-		case TERMINATED: {
-			retVal = TUNNEL_STATE_TERMINATED;
-			break;
-		}
-		case DISCONNECTED:
-		default: {
-			retVal = TUNNEL_STATE_DISCONNECTED;
-			break;
-		}
-		}
-		
-		return retVal;
 	}
 	
 	private boolean debugStartTunnelPcap(String fileNameFmt, VpnTunnel tunnel) {
@@ -751,6 +718,43 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	public void intlRemoveTunnel(VpnTunnel vpnTunnel) {
 		mRouterLoop.removeTunnel(vpnTunnel);
+	}
+	
+	private Intent createBroadcastIntent() {
+		Intent intent = new Intent(BROADCAST_VPN_EVENT);
+		intent.setPackage(getPackageName());
+		intent.putExtra(KEY_EVENT_DATE, new Date());
+		
+		return intent;
+	}
+	
+	public static final int connectionStatusToInt(ConnectionStatus status) {
+		int retVal = TUNNEL_STATE_DISCONNECTED;
+		switch (status) {
+		case CONNECTING: {
+			retVal = TUNNEL_STATE_CONNECTING;
+			break;
+		}
+		case CONNECTED: {
+			retVal = TUNNEL_STATE_CONNECTED;
+			break;
+		}
+		case DISCONNECTING: {
+			retVal = TUNNEL_STATE_DISCONNECTING;
+			break;
+		}
+		case TERMINATED: {
+			retVal = TUNNEL_STATE_TERMINATED;
+			break;
+		}
+		case DISCONNECTED:
+		default: {
+			retVal = TUNNEL_STATE_DISCONNECTED;
+			break;
+		}
+		}
+		
+		return retVal;
 	}
 	
 	public static class VpnConfigInfo {

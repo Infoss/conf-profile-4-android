@@ -1,7 +1,9 @@
 package no.infoss.confprofile.vpn;
 
 import java.net.Socket;
+import java.util.Date;
 
+import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
 import android.os.IInterface;
 
 public interface VpnManagerInterface extends IInterface {
@@ -10,6 +12,7 @@ public interface VpnManagerInterface extends IInterface {
 	public static final String BROADCAST_VPN_EVENT = 
 			VpnManagerInterface.class.getCanonicalName().concat(".VPN_EVENT");
 	
+	public static final String KEY_EVENT_DATE = "EVENT_DATE";
 	public static final String KEY_EVENT_TYPE = "EVENT_TYPE";
 	public static final String TYPE_SERVICE_STATE_CHANGED = "SERVICE_STATE_CHANGED";
 	public static final String TYPE_TUNNEL_STATE_CHANGED = "TUNNEL_STATE_CHANGED";
@@ -27,6 +30,11 @@ public interface VpnManagerInterface extends IInterface {
 	public static final int TUNNEL_STATE_CONNECTED = 2;
 	public static final int TUNNEL_STATE_DISCONNECTING = 3;
 	public static final int TUNNEL_STATE_TERMINATED = 4;
+	
+	public static final String KEY_CONNECTED_SINCE = "CONNECTED_SINCE";
+	public static final String KEY_SERVER_NAME = "SERVER_NAME";
+	public static final String KEY_REMOTE_ADDRESS = "REMOTE_ADDRESS";
+	public static final String KEY_LOCAL_ADDRESS = "LOCAL_ADDRESS";
 	
 	public void startVpnService();
 	public int getVpnServiceState();
@@ -51,8 +59,7 @@ public interface VpnManagerInterface extends IInterface {
 	public void notifyVpnIsUnsupported();
 	
 	public void activateVpnTunnel(String uuid);
-	public String getVpnTunnelId();
-	public int getVpnTunnelState();
+	public TunnelInfo getVpnTunnelInfo();
 	
 	public int getLocalAddress4();
 	public int getRemoteAddress4();
