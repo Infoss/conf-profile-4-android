@@ -89,6 +89,8 @@ public class OpenVpnTunnel extends VpnTunnel {
 		mOptions = (Map<String, Object>) options.get(VpnConfigInfo.PARAMS_CUSTOM);
 		mVpnTunnelCtx = initOpenVpnTun();
 		
+		setServerName((String) mOptions.get("remote")); 
+		
 		startLoop();
 	}
 	
@@ -668,12 +670,14 @@ public class OpenVpnTunnel extends VpnTunnel {
 	
 	private void setLocalIp4(String ip, String mask, int mtu, String mode) {
 		Log.d(TAG, "setLocalIp4 ip=" + ip + " mask=" + mask + " mtu=" + mtu + " mode=" + mode);
+		setLocalAddress(ip);
 		setMasqueradeIp4(NetUtils.ip4StrToInt(ip));
 		setMasqueradeIp4Mode(true);
 	}
 	
 	private void setLocalIp6(String ip) {
 		Log.d(TAG, "setLocalIp6 ip=" + ip);
+		setLocalAddress(ip);
 		setMasqueradeIp6(NetUtils.ip6StrToBytes(ip, null));
 		setMasqueradeIp6Mode(true);
 	}
