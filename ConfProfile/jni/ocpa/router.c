@@ -62,6 +62,33 @@ router_ctx_t* router_init() {
 		ctx->ip_pkt.payload_offs = 0;
 		ctx->ip_pkt.payload_len = 0;
 
+		ctx->epoll_fd = epoll_create(MAX_EPOLL_EVENTS);
+		if(ctx->epoll_fd == -1) {
+			free(ctx->ip_pkt.buff);
+			ctx->ip_pkt.buff = NULL;
+			common_tun_free(&ctx->dev_tun_ctx);
+			pthread_rwlock_unlock(ctx->rwlock4);
+			free(ctx->rwlock4);
+			ctx->rwlock4 = NULL;
+			free(ctx);
+			return NULL;
+		}
+
+		ctx->epoll_links_capacity = 4;
+		ctx->epoll_links = malloc(ctx->epoll_links_capacity * sizeof(epoll_link_t));
+		if(ctx->epoll_links == NULL) {
+			close(ctx->epoll_fd);
+			free(ctx->ip_pkt.buff);
+			ctx->ip_pkt.buff = NULL;
+			common_tun_free(&ctx->dev_tun_ctx);
+			pthread_rwlock_unlock(ctx->rwlock4);
+			free(ctx->rwlock4);
+			ctx->rwlock4 = NULL;
+			free(ctx);
+			return NULL;
+		}
+		memset(ctx->epoll_links, 0, ctx->epoll_links_capacity * sizeof(epoll_link_t));
+
         ctx->routes_updated = false;
         ctx->paused = false;
         ctx->terminate = false;
@@ -116,6 +143,16 @@ void router_deinit(router_ctx_t* ctx) {
         ctx->ip_pkt.payload_proto = 0;
         ctx->ip_pkt.payload_offs = 0;
         ctx->ip_pkt.payload_len = 0;
+
+        if(ctx->epoll_fd != -1) {
+        	close(ctx->epoll_fd);
+        }
+        ctx->epoll_fd = -1;
+
+        if(ctx->epoll_links != NULL) {
+        	free(ctx->epoll_links);
+        }
+        ctx->epoll_links = NULL;
 
         ctx->routes_updated = false;
         ctx->paused = false;
@@ -291,6 +328,94 @@ void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tu
 	}
 
 	ctx->routes_updated = true;
+	pthread_rwlock_unlock(ctx->rwlock4);
+}
+
+void unroute(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
+	if(ctx == NULL || tun_ctx == NULL) {
+		return;
+	}
+
+	pthread_rwlock_wrlock(ctx->rwlock4);
+
+	if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, tun_ctx->local_fd, NULL) == -1) {
+	    LOGE(LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_DEL) %d: %s", errno, strerror(errno));
+	    //just notify about error and continue working
+	}
+
+	int i;
+	for(i = 0; i < ctx->epoll_links_capacity; i++) {
+		if(ctx->epoll_links[i].tun_ctx == tun_ctx) {
+			//mark tunnel context as inexistent
+			ctx->epoll_links[i].tun_ctx = NULL;
+		}
+	}
+
+	//remove IPv4 routes
+	route4_link_t* curr4 = ctx->ip4_routes;
+	route4_link_t* prev4 = NULL;
+	route4_link_t* next4 = NULL;
+	while(curr4 != NULL) {
+		next4 = curr4->next;
+		if(curr4->tun_ctx == tun_ctx) {
+			//remove this link
+			if(prev4 == NULL) {
+				ctx->ip4_routes = next4;
+			} else {
+				prev4->next = next4;
+			}
+
+			curr4->ip4 = 0;
+			curr4->next = NULL;
+			curr4->tun_ctx = NULL;
+			free(curr4);
+
+			ctx->ip4_routes_count--;
+			ctx->routes_updated = true;
+		}
+
+		prev4 = curr4;
+		curr4 = next4;
+	}
+
+	if(ctx->ip4_default_tun_ctx == tun_ctx) {
+		ctx->ip4_default_tun_ctx = NULL;
+		ctx->routes_updated = true;
+	}
+
+	//remove IPv6 routes
+	route6_link_t* curr6 = ctx->ip6_routes;
+	route6_link_t* prev6 = NULL;
+	route6_link_t* next6 = NULL;
+	while(curr6 != NULL) {
+		next6 = curr6->next;
+
+		if(curr6->tun_ctx == tun_ctx) {
+			//remove this link
+			if(prev6 == NULL) {
+				ctx->ip6_routes = next6;
+			} else {
+				prev6->next = next6;
+			}
+
+			memset(curr6->ip6, 0x00, 16);
+			curr6->next = NULL;
+			curr6->tun_ctx = NULL;
+			free(curr6);
+
+			ctx->ip6_routes_count--;
+			ctx->routes_updated = true;
+		}
+
+		prev6 = curr6;
+		curr6 = next6;
+	}
+
+	if(ctx->ip6_default_tun_ctx == tun_ctx) {
+		ctx->ip6_default_tun_ctx = NULL;
+		ctx->routes_updated = true;
+	}
+
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
@@ -568,6 +693,101 @@ ssize_t read_ip_packet(int fd, uint8_t* buff, int len) {
 	return size;
 }
 
+void rebuild_epoll_struct(router_ctx_t* ctx) {
+	if(ctx == NULL) {
+		return;
+	}
+
+	LOGD(LOG_TAG, "Start rebuilding epoll struct");
+	pthread_rwlock_wrlock(ctx->rwlock4);
+	struct epoll_event ev;
+	unsigned int poll_count = 0;
+	bool already_added = false;
+
+	//allocating memory for storing links to: android tun context, default route, all ip4 routes
+	common_tun_ctx_t** ctxs = malloc(sizeof(common_tun_ctx_t*) * (ctx->ip4_routes_count + 2));
+	if(ctxs == NULL) {
+		goto error;
+	}
+
+	ctxs[poll_count] = &(ctx->dev_tun_ctx);
+	poll_count++;
+
+	if(ctx->ip4_default_tun_ctx != NULL && ctx->ip4_default_tun_ctx->local_fd != UNDEFINED_FD) {
+		ctxs[poll_count] = ctx->ip4_default_tun_ctx;
+		poll_count++;
+	}
+
+	int i;
+
+	route4_link_t* curr = ctx->ip4_routes;
+	while(curr != NULL) {
+		if(curr->tun_ctx != NULL) {
+			if(curr->tun_ctx->local_fd == UNDEFINED_FD) {
+				continue;
+			}
+
+			already_added = false;
+
+			for(i = 0; i < poll_count; i++) {
+				if(ctxs[i] == curr->tun_ctx) {
+					already_added = true;
+					break;
+				}
+			}
+
+			if(!already_added) {
+				ctxs[poll_count] = curr->tun_ctx;
+				poll_count++;
+			}
+		}
+		curr = curr->next;
+	}
+
+	if(poll_count > ctx->epoll_links_capacity ||
+			poll_count < (ctx->epoll_links_capacity >> 1)) {
+		free(ctx->epoll_links);
+		unsigned int new_poll_count = (poll_count + (poll_count >> 1));
+		LOGD(LOG_TAG, "Resizing epoll struct from %d to %d item(s)",
+				ctx->epoll_links_capacity,
+				new_poll_count);
+		ctx->epoll_links = malloc(sizeof(epoll_link_t) * new_poll_count);
+		if(ctx->epoll_links == NULL) {
+			goto error;
+		}
+		ctx->epoll_links_capacity = new_poll_count;
+	}
+
+	memset(ctx->epoll_links, 0, ctx->epoll_links_capacity * sizeof(epoll_link_t));
+
+	LOGD(LOG_TAG, "Rebuild epoll struct for %d item(s)", poll_count);
+
+	for(i = 0; i < poll_count; i++) {
+		ctx->epoll_links[i].fd = ((common_tun_ctx_t*) ctxs[i])->local_fd;
+		ctx->epoll_links[i].tun_ctx = ctxs[i];
+
+		ev.events = EPOLLIN | EPOLLOUT;
+		ev.data.fd = ctx->epoll_links[i].fd;
+		if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev) == -1) {
+			LOGE(LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_ADD) %d: %s", errno, strerror(errno));
+			//continue
+		}
+	}
+
+	goto exit;
+error:
+	//report error
+	LOGD(LOG_TAG, "Error occurred while rebuilding poll struct");
+exit:
+
+	ctx->routes_updated = false;
+	pthread_rwlock_unlock(ctx->rwlock4);
+	if(ctxs != NULL) {
+		free(ctxs);
+	}
+	LOGD(LOG_TAG, "Rebuilding poll struct finished");
+}
+
 void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 	if(ctx == NULL || poll_struct == NULL) {
 		return;
@@ -618,6 +838,7 @@ void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 		curr = curr->next;
 	}
 
+	pthread_rwlock_wrlock(poll_struct->rwlock);
 	if(poll_struct->poll_fds != NULL) {
 		free(poll_struct->poll_fds);
 	}
@@ -643,7 +864,7 @@ void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 
 	for(i = 0; i < poll_count; i++) {
 		poll_struct->poll_fds[i].fd = ((common_tun_ctx_t*) ctxs[i])->local_fd;
-		poll_struct->poll_fds[i].events = POLLIN | POLLHUP;
+		poll_struct->poll_fds[i].events = POLLIN | POLLOUT | POLLHUP;
 		poll_struct->poll_fds[i].revents = 0;
 
 		poll_struct->poll_ctxs[i] = ctxs[i];
@@ -656,6 +877,7 @@ error:
 	//report error
 	LOGD(LOG_TAG, "Error occurred while rebuilding poll struct");
 exit:
+	pthread_rwlock_unlock(poll_struct->rwlock);
 	ctx->routes_updated = false;
 	pthread_rwlock_unlock(ctx->rwlock4);
 	if(ctxs != NULL) {
@@ -690,6 +912,12 @@ ssize_t dev_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 
 	int res = read_ip_packet(ctx->local_fd, ip_packet->buff, ip_packet->buff_len);
 	if(res < 0) {
+		if(errno == EAGAIN || errno == EWOULDBLOCK) {
+			//we'll try next time
+			LOGW(LOG_TAG, "Got EAGAIN or EWOULDBLOCK on fd=%d", ctx->local_fd);
+			errno = 0;
+			return res;
+		}
 		return res;
 	}
 
