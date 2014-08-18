@@ -88,8 +88,10 @@ void destroy_VpnTunnel(java_VpnTunnel* instance) {
 	union java_VpnTunnel_union* this_instance = (union java_VpnTunnel_union*) instance;
 	if(this_instance->private.obj != NULL) {
 		bool need_detach = androidjni_attach_thread(&jnienv);
+		LOGD(LOG_TAG, "Attaching to a thread (need_detach=%d)", need_detach);
 		(*jnienv)->DeleteGlobalRef(jnienv, this_instance->private.obj);
 		if(need_detach) {
+			LOGD(LOG_TAG, "Detaching from a thread");
 			androidjni_detach_thread();
 		}
 	}

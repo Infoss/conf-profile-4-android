@@ -118,6 +118,15 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 
 	int res = read_ip_packet(ctx->local_fd, buff, len);
 	if(res < 0) {
+		LOGE(LOG_TAG, "Error while reading from a tunnel socket (fd=%d)", ctx->local_fd);
+		LOGE(LOG_TAG, "Packet dump (buff=%p, len=%d)", buff, len);
+		log_dump_packet(LOG_TAG, buff, len);
+		if(errno == EAGAIN || errno == EWOULDBLOCK) {
+			//we'll try next time
+			LOGW(LOG_TAG, "Got EAGAIN or EWOULDBLOCK on fd=%d", ctx->local_fd);
+			errno = 0;
+			return res;
+		}
 		return res;
 	}
 
@@ -129,9 +138,6 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 
 	pthread_rwlock_rdlock(ctx->router_ctx->rwlock4);
 	if((buff[0] & 0xf0) == 0x40 && ctx->router_ctx->dev_tun_ctx.use_masquerade4) {
-		LOGE(LOG_TAG, "Before masquerading back:");
-		log_dump_packet(LOG_TAG, buff, res);
-
 		ip4_header* hdr = (ip4_header*) buff;
 		hdr->daddr = htonl(ctx->router_ctx->dev_tun_ctx.masquerade4);
 		ip4_calc_ip_checksum(buff, res);
@@ -146,15 +152,18 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 			break;
 		}
 		}
-		LOGE(LOG_TAG, "Masquerading back:");
-		log_dump_packet(LOG_TAG, buff, res);
 	} else if((buff[0] & 0xf0) == 0x60 && ctx->router_ctx->dev_tun_ctx.use_masquerade6) {
-
+		LOGE(LOG_TAG, "IPv6 masquerading isn't supported yet");
 	}
 
 	ctx->router_ctx->dev_tun_ctx.bytes_out += res;
 
 	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
+	if(res < 0) {
+		LOGE(LOG_TAG, "Error while writing to a /dev/net/tun socket (fd=%d)", ctx->router_ctx->dev_tun_ctx.local_fd);
+		LOGE(LOG_TAG, "Packet dump (buff=%p, len=%d)", buff, res);
+		log_dump_packet(LOG_TAG, buff, len);
+	}
 	pthread_rwlock_unlock(ctx->router_ctx->rwlock4);
 	return res;
 }
