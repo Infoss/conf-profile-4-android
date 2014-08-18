@@ -15,6 +15,10 @@
 	<string name="main_item_status_connecting_label">Connecting</string>
 	<string name="main_item_status_connected_label">Connected</string>
 	<string name="main_item_status_disconnecting_label">Disconnecting</string>
+	<string name="main_status_item_server_label">Server</string>
+	<string name="main_status_item_connect_time_label">Connect Time</string>
+	<string name="main_status_item_connected_to_label">Connected to</string>
+	<string name="main_status_item_ip_address_label">IP Address</string>
 	<string name="main_vpn_item_on_demand_label">Connect On Demand</string>
 	
 	<string name="menu_vpn">VPN</string>
