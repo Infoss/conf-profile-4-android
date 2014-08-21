@@ -27,6 +27,7 @@
 	<string name="main_menu_backup">Backup</string>
 	<string name="main_menu_start_capture">Start packet capture</string>
 	<string name="main_menu_stop_capture">Stop packet capture</string>
+	<string name="main_menu_exit">Exit</string>
 	
 	<string name="fragment_add_profile_btn_ok">Add profile</string>
 	<string name="fragment_add_profile_btn_cancel">Cancel</string>
@@ -46,6 +47,10 @@
 	<string name="notification_text_preparing">Please wait</string>
 	<string name="notification_title_connecting">Connecting</string>
     <string name="notification_text_connecting">Please wait</string>
+    <string name="notification_title_connected">Connected</string>
+    <string name="notification_text_connected">Connected to VPN server</string>
+    <string name="notification_title_disconnected">Disconnected</string>
+    <string name="notification_text_disconnected">VPN is off.</string>
     <string name="notification_title_error_unsupported">Feature unsupported</string>
     <string name="notification_text_error_unsupported">This device doesn\'t support VPN API</string>
     <string name="notification_title_error_always_on">Feature locked by system</string>

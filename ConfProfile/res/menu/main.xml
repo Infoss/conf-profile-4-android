@@ -27,4 +27,8 @@
 	        android:title="@string/main_menu_stop_capture" />
 	    
     </group>
+    
+    <item 
+        android:id="@+id/menu_item_exit" 
+        android:title="@string/main_menu_exit" />
 </menu>
