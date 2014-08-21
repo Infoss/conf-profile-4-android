@@ -94,6 +94,12 @@ public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 		return new BuilderAdapter(displayName);
 	}
 	
+	@Override
+	public void stopVpnService() {
+		//onRevoke();
+		stopSelf();
+	}
+	
 
 	public class BuilderAdapter {
 		private final String mName;

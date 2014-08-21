@@ -13,4 +13,6 @@ public interface OcpaVpnInterface extends IInterface {
 	public boolean protect(int socket);
 	public boolean protect(DatagramSocket socket);
 	public boolean protect(Socket socket);
+	
+	public void stopVpnService();
 }
