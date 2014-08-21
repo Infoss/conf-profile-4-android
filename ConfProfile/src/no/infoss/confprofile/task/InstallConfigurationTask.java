@@ -187,7 +187,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 						values.put(VpnDataCursorLoader.COL_USER_DEFINED_NAME, vpnPayload.getUserDefinedName());
 						values.put(VpnDataCursorLoader.COL_OVERRIDE_PRIMARY, overridePrimary);
 						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED, onDemandEnabled);
-						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED_BY_USER, 0);
+						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED_BY_USER, onDemandEnabled);
 						Insert request = Insert.insert().into(VpnDataCursorLoader.TABLE).values(values);
 						
 						SqliteRequestThread.getInstance().request(request, null);
