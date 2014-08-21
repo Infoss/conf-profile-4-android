@@ -17,7 +17,6 @@ import java.util.concurrent.Callable;
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
-import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
 import no.infoss.confprofile.vpn.ipsec.imc.ImcState;
 import no.infoss.confprofile.vpn.ipsec.imc.RemediationInstruction;
 import android.content.Context;
@@ -455,6 +454,8 @@ public class IpSecTunnel extends VpnTunnel {
 			Log.e(TAG, "Error in addAddress(): trying to add null");
 			return false;
 		}
+		
+		setLocalAddress(address);
 		
 		Log.d(TAG, "addAddress(): " + address + "/" + prefixLength);
 		try {
