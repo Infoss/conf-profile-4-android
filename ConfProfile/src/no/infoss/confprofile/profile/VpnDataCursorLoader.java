@@ -41,8 +41,13 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 
 		@Override
 		public VpnData mapRowToObject(Cursor cursor) {
+			ImageViewModel iconModel;
 			CompositeListItemModel model = new CompositeListItemModel();
-			ImageViewModel iconModel = new ImageViewModel(android.R.id.icon2);
+			iconModel = new ImageViewModel(android.R.id.icon1);
+			iconModel.setImageResourceId(0);
+			model.addMapping(iconModel);
+			
+			iconModel = new ImageViewModel(android.R.id.icon2);
 			iconModel.setImageResourceId(R.drawable.arrow);
 			model.addMapping(iconModel);
 			
