@@ -12,6 +12,7 @@ import java.util.List;
 import java.util.Map;
 
 import no.infoss.confprofile.BuildConfig;
+import no.infoss.confprofile.Main;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.task.ObtainOnDemandVpns;
@@ -26,6 +27,7 @@ import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
 import no.infoss.jcajce.InfossJcaProvider;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
@@ -42,6 +44,7 @@ import android.util.Log;
 public class VpnManagerService extends Service implements VpnManagerInterface, ObtainOnDemandVpnsListener {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
 	
+	private static final String PREF_LAST_TUN_UUID = "VpnManagerSevice_lastTunnelUuid";
 	private static final String PREF_DEBUG_PCAP = "VpnManagerSevice_debugPcapEnabled";
 	private static final String PCAP_TUN_FILENAME_FMT = "tun(%s)-%d.pcap";
 	private static final String PCAP_NAT_FILENAME_FMT = "usernat(%s)-%d.pcap";
@@ -82,6 +85,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	private VpnTunnel mCurrentTunnel = null;
 	private VpnTunnel mUsernatTunnel = null;
+	private String mLastVpnTunnelUuid = null;
 	private String mPendingVpnTunnelUuid = null;
 	
 	private boolean mIsRequestActive = false;
@@ -122,8 +126,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			Log.e(TAG, "Can't bind OcpaVpnService");
 		}
 		
+		SharedPreferences prefs = getSharedPreferences(MiscUtils.PREFERENCE_FILE, MODE_PRIVATE);
+		mLastVpnTunnelUuid = prefs.getString(PREF_LAST_TUN_UUID, null);
+		
 		if(BuildConfig.DEBUG) {
-			SharedPreferences prefs = getSharedPreferences(MiscUtils.PREFERENCE_FILE, MODE_PRIVATE);
 			mDebugPcapEnabled = prefs.getBoolean(PREF_DEBUG_PCAP, false);
 		}
 	}
@@ -132,6 +138,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public void onDestroy() {
 		super.onDestroy();
 		mNetworkListener = null;
+		mNtfMgr.cancel(R.string.app_name);
 	}
 	
 	@Override
@@ -163,6 +170,17 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			intent.setAction(StartVpn.ACTION_CALL_PREPARE);
 			intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
 			startActivity(intent);
+		}
+	}
+	
+	@Override
+	public void stopVpnService() {
+		if(mVpnServiceState == SERVICE_STATE_STARTED) {
+			OcpaVpnInterface vpnService = mBindKit.lock();
+			if(vpnService != null) {
+				vpnService.stopVpnService();
+			}
+			mBindKit.unlock();
 		}
 	}
 	
@@ -219,14 +237,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			mBindKit.unlock();
 		}
 		
-		String title = getResources().getString(R.string.notification_title_connecting);
-		String text = getResources().getString(R.string.notification_text_connecting);
-		Notification notification = buildNotification(
-				mVpnManagerIcons[1], 
-				mVpnManagerIcons[1], 
-				title, 
-				text);
-		mNtfMgr.notify(R.string.app_name, notification);
 	}
 	
 	@Override
@@ -281,6 +291,15 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			intent.putExtra(KEY_SERVER_NAME, info.serverName);
 			intent.putExtra(KEY_REMOTE_ADDRESS, info.remoteAddress);
 			intent.putExtra(KEY_LOCAL_ADDRESS, info.localAddress);
+			
+			if(info.state == TUNNEL_STATE_CONNECTED) {
+				mLastVpnTunnelUuid = info.uuid;
+				
+				SharedPreferences prefs = getSharedPreferences(MiscUtils.PREFERENCE_FILE, MODE_PRIVATE);
+				Editor editor = prefs.edit();
+				editor.putString(PREF_LAST_TUN_UUID, mLastVpnTunnelUuid);
+				editor.commit();
+			}
 		}
 		
 		if(mUsernatTunnel != null) {
@@ -299,6 +318,45 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		int smallIconId;
 		int largeIconId;
 		//TODO: implement notification based on the connection status
+		
+		switch(tunStatus) {
+		case TUNNEL_STATE_CONNECTING: {
+			title = getResources().getString(R.string.notification_title_connecting);
+			text = getResources().getString(R.string.notification_text_connecting);
+			
+			smallIconId = mVpnManagerIcons[1];
+			largeIconId = mVpnManagerIcons[1];
+			break;
+		}
+		
+		case TUNNEL_STATE_CONNECTED: {
+			title = getResources().getString(R.string.notification_title_connected);
+			text = getResources().getString(R.string.notification_text_connected);
+			
+			smallIconId = mVpnManagerIcons[3];
+			largeIconId = mVpnManagerIcons[3];
+			break;
+		}
+		
+		case TUNNEL_STATE_DISCONNECTING:
+		case TUNNEL_STATE_DISCONNECTED:
+		case TUNNEL_STATE_TERMINATED:
+		default: {
+			title = getResources().getString(R.string.notification_title_disconnected);
+			text = getResources().getString(R.string.notification_text_disconnected);
+			
+			smallIconId = mVpnManagerIcons[4];
+			largeIconId = mVpnManagerIcons[4];
+			break;
+		}
+		}
+		
+		Notification notification = buildNotification(
+				smallIconId, 
+				largeIconId, 
+				title, 
+				text);
+		mNtfMgr.notify(R.string.app_name, notification);
 	}
 
 	@Override
@@ -359,6 +417,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 					if(tun == null) {
 						Log.d(TAG, "Can't create tun " + info.vpnType + " with id=" + info.configId);
 					} else {
+						if(mLastVpnTunnelUuid == null) {
+							mLastVpnTunnelUuid = tun.getTunnelId();
+						}
+						
 						VpnTunnel oldTun = mCurrentTunnel;
 						mCurrentTunnel = tun;
 						tun.establishConnection(info.params);
@@ -624,6 +686,9 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		return tun.getInfo();
 	}
 	
+	/**
+	 * @param uuid null will match last tunnel uuid
+	 */
 	@Override
 	public void activateVpnTunnel(String uuid) {
 		if(mVpnServiceState != SERVICE_STATE_STARTED) {
@@ -631,6 +696,25 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			startVpnService();
 			return;
 		}
+		
+		if(uuid == null) {
+			uuid = mLastVpnTunnelUuid;
+		}
+		
+		if(mCurrentTunnel != null && uuid != null && uuid.equals(mCurrentTunnel.getTunnelId())) {
+			Log.d(TAG, "Tunnel " + uuid + " is already activated");
+			return;
+		}
+		
+		//find appropriate tunnel and start connection
+	}
+	
+	@Override
+	public void deactivateVpnTunnel() {
+		if(mCurrentTunnel != null) {
+			mCurrentTunnel.terminateConnection();
+		}
+		mCurrentTunnel = null;
 	}
 	
 	private void initIcons() {
@@ -666,6 +750,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		compatBuilder.setContentTitle(title);
 		compatBuilder.setContentText(text);
 		compatBuilder.setOngoing(true);
+		
+		Intent intent = new Intent(getApplicationContext(), Main.class);
+		intent.setAction(Intent.ACTION_MAIN);
+		PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 0, intent, 0);
+		compatBuilder.setContentIntent(pendingIntent);
 		
 		return compatBuilder.build();
 	}

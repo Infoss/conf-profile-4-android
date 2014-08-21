@@ -1,7 +1,6 @@
 package no.infoss.confprofile.vpn;
 
 import java.net.Socket;
-import java.util.Date;
 
 import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
 import android.os.IInterface;
@@ -37,6 +36,7 @@ public interface VpnManagerInterface extends IInterface {
 	public static final String KEY_LOCAL_ADDRESS = "LOCAL_ADDRESS";
 	
 	public void startVpnService();
+	public void stopVpnService();
 	public int getVpnServiceState();
 	public void notifyVpnServiceStarted();
 	public void notifyVpnServiceRevoked();
@@ -59,6 +59,7 @@ public interface VpnManagerInterface extends IInterface {
 	public void notifyVpnIsUnsupported();
 	
 	public void activateVpnTunnel(String uuid);
+	public void deactivateVpnTunnel();
 	public TunnelInfo getVpnTunnelInfo();
 	
 	public int getLocalAddress4();
