@@ -83,6 +83,10 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	
 	@Override
 	public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+		if(!isEnabled()) {
+			return;
+		}
+		
 		if(mDeliverItemClickAsClick) {
 			super.onClick(view);
 			return;
