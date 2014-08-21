@@ -8,6 +8,7 @@ import android.widget.TextView;
 public class SimpleModel implements Model, View.OnClickListener {
 	private View mBoundView;
 	private boolean mEnabled;
+	private int mVisible;
 	private int mLayoutId;
 	private int mRootViewId;
 	private OnClickListener mOnClickListener;
@@ -15,6 +16,7 @@ public class SimpleModel implements Model, View.OnClickListener {
 	public SimpleModel() {
 		mBoundView = null;
 		mEnabled = true;
+		mVisible = View.VISIBLE;
 		mLayoutId = 0;
 		mRootViewId = 0;
 		mOnClickListener = null;
@@ -63,6 +65,16 @@ public class SimpleModel implements Model, View.OnClickListener {
 	@Override
 	public void setEnabled(boolean enabled) {
 		mEnabled = enabled;
+	}
+	
+	@Override
+	public int getVisible() {
+		return mVisible;
+	}
+	
+	@Override
+	public void setVisible(int visible) {
+		mVisible = visible;
 	}
 	
 	@Override
@@ -144,5 +156,6 @@ public class SimpleModel implements Model, View.OnClickListener {
 	
 	protected void doApplyModel(View view) {
 		view.setEnabled(mEnabled);
+		view.setVisibility(mVisible);
 	}
 }

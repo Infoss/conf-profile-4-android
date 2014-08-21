@@ -20,6 +20,9 @@ public interface Model {
 	public boolean isEnabled();
 	public void setEnabled(boolean enabled);
 	
+	public int getVisible();
+	public void setVisible(int visible);
+	
 	public int getLayoutId();
 
 	/**
