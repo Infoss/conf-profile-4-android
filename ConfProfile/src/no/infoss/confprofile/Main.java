@@ -31,6 +31,7 @@ import no.infoss.confprofile.model.ListItemModel;
 import no.infoss.confprofile.model.Model;
 import no.infoss.confprofile.model.SimpleListItemModel;
 import no.infoss.confprofile.model.SwitchModel;
+import no.infoss.confprofile.model.SwitchModel.OnCheckedChangeListener;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.VpnDataCursorLoader;
@@ -54,6 +55,7 @@ import android.content.Loader;
 import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
 import android.view.LayoutInflater;
@@ -64,6 +66,7 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
+import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
@@ -76,6 +79,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	private static final String ACTION_SERVICE_INFO = Main.class.getCanonicalName().concat(".SERVICE_INFO");
 	private static final String ACTION_VPN_INFO = Main.class.getCanonicalName().concat(".VPN_INFO");
+	private static final String ACTION_EXIT = Main.class.getCanonicalName().concat(".EXIT");
 	
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
@@ -171,7 +175,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		setActionBarDisplayHomeAsUp(intent);
 		
-		if(ACTION_SERVICE_INFO.equals(intent.getAction())) {
+		if(ACTION_EXIT.equals(intent.getAction())) {
+			finish();
+			return;
+		} else if(ACTION_SERVICE_INFO.equals(intent.getAction())) {
 			mGrid.setAdapter(mStatusAdapter);
 			mStatusAdapter.notifyDataSetChanged();
 		} else if(ACTION_VPN_INFO.equals(intent.getAction())) {
@@ -267,6 +274,18 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			startActivity(intent);
 			return true;
 		}
+		
+		case R.id.menu_item_exit: {
+			VpnManagerInterface vpnMgr = mBindKit.lock();
+			if(vpnMgr != null) {
+				vpnMgr.stopVpnService();
+			}
+			mBindKit.unlock();
+			
+			intent = createExitIntent(this);
+			startActivity(intent);
+			return true;
+		}
 		}
 		
 		/*
@@ -354,6 +373,24 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				VpnManagerInterface vpnMgr = mBindKit.lock();
 				if(vpnMgr != null) {
 					vpnMgr.startVpnService();
+				}
+				mBindKit.unlock();
+			}
+		});
+		
+		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
+		swModel.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+			
+			@Override
+			public void onCheckedChanged(SwitchModel model, Switch buttonView,
+					boolean isChecked) {
+				VpnManagerInterface vpnMgr = mBindKit.lock();
+				if(vpnMgr != null) {
+					if(isChecked) { 
+						vpnMgr.activateVpnTunnel(null);
+					} else {
+						vpnMgr.deactivateVpnTunnel();
+					}
 				}
 				mBindKit.unlock();
 			}
@@ -533,20 +570,23 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			VPN_LIST_ITEM_MODEL.setEnabled(true);
 			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_enabled_label));
 			swModel.setEnabled(true);
+			swModel.setVisible(View.VISIBLE);
 			break;
 		}
 		case VpnManagerInterface.SERVICE_STATE_REVOKED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(false);
+			VPN_LIST_ITEM_MODEL.setEnabled(true);
 			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_disabled_label));
 			swModel.setChecked(false);
 			swModel.setEnabled(true);
+			swModel.setVisible(View.GONE);
 			break;
 		}
 		case VpnManagerInterface.SERVICE_STATE_LOCKED: {
 			VPN_LIST_ITEM_MODEL.setEnabled(false);
 			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_locked_label));
 			swModel.setChecked(false);
-			swModel.setEnabled(true);
+			swModel.setEnabled(false);
+			swModel.setVisible(View.GONE);
 			break;
 		}
 		case VpnManagerInterface.SERVICE_STATE_UNSUPPORTED: {
@@ -554,6 +594,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_unsupported_label));
 			swModel.setChecked(false);
 			swModel.setEnabled(false);
+			swModel.setVisible(View.GONE);
 			break;
 		}
 		default: {
@@ -581,21 +622,45 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mTunnelStateReceived = true;
 		
+		if(tunnelId != null) {
+			List<ListItem> items = new ArrayList<ListItem>(mVpnInfoList);
+			for(ListItem item : items) {
+				CompositeListItemModel model = (CompositeListItemModel) item.getModel();
+				ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon1);
+						
+				if(tunnelId.equals(((VpnData) item).getPayloadUuid()) && 
+						(state == VpnManagerInterface.TUNNEL_STATE_CONNECTING || 
+						state == VpnManagerInterface.TUNNEL_STATE_CONNECTED)) {
+					imgModel.setImageResourceId(R.drawable.check);
+				} else {
+					imgModel.setImageResourceId(0);
+				}
+				
+				imgModel.applyModel();
+			}
+			
+			items.clear();
+			//mVpnInfoList.notifyChanged();
+		}
+		
 		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
 		
 		switch(state) {
 		case VpnManagerInterface.TUNNEL_STATE_TERMINATED:
 		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTED: {
+			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnected_label));
 			swModel.setChecked(false);
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTING: {
+			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
 			swModel.setChecked(true);
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
+			STATUS_LIST_ITEM_MODEL.setEnabled(true);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
 			swModel.setChecked(true);
 			
@@ -611,6 +676,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			}
 			
 			mUpdateTimerThread = new Thread(new Runnable() {
+				
+				private Handler mHandler = new Handler(getMainLooper());
 				
 				@Override
 				public void run() {
@@ -628,9 +695,17 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 								result = String.format("%d:%02d", diffMin, diffSec);
 							}
 							
-							mStatusConnectTimeListItem.setSubText(result);
-							mStatusConnectTimeListItem.applyData();
-							mStatusAdapter.notifyDataSetChanged();
+							final String time = result;
+							
+							mHandler.post(new Runnable() {
+								
+								@Override
+								public void run() {
+									mStatusConnectTimeListItem.setSubText(time);
+									mStatusConnectTimeListItem.applyData();
+									mStatusAdapter.notifyDataSetChanged();
+								}
+							});
 							
 							Thread.sleep(1000);
 						} catch(Exception e) {
@@ -644,6 +719,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING: {
+			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnecting_label));
 			break;
 		}
@@ -687,6 +763,14 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		}
 		
 		mBindKit.unlock();
+	}
+	
+	public static final Intent createExitIntent(Context ctx) {
+		Intent intent = new Intent(ctx, Main.class);
+		intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+		intent.setAction(ACTION_EXIT);
+		
+		return intent;
 	}
 	
 	private static class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
