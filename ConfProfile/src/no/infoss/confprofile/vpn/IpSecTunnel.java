@@ -152,7 +152,6 @@ public class IpSecTunnel extends VpnTunnel {
 			setConnectionStatus(ConnectionStatus.TERMINATED);
 			
 			if(mVpnTunnelCtx != 0) {
-				//TODO: call RouterLoop.removeTunnel(this)
 				mVpnMgr.intlRemoveTunnel(this);
 				deinitIpSecTun(mVpnTunnelCtx);
 				mVpnTunnelCtx = 0;
