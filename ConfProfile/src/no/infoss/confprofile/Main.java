@@ -197,6 +197,17 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		Intent intent = mIntentStack.peek();
 		
 		if(Intent.ACTION_MAIN.equals(intent.getAction())) {
+			View v = findViewById(R.id.noProfilesLabel);
+			if(v != null) {
+				v.setVisibility(View.GONE);
+			}
+			
+			v = findViewById(R.id.progressPanel);
+			if(v != null) {
+				v.setVisibility(View.VISIBLE);
+			}
+			
+			mGrid.setAdapter(null);
 			Bundle params = new Bundle();
 			params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
 			getLoaderManager().restartLoader(0, params, this);
@@ -228,8 +239,11 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		inflater.inflate(R.menu.main, menu);
 		
+		/*
+		 * While building release version the following block of code 
+		 * should be removed by javac or proguard as dead block.
+		 */
 		if(BuildConfig.DEBUG) {
-			
 			menu.setGroupVisible(R.id.menu_group_debug, true);
 			menu.setGroupEnabled(R.id.menu_group_debug, true);
 			
@@ -242,7 +256,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			if(item != null) {
 				item.setEnabled(mDebugPcapEnabled);
 			}
-			
 			
 			return true;
 		}
@@ -321,6 +334,21 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
 		mVpnInfoList.populateFrom(data, true);
 		mPayloadAdapter.notifyDataSetChanged();
+		
+		if(mVpnInfoList.size() > 0) {
+			mGrid.setAdapter(mPayloadAdapter);
+		}
+		
+		View v = findViewById(R.id.noProfilesLabel);
+		if(v != null) {
+			v.setVisibility(View.VISIBLE);
+		}
+		
+		v = findViewById(R.id.progressPanel);
+		if(v != null) {
+			v.setVisibility(View.GONE);
+		}
+		
 	}
 
 	@Override
@@ -426,7 +454,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
 		mStatusListItem.setModel(STATUS_LIST_ITEM_MODEL);
-		cmdList.add(mStatusListItem);
+		//cmdList.add(mStatusListItem);
 		
 		DATA_LIST.add(cmdList);
 		
@@ -644,6 +672,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		}
 		
 		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
+		List<ListItem> subList = DATA_LIST.get(0);
 		
 		switch(state) {
 		case VpnManagerInterface.TUNNEL_STATE_TERMINATED:
@@ -651,18 +680,22 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnected_label));
 			swModel.setChecked(false);
+			subList.remove(mStatusListItem);
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTING: {
 			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
 			swModel.setChecked(true);
+			subList.remove(mStatusListItem);
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
 			STATUS_LIST_ITEM_MODEL.setEnabled(true);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
 			swModel.setChecked(true);
+			
+			subList.add(mStatusListItem);
 			
 			mStatusServerListItem.setSubText(serverName);
 			mStatusConnectTimeListItem.setSubText("");
@@ -721,6 +754,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING: {
 			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnecting_label));
+			subList.remove(mStatusListItem);
 			break;
 		}
 		default: {
@@ -730,6 +764,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			break;
 		}
 		}
+		
+		mPayloadAdapter.notifyDataSetChanged();
 		
 		VPN_LIST_ITEM_MODEL.applyModel();
 		STATUS_LIST_ITEM_MODEL.applyModel();
