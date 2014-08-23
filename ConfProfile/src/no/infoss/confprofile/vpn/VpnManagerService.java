@@ -176,11 +176,29 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	@Override
 	public void stopVpnService() {
 		if(mVpnServiceState == SERVICE_STATE_STARTED) {
+			if(mUsernatTunnel != null) {
+				mUsernatTunnel.terminateConnection();
+			}
+			mUsernatTunnel = null;
+			
+			if(mCurrentTunnel != null) {
+				mCurrentTunnel.terminateConnection();
+			}
+			mCurrentTunnel = null;
+			
+			if(mRouterLoop != null) {
+				mRouterLoop.terminate();
+			}
+			mRouterLoop = null;
+			
+			mNtfMgr.cancel(R.string.app_name);
+			/*
 			OcpaVpnInterface vpnService = mBindKit.lock();
 			if(vpnService != null) {
 				vpnService.stopVpnService();
 			}
 			mBindKit.unlock();
+			*/
 		}
 	}
 	
