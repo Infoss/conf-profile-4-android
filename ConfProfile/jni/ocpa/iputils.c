@@ -5,6 +5,7 @@
  */
 
 
+#include <unistd.h>
 #include "iputils.h"
 #include "android_log_utils.h"
 #include "router.h"
@@ -436,4 +437,17 @@ inline void ip_parse_packet(ocpa_ip_packet_t* ip_packet) {
 	} else {
 		return;
 	}
+}
+
+ssize_t read_ip_packet(int fd, uint8_t* buff, int len) {
+	ssize_t size = 0;
+
+	ssize_t res = read(fd, buff, len);
+	if(res < 0) {
+		return res;
+	}
+
+	size += res;
+
+	return size;
 }

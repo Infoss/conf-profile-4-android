@@ -65,4 +65,6 @@ inline void ip_detect_ipver(ocpa_ip_packet_t* ip_packet);
 
 inline void ip_parse_packet(ocpa_ip_packet_t* ip_packet);
 
+ssize_t read_ip_packet(int fd, uint8_t* buff, int len);
+
 #endif /* IPUTILS_H_ */
