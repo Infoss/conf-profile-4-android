@@ -12,6 +12,8 @@
 #include "router.h"
 #include "iputils.h"
 
+#include "tun_dev_tun.h"
+
 #define LOG_TAG "router.c"
 
 router_ctx_t* router_init() {
@@ -30,17 +32,15 @@ router_ctx_t* router_init() {
     		return NULL;
     	}
 
-    	if(!common_tun_set(&ctx->dev_tun_ctx, NULL)) {
+    	ctx->dev_tun_ctx = create_tun_dev_tun_ctx(NULL, 0);
+    	if(ctx->dev_tun_ctx == NULL) {
     		free(ctx->rwlock4);
     		ctx->rwlock4 = NULL;
     		free(ctx);
     		return NULL;
     	}
 
-    	pthread_rwlock_wrlock(ctx->rwlock4);
-    	ctx->dev_tun_ctx.send_func = dev_tun_send;
-    	ctx->dev_tun_ctx.recv_func = dev_tun_recv;
-    	ctx->dev_tun_ctx.router_ctx = ctx;
+    	ctx->dev_tun_ctx->setRouterContext(ctx->dev_tun_ctx, ctx);
 
         ctx->ip4_routes = NULL;
         ctx->ip4_routes_count = 0;
@@ -49,8 +49,7 @@ router_ctx_t* router_init() {
         ctx->ip_pkt.buff_len = 1500;
         ctx->ip_pkt.buff = malloc(1500);
         if(ctx->ip_pkt.buff == NULL) {
-        	common_tun_free(&ctx->dev_tun_ctx);
-        	pthread_rwlock_unlock(ctx->rwlock4);
+        	ctx->dev_tun_ctx = ctx->dev_tun_ctx->ref_put(ctx->dev_tun_ctx);
         	free(ctx->rwlock4);
         	ctx->rwlock4 = NULL;
         	free(ctx);
@@ -66,8 +65,7 @@ router_ctx_t* router_init() {
 		if(ctx->epoll_fd == -1) {
 			free(ctx->ip_pkt.buff);
 			ctx->ip_pkt.buff = NULL;
-			common_tun_free(&ctx->dev_tun_ctx);
-			pthread_rwlock_unlock(ctx->rwlock4);
+			ctx->dev_tun_ctx = ctx->dev_tun_ctx->ref_put(ctx->dev_tun_ctx);
 			free(ctx->rwlock4);
 			ctx->rwlock4 = NULL;
 			free(ctx);
@@ -80,8 +78,7 @@ router_ctx_t* router_init() {
 			close(ctx->epoll_fd);
 			free(ctx->ip_pkt.buff);
 			ctx->ip_pkt.buff = NULL;
-			common_tun_free(&ctx->dev_tun_ctx);
-			pthread_rwlock_unlock(ctx->rwlock4);
+			ctx->dev_tun_ctx = ctx->dev_tun_ctx->ref_put(ctx->dev_tun_ctx);
 			free(ctx->rwlock4);
 			ctx->rwlock4 = NULL;
 			free(ctx);
@@ -92,7 +89,6 @@ router_ctx_t* router_init() {
         ctx->routes_updated = false;
         ctx->paused = false;
         ctx->terminate = false;
-        pthread_rwlock_unlock(ctx->rwlock4);
     }
 
     return ctx;
@@ -113,21 +109,7 @@ void router_deinit(router_ctx_t* ctx) {
             }
         }
 
-        if(ctx->dev_tun_ctx.local_fd == ctx->dev_tun_ctx.remote_fd) {
-        	ctx->dev_tun_ctx.remote_fd = -1;
-        }
-
-        if(ctx->dev_tun_ctx.local_fd >= 0) {
-        	close(ctx->dev_tun_ctx.local_fd);
-        	ctx->dev_tun_ctx.local_fd = -1;
-        }
-
-        if(ctx->dev_tun_ctx.remote_fd >= 0) {
-			close(ctx->dev_tun_ctx.remote_fd);
-			ctx->dev_tun_ctx.remote_fd = -1;
-		}
-
-        common_tun_free(&ctx->dev_tun_ctx);
+        ctx->dev_tun_ctx->ref_put(ctx->dev_tun_ctx);
 
         ctx->ip4_routes = NULL;
         ctx->ip4_routes_count = 0;
@@ -167,8 +149,8 @@ void router_deinit(router_ctx_t* ctx) {
     }
 }
 
-void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, common_tun_ctx_t* tun_ctx) {
-	if(ctx == NULL) {
+void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, tun_ctx_t* tun_ctx) {
+	if(ctx == NULL || tun_ctx == NULL) {
 		return;
 	}
 
@@ -185,7 +167,8 @@ void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, common_tun_ctx_t* tu
 	route4_link_t* link = (route4_link_t*) malloc(sizeof(route4_link_t));
 	link->ip4 = ip4;
 	link->mask = netmask;
-	link->tun_ctx = tun_ctx;
+	//increment link counter for our tun_ctx
+	link->tun_ctx = tun_ctx->ref_get(tun_ctx);
 	link->next = NULL;
 
 	if(ctx->ip4_routes == NULL) {
@@ -219,6 +202,9 @@ void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, common_tun_ctx_t* tu
 					prev->next = link;
 				}
 
+				//decrement link counter for replaced tun_ctx
+				curr->tun_ctx = curr->tun_ctx->ref_put(curr->tun_ctx);
+
 				free(curr);
 
 				//Our job is done
@@ -241,8 +227,8 @@ void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, common_tun_ctx_t* tu
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
-void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tun_ctx) {
-	if(ctx == NULL) {
+void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, tun_ctx_t* tun_ctx) {
+	if(ctx == NULL || tun_ctx == NULL) {
 		return;
 	}
 
@@ -274,7 +260,8 @@ void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tu
 	memset(link->ip6 + (matching_bytes), *(ip6 + matching_bytes) & partial_bitmask, partial_matching_bytes);
 	memset(link->ip6 + (matching_bytes + partial_matching_bytes), 0x00, blank_bytes);
 	link->mask = netmask;
-	link->tun_ctx = tun_ctx;
+	//increment link counter for our tun_ctx
+	link->tun_ctx = tun_ctx->ref_get(tun_ctx);
 	link->next = NULL;
 
 	if(ctx->ip6_routes == NULL) {
@@ -309,6 +296,9 @@ void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tu
 					prev->next = link;
 				}
 
+				//decrement link counter for replaced tun_ctx
+				curr->tun_ctx = curr->tun_ctx->ref_put(curr->tun_ctx);
+
 				free(curr);
 
 				//Our job is done
@@ -331,14 +321,14 @@ void route6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask, common_tun_ctx_t* tu
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
-void unroute(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
+void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	if(ctx == NULL || tun_ctx == NULL) {
 		return;
 	}
 
 	pthread_rwlock_wrlock(ctx->rwlock4);
 
-	if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, tun_ctx->local_fd, NULL) == -1) {
+	if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, tun_ctx->getLocalFd(tun_ctx), NULL) == -1) {
 	    LOGE(LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_DEL) %d: %s", errno, strerror(errno));
 	    //just notify about error and continue working
 	}
@@ -346,6 +336,8 @@ void unroute(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
 	int i;
 	for(i = 0; i < ctx->epoll_links_capacity; i++) {
 		if(ctx->epoll_links[i].tun_ctx == tun_ctx) {
+			//free reference to tun_ctx
+			tun_ctx->ref_put(tun_ctx);
 			//mark tunnel context as inexistent
 			ctx->epoll_links[i].tun_ctx = NULL;
 		}
@@ -367,8 +359,13 @@ void unroute(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
 
 			curr4->ip4 = 0;
 			curr4->next = NULL;
+			if(curr4->tun_ctx != NULL) {
+				curr4->tun_ctx->ref_put(curr4->tun_ctx);
+			}
 			curr4->tun_ctx = NULL;
 			free(curr4);
+
+			curr4 = prev4;
 
 			ctx->ip4_routes_count--;
 			ctx->routes_updated = true;
@@ -380,6 +377,7 @@ void unroute(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
 
 	if(ctx->ip4_default_tun_ctx == tun_ctx) {
 		ctx->ip4_default_tun_ctx = NULL;
+		tun_ctx->ref_put(tun_ctx);
 		ctx->routes_updated = true;
 	}
 
@@ -400,8 +398,13 @@ void unroute(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
 
 			memset(curr6->ip6, 0x00, 16);
 			curr6->next = NULL;
+			if(curr6->tun_ctx != NULL) {
+				curr6->tun_ctx->ref_put(curr6->tun_ctx);
+			}
 			curr6->tun_ctx = NULL;
 			free(curr6);
+
+			curr6 = prev6;
 
 			ctx->ip6_routes_count--;
 			ctx->routes_updated = true;
@@ -413,6 +416,7 @@ void unroute(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
 
 	if(ctx->ip6_default_tun_ctx == tun_ctx) {
 		ctx->ip6_default_tun_ctx = NULL;
+		tun_ctx->ref_put(tun_ctx);
 		ctx->routes_updated = true;
 	}
 
@@ -441,6 +445,9 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask) {
 
 			curr->ip4 = 0;
 			curr->next = NULL;
+			if(curr->tun_ctx != NULL) {
+				curr->tun_ctx->ref_put(curr->tun_ctx);
+			}
 			curr->tun_ctx = NULL;
 			free(curr);
 
@@ -486,6 +493,9 @@ void unroute6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask) {
 
 			memset(curr->ip6, 0x00, 16);
 			curr->next = NULL;
+			if(curr->tun_ctx != NULL) {
+				curr->tun_ctx->ref_put(curr->tun_ctx);
+			}
 			curr->tun_ctx = NULL;
 			free(curr);
 
@@ -507,19 +517,25 @@ void unroute6(router_ctx_t* ctx, uint8_t* ip6, uint32_t mask) {
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 
-void default4(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
+void default4(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	if(ctx != NULL) {
 		pthread_rwlock_wrlock(ctx->rwlock4);
-		ctx->ip4_default_tun_ctx = tun_ctx;
+		if(ctx->ip4_default_tun_ctx != NULL) {
+			ctx->ip4_default_tun_ctx = ctx->ip4_default_tun_ctx->ref_put(ctx->ip4_default_tun_ctx);
+		}
+		ctx->ip4_default_tun_ctx = tun_ctx->ref_get(tun_ctx);
 		ctx->routes_updated = true;
 		pthread_rwlock_unlock(ctx->rwlock4);
 	}
 }
 
-void default6(router_ctx_t* ctx, common_tun_ctx_t* tun_ctx) {
+void default6(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	if(ctx != NULL) {
 		pthread_rwlock_wrlock(ctx->rwlock4);
-		ctx->ip6_default_tun_ctx = tun_ctx;
+		if(ctx->ip6_default_tun_ctx != NULL) {
+			ctx->ip6_default_tun_ctx = ctx->ip6_default_tun_ctx->ref_put(ctx->ip6_default_tun_ctx);
+		}
+		ctx->ip6_default_tun_ctx = tun_ctx->ref_get(tun_ctx);
 		ctx->routes_updated = true;
 		pthread_rwlock_unlock(ctx->rwlock4);
 	}
@@ -542,7 +558,7 @@ ssize_t ipsend(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 }
 
 ssize_t send4(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
-	common_tun_ctx_t* tun_ctx = NULL;
+	tun_ctx_t* tun_ctx = NULL;
 
 	if(ctx == NULL) {
 		errno = EBADF;
@@ -572,34 +588,15 @@ ssize_t send4(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 		}
 	}
 
-	if(tun_ctx == NULL || tun_ctx->send_func == NULL) {
+	if(tun_ctx == NULL) {
 		LOGD(LOG_TAG, "Using default route4");
 		tun_ctx = ctx->ip4_default_tun_ctx;
 	}
 
 	ssize_t result = 0;
-	if(tun_ctx != NULL && tun_ctx->send_func != NULL) {
-		if(tun_ctx->use_masquerade4) {
-			ip4_header* hdr = (ip4_header*) buff;
-			hdr->saddr = htonl(tun_ctx->masquerade4);
-			ip4_calc_ip_checksum(buff, len);
-
-			switch(hdr->protocol) {
-			case IPPROTO_TCP: {
-				ip4_calc_tcp_checksum(buff, len);
-				break;
-			}
-			case IPPROTO_UDP: {
-				ip4_calc_udp_checksum(buff, len);
-				break;
-			}
-			default: {
-				LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", hdr->protocol);
-				break;
-			}
-			}
-		}
-		result = tun_ctx->send_func((intptr_t) tun_ctx, buff, len);
+	if(tun_ctx != NULL) {
+		tun_ctx->masqueradeSrc(tun_ctx, buff, len);
+		result = tun_ctx->send(tun_ctx, buff, len);
 	} else {
 		LOGE(LOG_TAG, "Destination tunnel is not ready, dropping a packet");
 	}
@@ -609,7 +606,7 @@ ssize_t send4(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 }
 
 ssize_t send6(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
-	common_tun_ctx_t* tun_ctx = NULL;
+	tun_ctx_t* tun_ctx = NULL;
 
 	if(ctx == NULL) {
 		errno = EBADF;
@@ -641,56 +638,21 @@ ssize_t send6(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 		}
 	}
 
-	if(tun_ctx == NULL || tun_ctx->send_func == NULL) {
+	if(tun_ctx == NULL) {
 		LOGD(LOG_TAG, "Using default route6");
 		tun_ctx = ctx->ip6_default_tun_ctx;
 	}
 
 	ssize_t result = 0;
-	if(tun_ctx != NULL && tun_ctx->send_func != NULL) {
-		if(tun_ctx->use_masquerade6) {
-			ip6_header* hdr = (ip6_header*) buff;
-			memcpy(hdr->ip6_src.s6_addr, tun_ctx->masquerade6, 16);
-
-			ip6_find_payload(ip_packet);
-
-			switch(ctx->ip_pkt.payload_proto) {
-			case IPPROTO_TCP: {
-				uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
-				ip6_calc_tcp_checksum(common_sum, buff + ip_packet->payload_len, ip_packet->payload_len);
-				break;
-			}
-			case IPPROTO_UDP: {
-				uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
-				ip6_calc_udp_checksum(common_sum, buff + ip_packet->payload_len, ip_packet->payload_len);
-				break;
-			}
-			default: {
-				LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", ip_packet->payload_proto);
-				break;
-			}
-			}
-		}
-		result = tun_ctx->send_func((intptr_t) tun_ctx, buff, len);
+	if(tun_ctx != NULL) {
+		tun_ctx->masqueradeSrc(tun_ctx, buff, len);
+		result = tun_ctx->send(tun_ctx, buff, len);
 	} else {
 		LOGE(LOG_TAG, "Destination tunnel is not ready, dropping a packet");
 	}
 	pthread_rwlock_unlock(ctx->rwlock4);
 
 	return result;
-}
-
-ssize_t read_ip_packet(int fd, uint8_t* buff, int len) {
-	ssize_t size = 0;
-
-	ssize_t res = read(fd, buff, len);
-	if(res < 0) {
-		return res;
-	}
-
-	size += res;
-
-	return size;
 }
 
 void rebuild_epoll_struct(router_ctx_t* ctx) {
@@ -705,16 +667,17 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 	bool already_added = false;
 
 	//allocating memory for storing links to: android tun context, default route, all ip4 routes
-	common_tun_ctx_t** ctxs = malloc(sizeof(common_tun_ctx_t*) * (ctx->ip4_routes_count + 2));
+	tun_ctx_t** ctxs = malloc(sizeof(tun_ctx_t*) * (ctx->ip4_routes_count + 2));
 	if(ctxs == NULL) {
 		goto error;
 	}
 
-	ctxs[poll_count] = &(ctx->dev_tun_ctx);
+	ctxs[poll_count] = ctx->dev_tun_ctx->ref_get(ctx->dev_tun_ctx);
 	poll_count++;
 
-	if(ctx->ip4_default_tun_ctx != NULL && ctx->ip4_default_tun_ctx->local_fd != UNDEFINED_FD) {
-		ctxs[poll_count] = ctx->ip4_default_tun_ctx;
+	if(ctx->ip4_default_tun_ctx != NULL &&
+			ctx->ip4_default_tun_ctx->getLocalFd(ctx->ip4_default_tun_ctx) != UNDEFINED_FD) {
+		ctxs[poll_count] = ctx->ip4_default_tun_ctx->ref_get(ctx->ip4_default_tun_ctx);
 		poll_count++;
 	}
 
@@ -723,7 +686,7 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 	route4_link_t* curr = ctx->ip4_routes;
 	while(curr != NULL) {
 		if(curr->tun_ctx != NULL) {
-			if(curr->tun_ctx->local_fd == UNDEFINED_FD) {
+			if(curr->tun_ctx->getLocalFd(curr->tun_ctx) == UNDEFINED_FD) {
 				continue;
 			}
 
@@ -737,7 +700,7 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 			}
 
 			if(!already_added) {
-				ctxs[poll_count] = curr->tun_ctx;
+				ctxs[poll_count] = curr->tun_ctx->ref_get(curr->tun_ctx);
 				poll_count++;
 			}
 		}
@@ -746,6 +709,11 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 
 	if(poll_count > ctx->epoll_links_capacity ||
 			poll_count < (ctx->epoll_links_capacity >> 1)) {
+		for(i = 0; i < ctx->epoll_links_capacity; i++) {
+			if(ctx->epoll_links[i].tun_ctx != NULL) {
+				ctx->epoll_links[i].tun_ctx->ref_put(ctx->epoll_links[i].tun_ctx);
+			}
+		}
 		free(ctx->epoll_links);
 		unsigned int new_poll_count = (poll_count + (poll_count >> 1));
 		LOGD(LOG_TAG, "Resizing epoll struct from %d to %d item(s)",
@@ -763,7 +731,7 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 	LOGD(LOG_TAG, "Rebuild epoll struct for %d item(s)", poll_count);
 
 	for(i = 0; i < poll_count; i++) {
-		ctx->epoll_links[i].fd = ((common_tun_ctx_t*) ctxs[i])->local_fd;
+		ctx->epoll_links[i].fd = ctxs[i]->getLocalFd(ctxs[i]);
 		ctx->epoll_links[i].tun_ctx = ctxs[i];
 
 		ev.events = EPOLLIN | EPOLLOUT;
@@ -787,7 +755,7 @@ exit:
 	}
 	LOGD(LOG_TAG, "Rebuilding poll struct finished");
 }
-
+/*
 void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 	if(ctx == NULL || poll_struct == NULL) {
 		return;
@@ -799,7 +767,7 @@ void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 	bool already_added = false;
 
 	//allocating memory for storing links to: android tun context, default route, all ip4 routes
-	common_tun_ctx_t** ctxs = malloc(sizeof(common_tun_ctx_t*) * (ctx->ip4_routes_count + 2));
+	tun_ctx_t** ctxs = malloc(sizeof(tun_ctx_t*) * (ctx->ip4_routes_count + 2));
 	if(ctxs == NULL) {
 		goto error;
 	}
@@ -863,7 +831,7 @@ void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {
 	}
 
 	for(i = 0; i < poll_count; i++) {
-		poll_struct->poll_fds[i].fd = ((common_tun_ctx_t*) ctxs[i])->local_fd;
+		poll_struct->poll_fds[i].fd = ctxs[i]->getLocalFd(ctxs[i]);
 		poll_struct->poll_fds[i].events = POLLIN | POLLOUT | POLLHUP;
 		poll_struct->poll_fds[i].revents = 0;
 
@@ -885,51 +853,7 @@ exit:
 	}
 	LOGD(LOG_TAG, "Rebuilding poll struct finished");
 }
-
-ssize_t dev_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
-		errno = EBADF;
-		return -1;
-	}
-
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
-
-	//start capture
-	pcap_output_write(ctx->pcap_output, buff, 0, len);
-	//end capture
-
-	return write(ctx->local_fd, buff, len);
-}
-
-ssize_t dev_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
-		errno = EBADF;
-		return -1;
-	}
-
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
-	ocpa_ip_packet_t* ip_packet = &ctx->router_ctx->ip_pkt;
-
-	int res = read_ip_packet(ctx->local_fd, ip_packet->buff, ip_packet->buff_len);
-	if(res < 0) {
-		if(errno == EAGAIN || errno == EWOULDBLOCK) {
-			//we'll try next time
-			LOGW(LOG_TAG, "Got EAGAIN or EWOULDBLOCK on fd=%d", ctx->local_fd);
-			errno = 0;
-			return res;
-		}
-		return res;
-	}
-
-	ip_packet->pkt_len = res;
-
-	//start capture
-	pcap_output_write(ctx->pcap_output, ip_packet->buff, 0, ip_packet->pkt_len);
-	//end capture
-
-	res = ipsend(ctx->router_ctx, ip_packet);
-	return res;
-}
+*/
 
 bool router_is_paused(router_ctx_t* ctx) {
 	if(ctx == NULL) {
