@@ -8,6 +8,7 @@ LOCAL_SRC_FILES := \
 	router.c \
 	iputils.c \
 	tun.c \
+	tun_dev_tun.c \
 	tun_ipsec.c \
 	tun_l2tp.c \
 	tun_openvpn.c \
