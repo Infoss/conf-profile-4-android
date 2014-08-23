@@ -8,25 +8,34 @@
 #include "tun_openvpn.h"
 
 JNI_METHOD(OpenVpnTunnel, initOpenVpnTun, jlong) {
-	return (jlong) (intptr_t) openvpn_tun_init(this);
+	openvpn_tun_ctx_t* result = create_openvpn_tun_ctx(NULL, 0);
+	if(result != NULL) {
+		result->setJavaVpnTunnel(result, this);
+	}
+	return (jlong) (intptr_t) result;
 }
 
 JNI_METHOD(OpenVpnTunnel, deinitOpenVpnTun, void, jlong jtunctx) {
-	openvpn_tun_deinit((openvpn_tun_ctx_t*) (intptr_t) jtunctx);
+	openvpn_tun_ctx_t* ctx = (openvpn_tun_ctx_t*) (intptr_t) jtunctx;
+	if(ctx != NULL) {
+		ctx->ref_put(ctx);
+	}
 }
 
 JNI_METHOD(OpenVpnTunnel, getLocalFd, jint, jlong jtunctx) {
-	if(((openvpn_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
-		return -1;
+	openvpn_tun_ctx_t* ctx = (openvpn_tun_ctx_t*) (intptr_t) jtunctx;
+	if(ctx == NULL) {
+		return UNDEFINED_FD;
 	}
 
-	return ((openvpn_tun_ctx_t*) (intptr_t) jtunctx)->common.local_fd;
+	return ctx->getLocalFd(ctx);
 }
 
 JNI_METHOD(OpenVpnTunnel, getRemoteFd, jint, jlong jtunctx) {
-	if(((openvpn_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
-		return -1;
+	openvpn_tun_ctx_t* ctx = (openvpn_tun_ctx_t*) (intptr_t) jtunctx;
+	if(ctx == NULL) {
+		return UNDEFINED_FD;
 	}
 
-	return ((openvpn_tun_ctx_t*) (intptr_t) jtunctx)->common.remote_fd;
+	return ctx->getRemoteFd(ctx);
 }

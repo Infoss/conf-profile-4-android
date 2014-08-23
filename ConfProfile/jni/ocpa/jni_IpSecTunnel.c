@@ -39,9 +39,16 @@ JNI_METHOD(IpSecTunnel, networkChanged, void, jboolean jdisconnected) {
 }
 
 JNI_METHOD(IpSecTunnel, initIpSecTun, jlong) {
-	return (jlong) (intptr_t) ipsec_tun_init(this);
+	tun_ctx_t* ctx = create_ipsec_tun_ctx(NULL, 0);
+	if(ctx != NULL) {
+		ctx->setJavaVpnTunnel(ctx, this);
+	}
+	return (jlong) (intptr_t) ctx;
 }
 
 JNI_METHOD(IpSecTunnel, deinitIpSecTun, void, jlong jtunctx) {
-	ipsec_tun_deinit((ipsec_tun_ctx_t*) (intptr_t) jtunctx);
+	tun_ctx_t* ctx = (ipsec_tun_ctx_t*) (intptr_t) jtunctx;
+	if(ctx != NULL) {
+		ctx->ref_put(ctx);
+	}
 }

@@ -10,6 +10,7 @@
 #include <errno.h>
 #include "ocpa.h"
 #include "router.h"
+#include "tun_dev_tun.h"
 
 #define LOG_TAG "jni_RouterLoop.c"
 
@@ -46,8 +47,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		goto failed;
 	}
 
-	ctx->dev_tun_ctx.local_fd = fd;
-	ctx->dev_tun_ctx.remote_fd = fd;
+	set_tun_dev_tun_fd(ctx->dev_tun_ctx, fd);
 
 	int timeout_msecs = 500;
 	int router_sleep_msecs = 250;
@@ -75,7 +75,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		LOGE(LOG_TAG, "Can't initialize poll helper lock");
 		goto failed;
 	}
-	rebuild_poll_struct(ctx, poll_struct);
+
 	rebuild_epoll_struct(ctx);
 
 	LOGD(LOG_TAG, "Starting router loop");
@@ -83,7 +83,9 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 	int res = 0;
 	bool do_rebuild_poll_struct = false;
 	bool do_rebuild_epoll_struct = false;
+	int epoll_fd = ctx->epoll_fd;
 	struct epoll_event ev;
+	struct epoll_event epoll_events[MAX_EPOLL_EVENTS];
 	while(true) {
 
 		while(router_is_paused(ctx)) {
@@ -104,41 +106,43 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		}
 		pthread_rwlock_unlock(ctx->rwlock4);
 
-		pthread_rwlock_rdlock(ctx->rwlock4);
-		res = epoll_wait(ctx->epoll_fd, ctx->epoll_events, MAX_EPOLL_EVENTS, timeout_msecs);
+		//pthread_rwlock_rdlock(ctx->rwlock4);
+		//res = epoll_wait(ctx->epoll_fd, ctx->epoll_events, MAX_EPOLL_EVENTS, timeout_msecs);
+		res = epoll_wait(epoll_fd, epoll_events, MAX_EPOLL_EVENTS, timeout_msecs);
 		if(res == -1) {
 			//TODO: error handling
 			LOGE(LOG_TAG, "Error while epoll_wait() %d: %s", errno, strerror(errno));
-			pthread_rwlock_unlock(ctx->rwlock4);
+			//pthread_rwlock_unlock(ctx->rwlock4);
 			goto failed;
 		}
 
 		for(i = 0; i < res; i++) {
-			if((ctx->epoll_events[i].events & POLLIN) != 0) {
-				LOGD(LOG_TAG, "Read from fd=%d", ctx->epoll_events[i].data.fd);
+			if((epoll_events[i].events & POLLIN) != 0) {
+				LOGD(LOG_TAG, "Read from fd=%d", epoll_events[i].data.fd);
 
 				res = 0;
-				common_tun_ctx_t* tmp_tun_ctx = NULL;
+				tun_ctx_t* tmp_tun_ctx = NULL;
+
+				pthread_rwlock_rdlock(ctx->rwlock4);
 				for(j = 0; j < ctx->epoll_links_capacity; j++) {
-					if(ctx->epoll_links[j].fd == ctx->epoll_events[i].data.fd) {
+					if(ctx->epoll_links[j].fd == epoll_events[i].data.fd) {
 						tmp_tun_ctx = ctx->epoll_links[j].tun_ctx;
 						break;
 					}
 				}
+				pthread_rwlock_unlock(ctx->rwlock4);
 
 				if(tmp_tun_ctx == NULL) {
 					LOGD(LOG_TAG, "tun_ctx for fd=%d seems to be deleted, continue",
-							ctx->epoll_events[i].data.fd);
+							epoll_events[i].data.fd);
 					continue;
 				}
 
-				tun_recv_func_ptr recv_func = tmp_tun_ctx->recv_func;
-				if(recv_func != NULL) {
-					pthread_rwlock_unlock(ctx->rwlock4);
-					res = recv_func((intptr_t) tmp_tun_ctx, ip_pkt_buff, ip_pkt_buff_size);
-					pthread_rwlock_rdlock(ctx->rwlock4); //TODO: rewrite this part
+				if(tmp_tun_ctx != NULL) {
+					res = tmp_tun_ctx->recv(tmp_tun_ctx, ip_pkt_buff, ip_pkt_buff_size);
+
 					if(res == 0) {
-						LOGD(LOG_TAG, "Read from fd=%d returned 0", tmp_tun_ctx->local_fd);
+						LOGD(LOG_TAG, "Read from fd=%d returned 0", tmp_tun_ctx->getLocalFd(tmp_tun_ctx));
 					}
 				} else {
 					LOGE(LOG_TAG, "Tunnel is not ready, dropping a packet");
@@ -153,24 +157,21 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 							res,
 							strerror(errno));
 					log_dump_packet(LOG_TAG, ip_pkt_buff, ip_pkt_buff_size);
-					pthread_rwlock_unlock(ctx->rwlock4);
 					goto failed;
 				}
 
-			} else if((ctx->epoll_events[i].events & POLLHUP) != 0) {
-				LOGE(LOG_TAG, "HUP for fd %d", ctx->epoll_events[i].data.fd);
-			} else if(ctx->epoll_events[i].events != POLLOUT) {
+			} else if((epoll_events[i].events & POLLHUP) != 0) {
+				LOGE(LOG_TAG, "HUP for fd %d", epoll_events[i].data.fd);
+			} else if(epoll_events[i].events != POLLOUT) {
 				LOGD(LOG_TAG, "no action for fd %d (revents=%d)",
-						ctx->epoll_events[i].data.fd,
-						ctx->epoll_events[i].events);
+						epoll_events[i].data.fd,
+						epoll_events[i].events);
 			}
 
 		}
 
-
 		if(ctx->terminate) {
 			LOGD(LOG_TAG, "Terminating router loop");
-			pthread_rwlock_unlock(ctx->rwlock4);
 			break;
 		}
 
@@ -299,40 +300,30 @@ exit:
 
 JNI_METHOD(RouterLoop, addRoute4, void, jlong jrouterctx, jint jip4, jint jmask, jlong jtunctx) {
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
-	common_tun_ctx_t* tun_ctx = (common_tun_ctx_t*) (intptr_t) jtunctx;
+	tun_ctx_t* tun_ctx = (tun_ctx_t*) (intptr_t) jtunctx;
 	if(router_ctx == NULL || tun_ctx == NULL) {
 		return;
 	}
 
-	if(tun_ctx->router_ctx != NULL && tun_ctx->router_ctx != router_ctx) {
-		LOGE(LOG_TAG,
-				"Memory leak! TUN context was reassigned from %p to %p",
-				tun_ctx->router_ctx,
-				router_ctx);
-	}
-
-	tun_ctx->router_ctx = router_ctx;
+	tun_ctx->ref_get(tun_ctx);
+	tun_ctx->setRouterContext(tun_ctx, router_ctx);
 
 	route4(router_ctx, jip4, jmask, tun_ctx);
+	tun_ctx->ref_put(tun_ctx);
 }
 
 JNI_METHOD(RouterLoop, defaultRoute4, void, jlong jrouterctx, jlong jtunctx) {
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
-	common_tun_ctx_t* tun_ctx = (common_tun_ctx_t*) (intptr_t) jtunctx;
+	tun_ctx_t* tun_ctx = (tun_ctx_t*) (intptr_t) jtunctx;
 	if(router_ctx == NULL || tun_ctx == NULL) {
 		return;
 	}
 
-	if(tun_ctx->router_ctx != NULL && tun_ctx->router_ctx != router_ctx) {
-		LOGE(LOG_TAG,
-				"Memory leak! TUN context was reassigned from %p to %p",
-				tun_ctx->router_ctx,
-				router_ctx);
-	}
-
-	tun_ctx->router_ctx = router_ctx;
+	tun_ctx->ref_get(tun_ctx);
+	tun_ctx->setRouterContext(tun_ctx, router_ctx);
 
 	default4(router_ctx, tun_ctx);
+	tun_ctx->ref_put(tun_ctx);
 }
 
 JNI_METHOD(RouterLoop, removeRoute4, void, jlong jrouterctx, jint jip4, jint jmask) {
@@ -403,10 +394,16 @@ JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
 
 JNI_METHOD(RouterLoop, removeTunnel, void, jlong jrouterctx, jlong jtunctx) {
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
-	common_tun_ctx_t* tun_ctx = (common_tun_ctx_t*) (intptr_t) jtunctx;
+	tun_ctx_t* tun_ctx = (tun_ctx_t*) (intptr_t) jtunctx;
 
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	tun_ctx->ref_get(tun_ctx);
 	unroute(router_ctx, tun_ctx);
 	rebuild_epoll_struct(router_ctx);
+	tun_ctx->ref_put(tun_ctx);
 }
 
 JNI_METHOD(RouterLoop, isPausedRouterLoop, jboolean, jlong jrouterctx) {
@@ -442,7 +439,7 @@ JNI_METHOD(RouterLoop, setMasqueradeIp4Mode, void, jlong jrouterctx, jboolean ji
 
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 
-	ctx->dev_tun_ctx.use_masquerade4 = jison;
+	ctx->dev_tun_ctx->setMasquerade4Mode(ctx->dev_tun_ctx, jison == JNI_TRUE);
 }
 
 JNI_METHOD(RouterLoop, setMasqueradeIp4, void, jlong jrouterctx, jint jip) {
@@ -452,54 +449,43 @@ JNI_METHOD(RouterLoop, setMasqueradeIp4, void, jlong jrouterctx, jint jip) {
 
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 
-	ctx->dev_tun_ctx.masquerade4 = jip;
+	ctx->dev_tun_ctx->setMasquerade4Ip(ctx->dev_tun_ctx, (uint32_t) jip);
 }
 
 JNI_METHOD(RouterLoop, setMasqueradeIp6Mode, void, jlong jrouterctx, jboolean jison) {
-	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
-			return;
-		}
-
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
-
-	ctx->dev_tun_ctx.use_masquerade6 = jison;
-}
-
-JNI_METHOD(RouterLoop, setMasqueradeIp6, void, jlong jrouterctx, jbyteArray jip) {
-	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+	if(ctx == NULL) {
 		return;
 	}
 
+	ctx->dev_tun_ctx->setMasquerade6Mode(ctx->dev_tun_ctx, jison == JNI_TRUE);
+}
+
+JNI_METHOD(RouterLoop, setMasqueradeIp6, void, jlong jrouterctx, jbyteArray jip) {
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(ctx == NULL) {
+		return;
+	}
+
 	uint8_t* ip6 = (*env)->GetByteArrayElements(env, jip, JNI_FALSE);
-	memcpy(ctx->dev_tun_ctx.masquerade6, ip6, 16);
+	ctx->dev_tun_ctx->setMasquerade6Ip(ctx->dev_tun_ctx, ip6);
 	(*env)->ReleaseByteArrayElements(env, jip, ip6, JNI_ABORT);
 }
 
 JNI_METHOD(RouterLoop, debugRestartPcap, void, jlong jrouterctx, jobject jos) {
-	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(ctx == NULL) {
 		return;
 	}
 
-	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
-	if(ctx->dev_tun_ctx.pcap_output != NULL) {
-		pcap_output_reset(ctx->dev_tun_ctx.pcap_output, jos);
-	} else {
-		ctx->dev_tun_ctx.pcap_output = pcap_output_init(jos);
-	}
-
+	ctx->dev_tun_ctx->debugRestartPcap(ctx->dev_tun_ctx, jos);
 }
 
 JNI_METHOD(RouterLoop, debugStopPcap, void, jlong jrouterctx) {
-	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
+	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
+	if(ctx == NULL) {
 		return;
 	}
 
-	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
-	if(ctx->dev_tun_ctx.pcap_output != NULL) {
-		pcap_output_flush(ctx->dev_tun_ctx.pcap_output);
-		pcap_output_close(ctx->dev_tun_ctx.pcap_output);
-		pcap_output_destroy(ctx->dev_tun_ctx.pcap_output);
-		ctx->dev_tun_ctx.pcap_output = NULL;
-	}
+	ctx->dev_tun_ctx->debugStopPcap(ctx->dev_tun_ctx);
 }

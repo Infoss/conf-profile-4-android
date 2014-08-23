@@ -8,25 +8,34 @@
 #include "tun_l2tp.h"
 
 JNI_METHOD(L2tpTunnel, initL2tpTun, jlong) {
-	return (jlong) (intptr_t) l2tp_tun_init(this);
+	l2tp_tun_ctx_t* result = create_l2tp_tun_ctx(NULL, 0);
+	if(result != NULL) {
+		result->setJavaVpnTunnel(result, this);
+	}
+	return (jlong) (intptr_t) result;
 }
 
 JNI_METHOD(L2tpTunnel, deinitL2tpTun, void, jlong jtunctx) {
-	l2tp_tun_deinit((l2tp_tun_ctx_t*) (intptr_t) jtunctx);
+	l2tp_tun_ctx_t* ctx = (l2tp_tun_ctx_t*) (intptr_t) jtunctx;
+	if(ctx != NULL) {
+		ctx->ref_put(ctx);
+	}
 }
 
 JNI_METHOD(L2tpTunnel, getLocalFd, jint, jlong jtunctx) {
-	if(((l2tp_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
-		return -1;
+	l2tp_tun_ctx_t* ctx = (l2tp_tun_ctx_t*) (intptr_t) jtunctx;
+	if(ctx == NULL) {
+		return UNDEFINED_FD;
 	}
 
-	return ((l2tp_tun_ctx_t*) (intptr_t) jtunctx)->common.local_fd;
+	return ctx->getLocalFd(ctx);
 }
 
 JNI_METHOD(L2tpTunnel, getRemoteFd, jint, jlong jtunctx) {
-	if(((l2tp_tun_ctx_t*) (intptr_t) jtunctx) == NULL) {
-		return -1;
+	l2tp_tun_ctx_t* ctx = (l2tp_tun_ctx_t*) (intptr_t) jtunctx;
+	if(ctx == NULL) {
+		return UNDEFINED_FD;
 	}
 
-	return ((l2tp_tun_ctx_t*) (intptr_t) jtunctx)->common.remote_fd;
+	return ctx->getRemoteFd(ctx);
 }
