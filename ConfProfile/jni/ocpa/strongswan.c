@@ -89,8 +89,9 @@ charonservice_t *charonservice;
  */
 extern void (*dbg)(debug_t group, level_t level, char *fmt, ...);
 
-int get_remotefd(common_tun_ctx_t* ctx) {
-	return ctx->remote_fd;
+int get_remotefd(tun_ctx_t* ctx) {
+	//TODO: maybe remove this
+	return ctx->getRemoteFd(ctx);
 }
 
 /**
@@ -401,7 +402,7 @@ METHOD(charonservice_t, get_network_manager, network_manager_t*,
 METHOD(charonservice_t, get_fd, int,
 	private_charonservice_t *this)
 {
-	return get_remotefd(&this->tunnel_ctx->common);
+	return get_remotefd(this->tunnel_ctx);
 }
 
 METHOD(charonservice_t, add_address, bool,
@@ -707,7 +708,7 @@ static void charonservice_init(JNIEnv *env, jobject tunnel, jboolean byod, ipsec
 		.network_manager = network_manager_create(),
 		.sockets = linked_list_create(),
 		.jtunnel = (*env)->NewGlobalRef(env, tunnel),
-		.tunnel_ctx = tun_ctx,
+		.tunnel_ctx = tun_ctx->ref_get(tun_ctx),
 	);
 
 	charonservice = &this->public;
@@ -745,7 +746,9 @@ static void charonservice_deinit(JNIEnv *env)
 	this->creds->destroy(this->creds);
 	this->attr->destroy(this->attr);
 	(*env)->DeleteGlobalRef(env, this->jtunnel);
-	ipsec_tun_deinit(this->tunnel_ctx);
+	if(this->tunnel_ctx != NULL) {
+		this->tunnel_ctx->ref_put(this->tunnel_ctx);
+	}
 	this->tunnel_ctx = NULL;
 	free(this);
 	charonservice = NULL;
@@ -841,7 +844,7 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlo
 
 	lib->plugins->status(lib->plugins, LEVEL_CTRL);
 	//TODO: uncomment after debugging
-
+/*
 	// add handler for SEGV and ILL etc.
 	action.sa_handler = segv_handler;
 	action.sa_flags = 0;
@@ -851,7 +854,7 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlo
 	sigaction(SIGBUS, &action, NULL);
 	action.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &action, NULL);
-
+*/
 	// start daemon (i.e. the threads in the thread-pool)
 	charon->start(charon);
 
