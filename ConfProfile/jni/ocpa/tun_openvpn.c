@@ -7,33 +7,24 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include "tun_openvpn.h"
+#include "tun_private.h"
 
-openvpn_tun_ctx_t* openvpn_tun_init(jobject jtun_instance) {
-	openvpn_tun_ctx_t* ctx = malloc(sizeof(openvpn_tun_ctx_t));
-	if(ctx == NULL) {
+openvpn_tun_ctx_t* create_openvpn_tun_ctx(openvpn_tun_ctx_t* ptr, ssize_t len) {
+	openvpn_tun_ctx_t* result = create_tun_ctx(ptr, len);
+	if(result == NULL) {
 		return NULL;
 	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) result;
 
 	int fds[2];
 	if(socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, fds) != 0) {
-		free(ctx);
-		return NULL;
+		return ctx->public.ref_put(ctx);
 	}
 
-	common_tun_set((common_tun_ctx_t*) ctx, jtun_instance);
+	ctx->local_fd = fds[0];
+	ctx->remote_fd = fds[1];
 
-	ctx->common.local_fd = fds[0];
-	ctx->common.remote_fd = fds[1];
-
-	return ctx;
+	return result;
 }
 
-void openvpn_tun_deinit(openvpn_tun_ctx_t* ctx) {
-	if(ctx == NULL) {
-		return;
-	}
-
-	common_tun_free((common_tun_ctx_t*) ctx);
-
-	free(ctx);
-}

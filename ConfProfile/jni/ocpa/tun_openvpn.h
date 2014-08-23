@@ -9,13 +9,8 @@
 
 #include "tun.h"
 
-typedef struct openvpn_tun_ctx_t openvpn_tun_ctx_t;
+typedef tun_ctx_t openvpn_tun_ctx_t;
 
-struct openvpn_tun_ctx_t {
-	common_tun_ctx_t common;
-};
-
-openvpn_tun_ctx_t* openvpn_tun_init(jobject jtun_instance);
-void openvpn_tun_deinit(openvpn_tun_ctx_t* ctx);
+openvpn_tun_ctx_t* create_openvpn_tun_ctx(openvpn_tun_ctx_t* ptr, ssize_t len);
 
 #endif /* TUN_OPENVPN_H_ */
