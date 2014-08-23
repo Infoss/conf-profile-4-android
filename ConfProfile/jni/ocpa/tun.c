@@ -12,92 +12,75 @@
 #include "android_log_utils.h"
 #include "android_jni.h"
 #include "protoheaders.h"
-#include "tun.h"
+#include "tun_private.h"
 #include "router.h"
 #include "iputils.h"
 
 #define LOG_TAG "tun.c"
 
-bool common_tun_set(common_tun_ctx_t* ctx, jobject jtun_instance) {
-	if(ctx == NULL) {
-		return false;
-	}
+REFS_DECLARE_METHODS_BODIES(tun_ctx_t, struct tun_ctx_private_t)
 
-	ctx->rwlock = malloc(sizeof(pthread_rwlock_t));
-	if(ctx->rwlock == NULL) {
-		return false;
-	}
-	if(pthread_rwlock_init(ctx->rwlock, NULL) != 0) {
-		free(ctx->rwlock);
-		ctx->rwlock = NULL;
-		return false;
-	}
-
-	ctx->local_fd = UNDEFINED_FD;
-	ctx->remote_fd = UNDEFINED_FD;
-	ctx->masquerade4 = 0;
-	memset(ctx->masquerade6, 0, sizeof(ctx->masquerade6));
-	ctx->use_masquerade4 = false;
-	ctx->use_masquerade6 = false;
-	ctx->send_func = common_tun_send;
-	ctx->recv_func = common_tun_recv;
-	ctx->router_ctx = NULL;
-
-	ctx->bytes_in = 0;
-	ctx->bytes_out = 0;
-
-	ctx->j_vpn_tun = wrap_into_VpnTunnel(jtun_instance);
-
-	ctx->pcap_output = NULL;
-
-	return true;
-}
-
-void common_tun_free(common_tun_ctx_t* ctx) {
-	if(ctx == NULL) {
+static void destroy_tun_ctx(tun_ctx_t* ptr) {
+	LOGD(LOG_TAG, "Destroying tun_ctx_t at %p", ptr);
+	if(ptr == NULL) {
 		return;
 	}
 
-	if(ctx->local_fd != UNDEFINED_FD) {
-		shutdown(ctx->local_fd, SHUT_RDWR);
+	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) ptr;
+
+	LOGD(LOG_TAG, "Shutdown local socket %d", instance->local_fd);
+	if(instance->local_fd != UNDEFINED_FD) {
+		shutdown(instance->local_fd, SHUT_RDWR);
 	}
 
-	if(ctx->remote_fd != UNDEFINED_FD) {
-		shutdown(ctx->remote_fd, SHUT_RDWR);
+	LOGD(LOG_TAG, "Shutdown remote socket %d", instance->remote_fd);
+	if(instance->remote_fd != UNDEFINED_FD) {
+		shutdown(instance->remote_fd, SHUT_RDWR);
 	}
 
-	pthread_rwlock_wrlock(ctx->rwlock);
+	pthread_rwlock_t* rwlock = instance->rwlock;
 
-	ctx->masquerade4 = 0;
-	ctx->use_masquerade4 = false;
-	memset(ctx->masquerade6, 0, sizeof(ctx->masquerade6));
-	ctx->use_masquerade6 = false;
-	ctx->send_func = NULL;
-	ctx->recv_func = NULL;
-	ctx->router_ctx = NULL;
+	if(rwlock != NULL) {
+		pthread_rwlock_wrlock(rwlock);
+	}
 
-	ctx->bytes_in = 0;
-	ctx->bytes_out = 0;
+	instance->masquerade4 = 0;
+	instance->use_masquerade4 = false;
+	memset(instance->masquerade6, 0, sizeof(instance->masquerade6));
+	instance->use_masquerade6 = false;
+	instance->router_ctx = NULL;
 
-	destroy_VpnTunnel(ctx->j_vpn_tun);
-	ctx->j_vpn_tun = NULL;
+	instance->bytes_in = 0;
+	instance->bytes_out = 0;
 
-	pcap_output_destroy(ctx->pcap_output);
-	ctx->pcap_output = NULL;
+	LOGD(LOG_TAG, "Prepare to destroy java_VpnTunnel at %p", instance->j_vpn_tun);
+	destroy_VpnTunnel(instance->j_vpn_tun);
+	instance->j_vpn_tun = NULL;
 
-	pthread_rwlock_unlock(ctx->rwlock);
-	pthread_rwlock_destroy(ctx->rwlock);
-	free(ctx->rwlock);
-	ctx->rwlock = NULL;
+	LOGD(LOG_TAG, "Prepare to destroy pcap_output_t at %p", instance->pcap_output);
+	pcap_output_destroy(instance->pcap_output);
+	instance->pcap_output = NULL;
+
+	if(rwlock != NULL) {
+		pthread_rwlock_unlock(rwlock);
+		pthread_rwlock_destroy(rwlock);
+		free(rwlock);
+	}
+
+	instance->rwlock = NULL;
+
+	memset(instance, 0, sizeof(struct tun_ctx_private_t));
+	free(instance);
+
+	LOGD(LOG_TAG, "End of destroying tun_ctx_t at %p", ptr);
 }
 
-ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
+static ssize_t tun_ctx_send(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
+	if(tun_ctx == NULL) {
 		errno = EBADF;
 		return -1;
 	}
-
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
 
 	//start capture
 	pcap_output_write(ctx->pcap_output, buff, 0, len);
@@ -108,13 +91,13 @@ ssize_t common_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 	return write(ctx->local_fd, buff, len);
 }
 
-ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
+static ssize_t tun_ctx_recv(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
+	if(tun_ctx == NULL) {
 		errno = EBADF;
 		return -1;
 	}
 
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
 
 	int res = read_ip_packet(ctx->local_fd, buff, len);
 	if(res < 0) {
@@ -137,30 +120,13 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 	//end capture
 
 	pthread_rwlock_rdlock(ctx->router_ctx->rwlock4);
-	if((buff[0] & 0xf0) == 0x40 && ctx->router_ctx->dev_tun_ctx.use_masquerade4) {
-		ip4_header* hdr = (ip4_header*) buff;
-		hdr->daddr = htonl(ctx->router_ctx->dev_tun_ctx.masquerade4);
-		ip4_calc_ip_checksum(buff, res);
+	tun_ctx_t* dev_tun_ctx = ctx->router_ctx->dev_tun_ctx;
+	dev_tun_ctx->masqueradeDst(dev_tun_ctx, buff, res);
 
-		switch(hdr->protocol) {
-		case IPPROTO_TCP: {
-			ip4_calc_tcp_checksum(buff, res);
-			break;
-		}
-		default: {
-			LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", hdr->protocol);
-			break;
-		}
-		}
-	} else if((buff[0] & 0xf0) == 0x60 && ctx->router_ctx->dev_tun_ctx.use_masquerade6) {
-		LOGE(LOG_TAG, "IPv6 masquerading isn't supported yet");
-	}
-
-	ctx->router_ctx->dev_tun_ctx.bytes_out += res;
-
-	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
+	res = dev_tun_ctx->send(dev_tun_ctx, buff, res);
 	if(res < 0) {
-		LOGE(LOG_TAG, "Error while writing to a /dev/net/tun socket (fd=%d)", ctx->router_ctx->dev_tun_ctx.local_fd);
+		LOGE(LOG_TAG, "Error while writing to a /dev/net/tun socket (fd=%d)",
+				dev_tun_ctx->getLocalFd(dev_tun_ctx));
 		LOGE(LOG_TAG, "Packet dump (buff=%p, len=%d)", buff, res);
 		log_dump_packet(LOG_TAG, buff, len);
 	}
@@ -168,20 +134,268 @@ ssize_t common_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
 	return res;
 }
 
-ssize_t common_tun_pipe(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
-		errno = EBADF;
-		return -1;
+static void set_router_context(tun_ctx_t* instance, router_ctx_t* router_ctx) {
+	if(instance == NULL) {
+		return;
 	}
 
-	common_tun_ctx_t* ctx = (common_tun_ctx_t*) tun_ctx;
-
-	int res = read_ip_packet(ctx->local_fd, buff, len);
-	if(res < 0) {
-		return res;
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) instance;
+	if(ctx->router_ctx != NULL && ctx->router_ctx != router_ctx) {
+		LOGW(LOG_TAG, "Potential memory leak while setting router context (%p rewrites %p)", router_ctx, ctx->router_ctx);
 	}
 
-	res = write(ctx->router_ctx->dev_tun_ctx.local_fd, buff, res);
-	return res;
+	ctx->router_ctx = router_ctx;
+}
+
+static void set_java_vpn_tunnel(tun_ctx_t* tun_ctx, jobject object) {
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	ctx->j_vpn_tun = wrap_into_VpnTunnel(object);
+}
+
+static int get_local_fd(tun_ctx_t* tun_ctx) {
+	if(tun_ctx == NULL) {
+		return UNDEFINED_FD;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	return ctx->local_fd;
+}
+
+static int get_remote_fd(tun_ctx_t* tun_ctx) {
+	if(tun_ctx == NULL) {
+		return UNDEFINED_FD;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	return ctx->remote_fd;
+}
+
+static void set_masquerade4_mode(tun_ctx_t* tun_ctx, bool mode) {
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	ctx->use_masquerade4 = mode;
+}
+
+static void set_masquerade4_ip(tun_ctx_t* tun_ctx, uint32_t ip) {
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	ctx->masquerade4 = ip;
+}
+
+static void set_masquerade6_mode(tun_ctx_t* tun_ctx, bool mode) {
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	ctx->use_masquerade6 = mode;
+}
+
+static void set_masquerade6_ip(tun_ctx_t* tun_ctx, uint8_t* ip) {
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	memcpy(ctx->masquerade6, ip, 16);
+}
+
+static void masquerade_src(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	ocpa_ip_packet_t packet;
+	memset(&packet, 0, sizeof(packet));
+	packet.buff = buff;
+	packet.buff_len = len;
+	packet.pkt_len = len;
+	ip_parse_packet(&packet);
+
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+
+	if(packet.ipver == 4 && ctx->use_masquerade4) {
+		packet.ip_header.v4->saddr = htonl(ctx->masquerade4);
+		ip4_calc_ip_checksum(buff, len);
+
+		switch(packet.payload_proto) {
+		case IPPROTO_TCP: {
+			ip4_calc_tcp_checksum(buff, len);
+			break;
+		}
+		case IPPROTO_UDP: {
+			ip4_calc_udp_checksum(buff, len);
+			break;
+		}
+		default: {
+			LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", packet.payload_proto);
+			break;
+		}
+		}
+	} else if(packet.ipver == 6 && ctx->use_masquerade6) {
+		memcpy(packet.ip_header.v6->ip6_src.s6_addr, ctx->masquerade6, 16);
+
+		switch(packet.payload_proto) {
+		case IPPROTO_TCP: {
+			uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
+			ip6_calc_tcp_checksum(common_sum, buff + packet.payload_offs, packet.payload_len);
+			break;
+		}
+		case IPPROTO_UDP: {
+			uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
+			ip6_calc_udp_checksum(common_sum, buff + packet.payload_offs, packet.payload_len);
+			break;
+		}
+		default: {
+			LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", packet.payload_proto);
+			break;
+		}
+		}
+	}
+}
+
+static void masquerade_dst(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
+	if(tun_ctx == NULL) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+
+	ocpa_ip_packet_t packet;
+	memset(&packet, 0, sizeof(packet));
+	packet.buff = buff;
+	packet.buff_len = len;
+	packet.pkt_len = len;
+	ip_parse_packet(&packet);
+
+	if(packet.ipver == 4 && ctx->use_masquerade4) {
+		packet.ip_header.v4->daddr = htonl(ctx->masquerade4);
+		ip4_calc_ip_checksum(buff, len);
+
+		switch(packet.payload_proto) {
+		case IPPROTO_TCP: {
+			ip4_calc_tcp_checksum(buff, len);
+			break;
+		}
+		case IPPROTO_UDP: {
+			ip4_calc_udp_checksum(buff, len);
+			break;
+		}
+		default: {
+			LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", packet.payload_proto);
+			break;
+		}
+		}
+	} else if(packet.ipver == 6 && ctx->use_masquerade6) {
+		memcpy(packet.ip_header.v6->ip6_dst.s6_addr, ctx->masquerade6, 16);
+
+		switch(packet.payload_proto) {
+		case IPPROTO_TCP: {
+			uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
+			ip6_calc_tcp_checksum(common_sum, buff + packet.payload_offs, packet.payload_len);
+			break;
+		}
+		case IPPROTO_UDP: {
+			uint16_t common_sum = ip6_calc_common_pseudoheader_sum(buff, len);
+			ip6_calc_udp_checksum(common_sum, buff + packet.payload_offs, packet.payload_len);
+			break;
+		}
+		default: {
+			LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", packet.payload_proto);
+			break;
+		}
+		}
+	}
+}
+
+static void debug_restart_pcap(tun_ctx_t* tun_ctx, jobject object) {
+	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) tun_ctx;
+
+	if(instance->pcap_output != NULL) {
+		pcap_output_reset(instance->pcap_output, object);
+	} else {
+		instance->pcap_output = pcap_output_init(object);
+	}
+}
+
+static void debug_stop_pcap(tun_ctx_t* tun_ctx) {
+	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) tun_ctx;
+
+	if(instance->pcap_output != NULL) {
+		pcap_output_flush(instance->pcap_output);
+		pcap_output_close(instance->pcap_output);
+		pcap_output_destroy(instance->pcap_output);
+		instance->pcap_output = NULL;
+	}
+}
+
+tun_ctx_t* create_tun_ctx(tun_ctx_t* ptr, ssize_t len) {
+	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) ptr;
+	ssize_t instance_size = len;
+	if(ptr == NULL || len < sizeof(struct tun_ctx_private_t)) {
+		instance_size = sizeof(struct tun_ctx_private_t);
+		instance = malloc(instance_size);
+		if(instance == NULL) {
+			return NULL;
+		}
+	}
+
+	memset(instance, 0, instance_size);
+
+	REFS_INIT(tun_ctx_t, instance)
+	ref_get_tun_ctx_t(&instance->public); //increment reference count for object itself
+	instance->public.destroy = destroy_tun_ctx;
+	instance->public.send = tun_ctx_send;
+	instance->public.recv = tun_ctx_recv;
+	instance->public.masqueradeSrc = masquerade_src;
+	instance->public.masqueradeDst = masquerade_dst;
+	instance->public.getLocalFd = get_local_fd;
+	instance->public.getRemoteFd = get_remote_fd;
+	instance->public.setMasquerade4Mode = set_masquerade4_mode;
+	instance->public.setMasquerade4Ip = set_masquerade4_ip;
+	instance->public.setMasquerade6Mode = set_masquerade6_mode;
+	instance->public.setMasquerade6Ip = set_masquerade6_ip;
+	instance->public.setRouterContext = set_router_context;
+	instance->public.setJavaVpnTunnel = set_java_vpn_tunnel;
+	instance->public.debugRestartPcap = debug_restart_pcap;
+	instance->public.debugStopPcap = debug_stop_pcap;
+
+	pthread_rwlock_t* rwlock = malloc(sizeof(pthread_rwlock_t));
+	if(rwlock == NULL) {
+		return instance->public.ref_put((tun_ctx_t*) instance);
+	}
+	if(pthread_rwlock_init(rwlock, NULL) != 0) {
+		free(rwlock);
+		return instance->public.ref_put((tun_ctx_t*) instance);
+	}
+
+	instance->rwlock = rwlock;
+	instance->local_fd = UNDEFINED_FD;
+	instance->remote_fd = UNDEFINED_FD;
+	instance->masquerade4 = 0;
+	memset(instance->masquerade6, 0, sizeof(instance->masquerade6));
+	instance->use_masquerade4 = false;
+	instance->use_masquerade6 = false;
+	instance->router_ctx = NULL;
+
+	instance->bytes_in = 0;
+	instance->bytes_out = 0;
+
+	instance->j_vpn_tun = NULL;
+
+	instance->pcap_output = NULL;
+
+	return &instance->public;
 }
 
