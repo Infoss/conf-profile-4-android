@@ -9,13 +9,8 @@
 
 #include "tun.h"
 
-typedef struct l2tp_tun_ctx_t l2tp_tun_ctx_t;
+typedef tun_ctx_t l2tp_tun_ctx_t;
 
-struct l2tp_tun_ctx_t {
-	common_tun_ctx_t common;
-};
-
-l2tp_tun_ctx_t* l2tp_tun_init(jobject jtun_instance);
-void l2tp_tun_deinit(l2tp_tun_ctx_t* ctx);
+l2tp_tun_ctx_t* create_l2tp_tun_ctx(l2tp_tun_ctx_t* ptr, ssize_t len);
 
 #endif /* TUN_L2TP_H_ */
