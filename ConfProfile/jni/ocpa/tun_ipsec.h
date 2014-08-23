@@ -9,13 +9,8 @@
 
 #include "tun.h"
 
-typedef struct ipsec_tun_ctx_t ipsec_tun_ctx_t;
+typedef tun_ctx_t ipsec_tun_ctx_t;
 
-struct ipsec_tun_ctx_t {
-	common_tun_ctx_t common;
-};
-
-ipsec_tun_ctx_t* ipsec_tun_init(jobject jtun_instance);
-void ipsec_tun_deinit(ipsec_tun_ctx_t* ctx);
+ipsec_tun_ctx_t* create_ipsec_tun_ctx(ipsec_tun_ctx_t* ptr, ssize_t len);
 
 #endif /* TUN_IPSEC_H_ */
