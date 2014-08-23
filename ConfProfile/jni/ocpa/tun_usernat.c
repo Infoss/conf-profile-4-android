@@ -13,11 +13,30 @@
 #include "android_log_utils.h"
 #include "android_jni.h"
 #include "tun_usernat.h"
+#include "tun_private.h"
 #include "protoheaders.h"
 #include "sockaddrs.h"
 #include "router.h"
 
 #define LOG_TAG "tun_usernat.c"
+
+struct usernat_tun_ctx_private_t {
+	union {
+		tun_ctx_t public;
+		struct tun_ctx_private_t tun_ctx;
+	};
+
+	void (*original_destroy)(tun_ctx_t* instance);
+
+	uint32_t local4;
+	uint8_t local6[16];
+	uint32_t remote4;
+	uint8_t remote6[16];
+
+	nat_link_t* links;
+
+	java_UsernatTunnel* j_usernat_tun;
+};
 
 static nat_link_t* link_init();
 static void link_deinit(nat_link_t* link);
@@ -27,59 +46,63 @@ static nat_link_t* create_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet,
 static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet);
 static nat_link_t* create_link_udp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet);
 
-usernat_tun_ctx_t* usernat_tun_init(jobject jtun_instance) {
-	usernat_tun_ctx_t* ctx = malloc(sizeof(usernat_tun_ctx_t));
-	if(ctx == NULL) {
-		return NULL;
+static int create_socket(usernat_tun_ctx_t* ctx, int family, int socktype, int protocol, bool protect) {
+	int sock = socket(family, socktype, protocol);
+	if(sock == -1) {
+		LOGD(LOG_TAG, "create_socket(): can't create socket");
+		return sock;
 	}
 
-	memset(ctx, 0, sizeof(usernat_tun_ctx_t));
-	if(!common_tun_set((common_tun_ctx_t*) ctx, jtun_instance)) {
-		memset(ctx, 0, sizeof(usernat_tun_ctx_t));
-		free(ctx);
-		return NULL;
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
+
+	if(protect) {
+		LOGD(LOG_TAG, "create_socket(): protecting socket %d", sock);
+		bool is_protected = instance->tun_ctx.j_vpn_tun->protectSocket(
+				instance->tun_ctx.j_vpn_tun,
+				sock
+				);
+
+		if(!is_protected) {
+			LOGE(LOG_TAG, "create_socket(): can't protect socket");
+			close(sock);
+			errno = EBADF;
+			return -1;
+		}
 	}
 
-	pthread_rwlock_wrlock(ctx->common.rwlock);
-	ctx->common.send_func = usernat_tun_send;
-	ctx->common.recv_func = usernat_tun_recv;
-
-	ctx->local4 = 0;
-	memset(ctx->local6, 0, sizeof(ctx->local6));
-	ctx->remote4 = 0;
-	memset(ctx->remote6, 0, sizeof(ctx->remote6));
-
-	ctx->j_usernat_tun = wrap_into_UsernatTunnel(jtun_instance);
-
-	ctx->local4 = ctx->j_usernat_tun->getLocalAddress4(ctx->j_usernat_tun);
-	ctx->remote4 = ctx->j_usernat_tun->getRemoteAddress4(ctx->j_usernat_tun);
-	pthread_rwlock_unlock(ctx->common.rwlock);
-
-	return ctx;
+	return sock;
 }
 
-void usernat_tun_deinit(usernat_tun_ctx_t* ctx) {
+static void destroy_usernat_tun_ctx(usernat_tun_ctx_t* ctx) {
 	if(ctx == NULL) {
 		return;
 	}
 
-	pthread_rwlock_wrlock(ctx->common.rwlock);
-	common_tun_free((common_tun_ctx_t*) ctx);
-	destroy_UsernatTunnel(ctx->j_usernat_tun);
-	ctx->j_usernat_tun = NULL;
-	pthread_rwlock_unlock(ctx->common.rwlock);
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
 
-	free(ctx);
+	pthread_rwlock_t* rwlock = instance->tun_ctx.rwlock;
+
+	if(rwlock != NULL) {
+		pthread_rwlock_wrlock(rwlock);
+	}
+
+	destroy_UsernatTunnel(instance->j_usernat_tun);
+	instance->j_usernat_tun = NULL;
+	if(rwlock != NULL) {
+		pthread_rwlock_unlock(rwlock);
+	}
+
+	instance->original_destroy(&instance->public);
 }
 
-ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
-	if(tun_ctx == (intptr_t) NULL) {
+static ssize_t usernat_tun_ctx_send(tun_ctx_t* ctx, uint8_t* buff, int len) {
+	if(ctx == NULL) {
 		errno = EBADF;
 		return -1;
 	}
 
 	//we received this packet from TUN device
-	usernat_tun_ctx_t* ctx = (usernat_tun_ctx_t*) tun_ctx;
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
 	ocpa_ip_packet_t packet;
 	memset(&packet, 0, sizeof(packet));
 	packet.buff = buff;
@@ -89,24 +112,24 @@ ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 
 	bool is_incoming = false;
 
-	nat_link_t* link = find_link(ctx, &packet, &is_incoming);
+	nat_link_t* link = find_link(instance, &packet, &is_incoming);
 	if(link == NULL) {
 		//this packet is invalid, drop it
 		LOGD(LOG_TAG, "can't find appropriate link, dropping a packet");
 		return 0;
 	}
 
-	pthread_rwlock_rdlock(ctx->common.rwlock);
+	pthread_rwlock_rdlock(instance->tun_ctx.rwlock);
 	if(packet.ipver == 4) {
 		if(is_incoming) {
 			//incoming usernat packet
 			packet.ip_header.v4->saddr = htonl(link->ip4.real_dst_addr);
-			packet.ip_header.v4->daddr = htonl(ctx->local4);
+			packet.ip_header.v4->daddr = htonl(instance->local4);
 			packet.payload_header.tcp->source = htons(link->ip4.real_dst_port);
 		} else {
 			//outgoing usernat packet
-			packet.ip_header.v4->saddr = htonl(ctx->remote4);
-			packet.ip_header.v4->daddr = htonl(ctx->local4);
+			packet.ip_header.v4->saddr = htonl(instance->remote4);
+			packet.ip_header.v4->daddr = htonl(instance->local4);
 			packet.payload_header.tcp->dest = htons(link->common.hop_port);
 		}
 
@@ -134,7 +157,7 @@ ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 	//ctx->router_ctx->dev_tun_ctx.bytes_out += res;
 
 	//start capture
-	pcap_output_write(ctx->common.pcap_output, buff, 0, len);
+	pcap_output_write(instance->tun_ctx.pcap_output, buff, 0, len);
 	//end capture
 
 	if(link->common.enqueue_packets) {
@@ -162,7 +185,7 @@ ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 			ql = NULL;
 		}
 	}
-	pthread_rwlock_unlock(ctx->common.rwlock);
+	pthread_rwlock_unlock(instance->tun_ctx.rwlock);
 
 	if(buff == NULL) {
 		//packet was enqueued
@@ -170,19 +193,58 @@ ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len) {
 		return 0;
 	}
 
-	pthread_rwlock_rdlock(ctx->common.router_ctx->rwlock4);
-	len = write(ctx->common.router_ctx->dev_tun_ctx.local_fd, buff, len);
-	pthread_rwlock_unlock(ctx->common.router_ctx->rwlock4);
+	tun_ctx_t* dev_tun_ctx = instance->tun_ctx.router_ctx->dev_tun_ctx;
+	len = dev_tun_ctx->send(dev_tun_ctx, buff, len);
 
 	return len;
 }
 
-ssize_t usernat_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len) {
+static ssize_t usernat_tun_ctx_recv(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
 	//this function should never be called
 	LOGE(LOG_TAG, "usernat_tun_recv() called");
 	errno = EBADF;
 	return -1;
 }
+
+usernat_tun_ctx_t* create_usernat_tun_ctx(usernat_tun_ctx_t* ptr, ssize_t len, jobject jtun_instance) {
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ptr;
+	ssize_t instance_size = len;
+	if(ptr == NULL || len < sizeof(struct usernat_tun_ctx_private_t)) {
+		instance_size = sizeof(struct usernat_tun_ctx_private_t);
+		instance = malloc(instance_size);
+		if(instance == NULL) {
+			return NULL;
+		}
+	}
+
+	memset(instance, 0, instance_size);
+
+	tun_ctx_t* result = create_tun_ctx(&instance->public, instance_size);
+	if(result == NULL) {
+		return NULL;
+	}
+
+	instance->original_destroy = instance->public.destroy;
+
+	//setting functions
+	instance->public.destroy = destroy_usernat_tun_ctx;
+	instance->public.send = usernat_tun_ctx_send;
+	instance->public.recv = usernat_tun_ctx_recv;
+
+	instance->local4 = 0;
+	memset(instance->local6, 0, sizeof(instance->local6));
+	instance->remote4 = 0;
+	memset(instance->remote6, 0, sizeof(instance->remote6));
+
+	instance->j_usernat_tun = wrap_into_UsernatTunnel(jtun_instance);
+
+	instance->local4 = instance->j_usernat_tun->getLocalAddress4(instance->j_usernat_tun);
+	instance->remote4 = instance->j_usernat_tun->getRemoteAddress4(instance->j_usernat_tun);
+
+	return &instance->public;
+}
+
+
 
 void usernat_set_pid_for_link(intptr_t tun_ctx, intptr_t link_ptr, int pid) {
 	if(tun_ctx == (intptr_t) NULL || link_ptr == (intptr_t) NULL) {
@@ -192,12 +254,13 @@ void usernat_set_pid_for_link(intptr_t tun_ctx, intptr_t link_ptr, int pid) {
 	LOGD(LOG_TAG, "Pid=%d for link %p", pid, (nat_link_t*) link_ptr);
 
 	usernat_tun_ctx_t* ctx = (usernat_tun_ctx_t*) tun_ctx;
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
 	nat_link_t* link = (nat_link_t*) link_ptr;
 	queue* q = NULL;
 
 	//first, try to find a link
-	pthread_rwlock_wrlock(ctx->common.rwlock);
-	nat_link_t* curr_link = ctx->links;
+	pthread_rwlock_wrlock(instance->tun_ctx.rwlock);
+	nat_link_t* curr_link = instance->links;
 	nat_link_t* prev_link = NULL;
 
 	while(curr_link != NULL) {
@@ -214,7 +277,7 @@ void usernat_set_pid_for_link(intptr_t tun_ctx, intptr_t link_ptr, int pid) {
 
 			//if prev_link is NULL, it means that we're at the 1st element of list
 			if(prev_link == NULL) {
-				ctx->links = curr_link;
+				instance->links = curr_link;
 			} else {
 				prev_link->common.next = curr_link;
 			}
@@ -250,19 +313,18 @@ void usernat_set_pid_for_link(intptr_t tun_ctx, intptr_t link_ptr, int pid) {
 		}
 	}
 
-	pthread_rwlock_unlock(ctx->common.rwlock);
+	pthread_rwlock_unlock(instance->tun_ctx.rwlock);
 
 	if(q != NULL) {
 		LOGE(LOG_TAG, "Ready to write enqueued packets");
-		pthread_rwlock_rdlock(ctx->common.router_ctx->rwlock4);
+		tun_ctx_t* dev_tun_ctx = instance->tun_ctx.router_ctx->dev_tun_ctx;
 		queue_link* ql;
 		while((ql = queue_get(q)) != NULL) {
-			write(ctx->common.router_ctx->dev_tun_ctx.local_fd, ql->buff, ql->size);
+			dev_tun_ctx->send(dev_tun_ctx, ql->buff, ql->size);
 			queue_link_deinit(ql);
 		}
 		queue_deinit(q);
 		q = NULL;
-		pthread_rwlock_unlock(ctx->common.router_ctx->rwlock4);
 	}
 }
 
@@ -293,6 +355,8 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 		return NULL;
 	}
 
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
+
 	nat_link_t* result = NULL;
 
 	uint16_t local_port = 0;
@@ -301,14 +365,14 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 
 	if(packet->ipver == 4) {
 		uint32_t remote_addr = 0;
-		pthread_rwlock_rdlock(ctx->common.rwlock);
-		if(ip4_addr_eq(ctx->remote4, ntohl(packet->ip_header.v4->daddr))) {
+		pthread_rwlock_rdlock(instance->tun_ctx.rwlock);
+		if(ip4_addr_eq(instance->remote4, ntohl(packet->ip_header.v4->daddr))) {
 			//incoming usernat packet
 			(*is_incoming) = true;
 			local_port = packet->dst_port;
-			remote_addr = ctx->remote4;
+			remote_addr = instance->remote4;
 			remote_port = packet->src_port;
-		} else if(ip4_addr_eq(ctx->local4, ntohl(packet->ip_header.v4->saddr))) {
+		} else if(ip4_addr_eq(instance->local4, ntohl(packet->ip_header.v4->saddr))) {
 			//outgoing usernat packet
 			(*is_incoming) = false;
 			local_port = packet->src_port;
@@ -317,10 +381,10 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 		} else {
 			//stray packet
 			LOGD(LOG_TAG, "find_link(): stray packet");
-			pthread_rwlock_unlock(ctx->common.rwlock);
+			pthread_rwlock_unlock(instance->tun_ctx.rwlock);
 			return NULL;
 		}
-		pthread_rwlock_unlock(ctx->common.rwlock);
+		pthread_rwlock_unlock(instance->tun_ctx.rwlock);
 
 		nat_link_t* root_link = NULL;
 		uint8_t local_link_type;
@@ -334,10 +398,10 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 		}
 
 
-		pthread_rwlock_rdlock(ctx->common.rwlock);
-		root_link = ctx->links;
-		result = find_link4(root_link, local_link_type, ctx->local4, local_port, remote_addr, remote_port, is_incoming);
-		pthread_rwlock_unlock(ctx->common.rwlock);
+		pthread_rwlock_rdlock(instance->tun_ctx.rwlock);
+		root_link = instance->links;
+		result = find_link4(root_link, local_link_type, instance->local4, local_port, remote_addr, remote_port, is_incoming);
+		pthread_rwlock_unlock(instance->tun_ctx.rwlock);
 
 		if(result == NULL) {
 			if((*is_incoming)) {
@@ -356,24 +420,24 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 			sockaddr_uni tmp_sa;
 
 			//adding a link
-			pthread_rwlock_wrlock(ctx->common.rwlock);
-			result->common.next = ctx->links;
-			ctx->links = result;
-			pthread_rwlock_unlock(ctx->common.rwlock);
+			pthread_rwlock_wrlock(instance->tun_ctx.rwlock);
+			result->common.next = instance->links;
+			instance->links = result;
+			pthread_rwlock_unlock(instance->tun_ctx.rwlock);
 
 			tmp_sa.in.sin_addr.s_addr = htonl(result->ip4.real_dst_addr);
 
 			LOGD(LOG_TAG, "find_link(): call buildSocatTunnel()");
-			pthread_rwlock_rdlock(ctx->common.rwlock);
-			result->common.socat_pid = ctx->j_usernat_tun->buildSocatTunnel(
-					ctx->j_usernat_tun,
+			pthread_rwlock_rdlock(instance->tun_ctx.rwlock);
+			result->common.socat_pid = instance->j_usernat_tun->buildSocatTunnel(
+					instance->j_usernat_tun,
 					result->common.sock_accept,
 					result->common.sock_connect,
 					inet_ntoa(tmp_sa.in.sin_addr),
 					result->ip4.real_dst_port,
 					(int64_t) (intptr_t) result
 					);
-			pthread_rwlock_unlock(ctx->common.rwlock);
+			pthread_rwlock_unlock(instance->tun_ctx.rwlock);
 
 			if(result->common.socat_pid == -1) {
 				LOGE(LOG_TAG, "Error while creating socat tunnel");
@@ -425,7 +489,9 @@ static nat_link_t* find_link4(nat_link_t* root_link, uint8_t local_link_type, ui
 
 		if((*is_incoming)) {
 			//incoming packet
-			if(!(ip4_addr_eq(curr_link->common.usernat_ctx->remote4, remote_addr) &&
+			struct usernat_tun_ctx_private_t* curr_usernat =
+					(struct usernat_tun_ctx_private_t*) curr_link->common.usernat_ctx;
+			if(!(ip4_addr_eq(curr_usernat->remote4, remote_addr) &&
 					remote_port == curr_link->common.hop_port)) {
 				//remote address doesn't match
 				curr_link = curr_link->common.next;
@@ -451,32 +517,7 @@ static nat_link_t* find_link4(nat_link_t* root_link, uint8_t local_link_type, ui
 	return curr_link;
 }
 
-static int create_socket(usernat_tun_ctx_t* ctx, int family, int socktype, int protocol, bool protect) {
-	int sock = socket(family, socktype, protocol);
-	if(sock == -1) {
-		LOGD(LOG_TAG, "create_socket(): can't create socket");
-		return sock;
-	}
 
-	if(protect) {
-		LOGD(LOG_TAG, "create_socket(): protecting socket %d", sock);
-		pthread_rwlock_rdlock(ctx->common.rwlock);
-		bool is_protected = ctx->common.j_vpn_tun->protectSocket(
-				ctx->common.j_vpn_tun,
-				sock
-				);
-		pthread_rwlock_unlock(ctx->common.rwlock);
-
-		if(!is_protected) {
-			LOGE(LOG_TAG, "create_socket(): can't protect socket");
-			close(sock);
-			errno = EBADF;
-			return -1;
-		}
-	}
-
-	return sock;
-}
 
 static nat_link_t* create_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, uint8_t local_link_type) {
 	nat_link_t* result = NULL;
@@ -512,6 +553,8 @@ static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 		return NULL;
 	}
 
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
+
 	LOGD(LOG_TAG, "create_link_tcp4(): %08x:%d->%08x:%d",
 			packet->ip_header.v4->saddr,
 			ntohs(packet->payload_header.tcp->source),
@@ -530,7 +573,7 @@ static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 
 	memset(&tmp_sa.sa, 0, sizeof(tmp_sa));
 	tmp_sa.sa.sa_family = AF_INET;
-	tmp_sa.in.sin_addr.s_addr = htonl(ctx->local4);
+	tmp_sa.in.sin_addr.s_addr = htonl(instance->local4);
 	if(bind(sock_accept, &tmp_sa.sa, sizeof(tmp_sa)) == -1) {
 		LOGD(LOG_TAG, "create_link_tcp4(): can't bind() sock_accept %d: %s", errno, strerror(errno));
 		return NULL;
@@ -587,6 +630,8 @@ static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 static nat_link_t* create_link_udp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
 	sockaddr_uni tmp_sa;
 
+	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
+
 	LOGD(LOG_TAG, "create_link_tcp4(): %08x:%d->%08x:%d",
 			packet->ip_header.v4->saddr,
 			ntohs(packet->payload_header.udp->source),
@@ -601,7 +646,7 @@ static nat_link_t* create_link_udp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 	}
 	memset(&tmp_sa.sa, 0, sizeof(tmp_sa));
 	tmp_sa.sa.sa_family = AF_INET;
-	tmp_sa.in.sin_addr.s_addr = htonl(ctx->local4);
+	tmp_sa.in.sin_addr.s_addr = htonl(instance->local4);
 	if(bind(sock_accept, &tmp_sa.sa, sizeof(tmp_sa)) == -1) {
 		LOGD(LOG_TAG, "create_link_udp4(): can't bind sock_accept %d: %s", errno, strerror(errno));
 		return NULL;

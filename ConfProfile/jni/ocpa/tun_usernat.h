@@ -17,7 +17,7 @@
 #define NAT_LINK_TCP6 (NAT_LINK_TCP4 | NAT_LINK_IP6)
 #define NAT_LINK_UDP6 (NAT_LINK_UDP4 | NAT_LINK_IP6)
 
-typedef struct usernat_tun_ctx_t usernat_tun_ctx_t;
+typedef tun_ctx_t usernat_tun_ctx_t;
 typedef struct nat_common_link_t nat_common_link_t;
 typedef struct nat_ip4_link_t nat_ip4_link_t;
 typedef struct nat_tcp4_link_t nat_tcp4_link_t;
@@ -92,23 +92,8 @@ union nat_link_t {
 	nat_udp6_link_t udp6;
 };
 
-struct usernat_tun_ctx_t {
-	common_tun_ctx_t common;
-	uint32_t local4;
-	uint8_t local6[16];
-	uint32_t remote4;
-	uint8_t remote6[16];
+usernat_tun_ctx_t* create_usernat_tun_ctx(usernat_tun_ctx_t* ptr, ssize_t len, jobject jtun_instance);
 
-	nat_link_t* links;
-
-	java_UsernatTunnel* j_usernat_tun;
-};
-
-usernat_tun_ctx_t* usernat_tun_init(jobject jtun_instance);
-void usernat_tun_deinit(usernat_tun_ctx_t* ctx);
-
-ssize_t usernat_tun_send(intptr_t tun_ctx, uint8_t* buff, int len);
-ssize_t usernat_tun_recv(intptr_t tun_ctx, uint8_t* buff, int len);
 void usernat_set_pid_for_link(intptr_t tun_ctx, intptr_t link_ptr, int pid);
 
 #endif /* TUN_USERNAT_H_ */
