@@ -6,6 +6,8 @@ import java.util.LinkedList;
 import java.util.List;
 
 public class NetworkConfig {
+	public static final NetworkConfig NETWORK_CONFIG_ANY = new NetworkConfig();
+	
 	public static final String IF_UNSUPPORTED = "Unsupported";
 	public static final String IF_ETHER = "Ethernet";
 	public static final String IF_WIFI  = "WiFi";
@@ -124,6 +126,10 @@ public class NetworkConfig {
 	
 	public boolean match(NetworkConfig cfg) {
 		boolean result = true;
+		
+		if(this == NETWORK_CONFIG_ANY || cfg == NETWORK_CONFIG_ANY) {
+			return true;
+		}
 		
 		if(cfg == null) {
 			return false;
