@@ -20,6 +20,11 @@
 #include <library.h>
 #include <threading/thread_value.h>
 
+#include "android_log_utils.h"
+#include "debug.h"
+
+#define LOG_TAG "android_jni.c"
+
 /**
  * JVM
  */
@@ -51,9 +56,12 @@ bool androidjni_attach_thread(JNIEnv **env) {
 	if ((*android_jvm)->GetEnv(android_jvm, (void**)env,
 							   JNI_VERSION_1_6) == JNI_OK) {
 		/* already attached or even a Java thread */
+		LOGDIF(JNI_CORE_DEBUG, LOG_TAG, "androidjni_attach_thread(): false");
 		return false;
 	}
 	(*android_jvm)->AttachCurrentThread(android_jvm, env, NULL);
+	LOGDIF(JNI_CORE_DEBUG, LOG_TAG, "androidjni_attach_thread(): true (androidjni_threadlocal=%p, env=%p)",
+			androidjni_threadlocal, *env);
 
 	/* use a thread-local value with a destructor that automatically detaches
 	 * the thread from the JVM before it terminates, if not done manually */
@@ -65,6 +73,7 @@ bool androidjni_attach_thread(JNIEnv **env) {
  * Described in header
  */
 void androidjni_detach_thread() {
+	LOGDIF(JNI_CORE_DEBUG, LOG_TAG, "androidjni_detach_thread(): true (androidjni_threadlocal=%p)", androidjni_threadlocal);
 	androidjni_threadlocal->set(androidjni_threadlocal, NULL);
 	(*android_jvm)->DetachCurrentThread(android_jvm);
 }

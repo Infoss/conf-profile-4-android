@@ -21,6 +21,9 @@
 #include <credentials/sets/mem_cred.h>
 #include <threading/rwlock.h>
 
+#include "android_log_utils.h"
+#include "debug.h"
+
 typedef struct private_android_creds_t private_android_creds_t;
 
 /**
@@ -255,10 +258,15 @@ METHOD(android_creds_t, clear, void,
 METHOD(android_creds_t, destroy, void,
 	private_android_creds_t *this)
 {
+	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "destroy()");
 	clear(this);
+	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "...destroying creds (%p)", this->creds);
 	this->creds->destroy(this->creds);
+	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "...destroying lock (%p)", this->lock);
 	this->lock->destroy(this->lock);
+	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "...free memory (%p)", this);
 	free(this);
+	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "...destroy() finished");
 }
 
 /**
