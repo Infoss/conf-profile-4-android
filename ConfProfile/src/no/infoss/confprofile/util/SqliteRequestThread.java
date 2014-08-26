@@ -77,7 +77,7 @@ public class SqliteRequestThread extends Thread {
 						
 						@Override
 						public void run() {
-							data.callback.sqliteResuestError(data.request);
+							data.callback.sqliteRequestError(data.request);
 						}
 					});
 				} 
@@ -144,6 +144,9 @@ public class SqliteRequestThread extends Thread {
 		synchronized(data) {
 			while(true) {
 				try {
+					synchronized(this) {
+						notify();
+					}
 					data.wait();
 					break;
 				} catch(Exception e) {
@@ -178,11 +181,11 @@ public class SqliteRequestThread extends Thread {
 	}
 	
 	public abstract class SqliteRequestCallback {
-		public final void sqliteResuestSuccess(Request request) {
+		public final void sqliteRequestSuccess(Request request) {
 			onSqliteRequestSuccess(request);
 		}
 		
-		public final void sqliteResuestError(Request request) {
+		public final void sqliteRequestError(Request request) {
 			onSqliteRequestError(request);
 		}
 		
@@ -193,7 +196,7 @@ public class SqliteRequestThread extends Thread {
 	public abstract class SqliteInsertCallback extends SqliteRequestCallback {
 		public final void sqliteInsertSuccess(Insert request) {
 			onSqliteInsertSuccess(request);
-			sqliteResuestSuccess(request);
+			sqliteRequestSuccess(request);
 		}
 		
 		protected abstract void onSqliteInsertSuccess(Insert request);
@@ -202,7 +205,7 @@ public class SqliteRequestThread extends Thread {
 	public abstract class SqliteUpdateDeleteCallback extends SqliteRequestCallback {
 		public final void sqliteUpdateDeleteSuccess(RequestWithAffectedRows request) {
 			onSqliteUpdateDeleteSuccess(request);
-			sqliteResuestSuccess(request);
+			sqliteRequestSuccess(request);
 		}
 		
 		protected abstract void onSqliteUpdateDeleteSuccess(RequestWithAffectedRows request);
