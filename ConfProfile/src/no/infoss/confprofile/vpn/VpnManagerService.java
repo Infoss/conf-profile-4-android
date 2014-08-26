@@ -1,53 +1,56 @@
 package no.infoss.confprofile.vpn;
 
-import java.io.File;
 import java.net.Socket;
 import java.security.PrivateKey;
 import java.security.Security;
 import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import no.infoss.confprofile.BuildConfig;
-import no.infoss.confprofile.Main;
-import no.infoss.confprofile.R;
 import no.infoss.confprofile.StartVpn;
-import no.infoss.confprofile.task.ObtainOnDemandVpns;
-import no.infoss.confprofile.task.ObtainOnDemandVpns.ObtainOnDemandVpnsListener;
+import no.infoss.confprofile.crypto.CertificateManager;
+import no.infoss.confprofile.format.ConfigurationProfile.Payload;
+import no.infoss.confprofile.format.PayloadFactory;
+import no.infoss.confprofile.format.Plist.Dictionary;
+import no.infoss.confprofile.format.VpnPayload;
+import no.infoss.confprofile.format.json.PlistTypeAdapterFactory;
+import no.infoss.confprofile.profile.DbOpenHelper;
+import no.infoss.confprofile.profile.PayloadsCursorLoader.PayloadsPerformance;
+import no.infoss.confprofile.util.ConfigUtils;
+import no.infoss.confprofile.util.HelperThread;
+import no.infoss.confprofile.util.HelperThread.Callback;
+import no.infoss.confprofile.util.HelperThread.Performer;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.NetUtils;
-import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
 import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
 import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
+import no.infoss.confprofile.vpn.delegates.DebugDelegate;
+import no.infoss.confprofile.vpn.delegates.NotificationDelegate;
 import no.infoss.jcajce.InfossJcaProvider;
-import android.app.Notification;
-import android.app.NotificationManager;
-import android.app.PendingIntent;
 import android.app.Service;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
-import android.content.res.TypedArray;
-import android.graphics.drawable.BitmapDrawable;
-import android.graphics.drawable.Drawable;
+import android.database.Cursor;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.IBinder;
-import android.support.v4.app.NotificationCompat;
 import android.util.Log;
 
-public class VpnManagerService extends Service implements VpnManagerInterface, ObtainOnDemandVpnsListener {
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+
+public class VpnManagerService extends Service implements VpnManagerInterface {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
 	
 	private static final String PREF_LAST_TUN_UUID = "VpnManagerSevice_lastTunnelUuid";
-	private static final String PREF_DEBUG_PCAP = "VpnManagerSevice_debugPcapEnabled";
-	private static final String PCAP_TUN_FILENAME_FMT = "tun(%s)-%d.pcap";
-	private static final String PCAP_NAT_FILENAME_FMT = "usernat(%s)-%d.pcap";
 	
 	private static final List<LocalNetworkConfig> LOCAL_NET_CONFIGS;
 	
@@ -74,7 +77,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		LOCAL_NET_CONFIGS = Collections.unmodifiableList(configs);
 	}
 	
-	private NotificationManager mNtfMgr;
+	
 	private Binder mBinder = new Binder();
 	private NetworkStateListener mNetworkListener;
 	
@@ -94,32 +97,28 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	
 	private NetworkConfig mSavedNetworkConfig;
 	private boolean mSavedFailoverFlag;
-	private boolean mDebugPcapEnabled = false;
-	
-	private int[] mVpnManagerIcons;
-	private int[] mVpnManagerErrorIcons;
 	
 	private LocalNetworkConfig mCurrLocalNetConfig = null;
+	
+	private VpnManagerHelperThread mHelperThread;
+	private DebugDelegate mDebugDelegate;
+	private NotificationDelegate mNtfDelegate;
 	
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		
+		mDebugDelegate = new DebugDelegate(this);
+		mNtfDelegate = new NotificationDelegate(this);
+		
 		mNetworkListener = new NetworkStateListener(getApplicationContext(), this);
+		mHelperThread = new VpnManagerHelperThread();
+		mHelperThread.start();
 		obtainOnDemandVpns();
-		initIcons();
+		
 		
 		mVpnServiceState = SERVICE_STATE_REVOKED;
-		
-		mNtfMgr = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
-		String title = getResources().getString(R.string.notification_title_preparing);
-		String text = getResources().getString(R.string.notification_text_preparing);
-		Notification notification = buildNotification(
-				mVpnManagerIcons[0], 
-				mVpnManagerIcons[0], 
-				title, 
-				text);
-		mNtfMgr.notify(R.string.app_name, notification);
+		mNtfDelegate.notifyPreparing();
 		
 		mBindKit = new SimpleServiceBindKit<OcpaVpnInterface>(this, OcpaVpnInterface.TAG);
 		if(!mBindKit.bind(OcpaVpnService.class, BIND_AUTO_CREATE)) {
@@ -128,17 +127,25 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		
 		SharedPreferences prefs = getSharedPreferences(MiscUtils.PREFERENCE_FILE, MODE_PRIVATE);
 		mLastVpnTunnelUuid = prefs.getString(PREF_LAST_TUN_UUID, null);
-		
-		if(BuildConfig.DEBUG) {
-			mDebugPcapEnabled = prefs.getBoolean(PREF_DEBUG_PCAP, false);
-		}
 	}
 	
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
+		
+		mDebugDelegate.releaseResources();
+		mDebugDelegate = null;
+		
+		mNtfDelegate.releaseResources();
+		mNtfDelegate = null;
+		
 		mNetworkListener = null;
-		mNtfMgr.cancel(R.string.app_name);
+		mNtfDelegate.cancelNotification();
+		
+		if(mHelperThread != null) {
+			mHelperThread.interrupt();
+		}
+		mHelperThread = null;
 	}
 	
 	@Override
@@ -191,7 +198,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			}
 			mRouterLoop = null;
 			
-			mNtfMgr.cancel(R.string.app_name);
+			mNtfDelegate.cancelNotification();
 			/*
 			OcpaVpnInterface vpnService = mBindKit.lock();
 			if(vpnService != null) {
@@ -239,7 +246,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);
 			
-			if(mDebugPcapEnabled) {
+			if(mDebugDelegate.isDebugPcapEnabled()) {
 				debugStartPcap();
 			}
 			
@@ -256,7 +263,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		}
 		
 	}
-	
+
 	@Override
 	public void notifyVpnServiceRevoked() {
 		mVpnServiceState = SERVICE_STATE_REVOKED;
@@ -281,14 +288,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		}
 		mRouterLoop = null;
 		
-		String title = getResources().getString(R.string.notification_title_error_revoked);
-		String text = getResources().getString(R.string.notification_text_error_revoked);
-		Notification notification = buildNotification(
-				mVpnManagerErrorIcons[2], 
-				mVpnManagerErrorIcons[2], 
-				title, 
-				text);
-		mNtfMgr.notify(R.string.app_name, notification);
+		mNtfDelegate.notifyRevoked();
 	}
 	
 	@Override
@@ -331,28 +331,14 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		intent.putExtra(KEY_TUNNEL_STATE, tunStatus);
 		sendBroadcast(intent);
 		
-		String title;
-		String text;
-		int smallIconId;
-		int largeIconId;
-		//TODO: implement notification based on the connection status
-		
 		switch(tunStatus) {
 		case TUNNEL_STATE_CONNECTING: {
-			title = getResources().getString(R.string.notification_title_connecting);
-			text = getResources().getString(R.string.notification_text_connecting);
-			
-			smallIconId = mVpnManagerIcons[1];
-			largeIconId = mVpnManagerIcons[1];
+			mNtfDelegate.notifyConnecting();
 			break;
 		}
 		
 		case TUNNEL_STATE_CONNECTED: {
-			title = getResources().getString(R.string.notification_title_connected);
-			text = getResources().getString(R.string.notification_text_connected);
-			
-			smallIconId = mVpnManagerIcons[3];
-			largeIconId = mVpnManagerIcons[3];
+			mNtfDelegate.notifyConnected();
 			break;
 		}
 		
@@ -360,21 +346,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		case TUNNEL_STATE_DISCONNECTED:
 		case TUNNEL_STATE_TERMINATED:
 		default: {
-			title = getResources().getString(R.string.notification_title_disconnected);
-			text = getResources().getString(R.string.notification_text_disconnected);
-			
-			smallIconId = mVpnManagerIcons[4];
-			largeIconId = mVpnManagerIcons[4];
+			mNtfDelegate.notifyDisconnected();
 			break;
 		}
 		}
-		
-		Notification notification = buildNotification(
-				smallIconId, 
-				largeIconId, 
-				title, 
-				text);
-		mNtfMgr.notify(R.string.app_name, notification);
 	}
 
 	@Override
@@ -443,8 +418,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 						mCurrentTunnel = tun;
 						tun.establishConnection(info.params);
 						
-						if(mDebugPcapEnabled) {
-							debugStartTunnelPcap(PCAP_TUN_FILENAME_FMT, tun);
+						if(mDebugDelegate.isDebugPcapEnabled()) {
+							mDebugDelegate.debugStartTunnelPcap(mRouterLoop.getMtu(), tun);
 						}
 						
 						mRouterLoop.defaultRoute4(tun);
@@ -478,14 +453,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_LOCKED);
 		sendBroadcast(intent);
 		
-		String title = getResources().getString(R.string.notification_title_error_always_on);
-		String text = getResources().getString(R.string.notification_text_error_always_on);
-		Notification notification = buildNotification(
-				mVpnManagerErrorIcons[1], 
-				mVpnManagerErrorIcons[1], 
-				title, 
-				text);
-		mNtfMgr.notify(R.string.app_name, notification);
+		mNtfDelegate.notifyLockedBySystem();
 	}
 	
 	@Override
@@ -497,14 +465,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 		intent.putExtra(KEY_SERVICE_STATE, SERVICE_STATE_UNSUPPORTED);
 		sendBroadcast(intent);
 		
-		String title = getResources().getString(R.string.notification_title_error_unsupported);
-		String text = getResources().getString(R.string.notification_text_error_unsupported);
-		Notification notification = buildNotification(
-				mVpnManagerErrorIcons[0], 
-				mVpnManagerErrorIcons[0], 
-				title, 
-				text);
-		mNtfMgr.notify(R.string.app_name, notification);
+		mNtfDelegate.notifyUnsupported();
 	}
 	
 	@Override
@@ -555,143 +516,46 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 	public int getSubnetMask4() {
 		return mCurrLocalNetConfig.subnetMask;
 	}
-	
-	@Override
-	public boolean isDebugPcapEnabled() {
-		return mDebugPcapEnabled;
-	}
-	
-	@Override
-	public boolean debugStartPcap() {
-		if(BuildConfig.DEBUG) {
-			if(!MiscUtils.isExternalStorageWriteable()) {
-				mDebugPcapEnabled = false;
-				storeDebugPcapEnabled(mDebugPcapEnabled);
-				return false;
-			}
-			
-			File externalFilesDir = getExternalFilesDir(null);
-			if(externalFilesDir == null) {
-				//error: storage error
-				mDebugPcapEnabled = false;
-				storeDebugPcapEnabled(mDebugPcapEnabled);
-				return false;
-			}
-			
-			String pcapFileName;
-			PcapOutputStream os = null;
-			
-			int mtu = 1500;
-			
-			//capture from router loop
-			if(mRouterLoop != null) {
-				try {
-					pcapFileName = String.format("router-%d.pcap", System.currentTimeMillis());
-					mtu = mRouterLoop.getMtu();
-					os = new PcapOutputStream(
-							new File(externalFilesDir, pcapFileName), 
-							mtu, 
-							PcapOutputStream.LINKTYPE_RAW);
-					mRouterLoop.debugRestartPcap(os);
-				} catch(Exception e) {
-					Log.e(TAG, "Restart pcap error", e);
-				}
-			}
-			
-			//capture from tunnel
-			if(mCurrentTunnel != null) {
-				debugStartTunnelPcap(PCAP_TUN_FILENAME_FMT, mCurrentTunnel);
-			}
-			
-			if(mUsernatTunnel != null) {
-				debugStartTunnelPcap(PCAP_NAT_FILENAME_FMT, mUsernatTunnel);
-			}
-			
-			mDebugPcapEnabled = true;
-			storeDebugPcapEnabled(mDebugPcapEnabled);
-			return true;
-		}
-		
-		storeDebugPcapEnabled(false);
-		return false;
-	}
-	
-	@Override
-	public boolean debugStopPcap() {
-		if(BuildConfig.DEBUG) {
-			mDebugPcapEnabled = false;
-			storeDebugPcapEnabled(mDebugPcapEnabled);
-			
-			if(mRouterLoop != null) {
-				try {
-					mRouterLoop.debugStopPcap();
-				} catch(Exception e) {
-					Log.e(TAG, "Stop pcap error", e);
-				}
-			}
-			
-			if(mCurrentTunnel != null) {
-				try {
-					mCurrentTunnel.debugStopPcap();
-				} catch(Exception e) {
-					Log.e(TAG, "Stop pcap error", e);
-				}
-			}
-			
-			if(mUsernatTunnel != null) {
-				try {
-					mUsernatTunnel.debugStopPcap();
-				} catch(Exception e) {
-					Log.e(TAG, "Stop pcap error", e);
-				}
-			}
-			
-			return true;
-		}
-		
-		storeDebugPcapEnabled(false);
-		return false;
-	}
-	
-	private void storeDebugPcapEnabled(boolean enabled) {
-		SharedPreferences prefs = getSharedPreferences(MiscUtils.PREFERENCE_FILE, MODE_PRIVATE);
-		Editor editor = prefs.edit();
-		editor.putBoolean(PREF_DEBUG_PCAP, enabled);
-		editor.commit();
-	}
 
-	/*package*/ RouterLoop getRouterLoop() {
+	public RouterLoop getRouterLoop() {
 		return mRouterLoop;
 	}
 	
 	public void obtainOnDemandVpns() {
-		if(!mIsRequestActive) {
+		if(!mIsRequestActive && mHelperThread != null) {
 			mIsRequestActive = true;
-			new ObtainOnDemandVpns(this, this).execute((Void[]) null);
-		}
-	}
+			mHelperThread.request(new OnDemandVpnListRequest(), 
+					new OnDemandVpnListPerformer(getApplicationContext()), 
+					new Callback<VpnManagerService.OnDemandVpnListRequest, 
+							VpnManagerService.OnDemandVpnListPerformer>() {
 
-	@Override
-	public void obtainOnDemandVpnsSuccess(ObtainOnDemandVpns task, List<VpnConfigInfo> result) {
-		mIsRequestActive = false;
-		if(mConfigInfos != null) {
-			mConfigInfos.clear();
-		}
-		
-		mConfigInfos = result;
-		
-		if(mConfigInfos != null) {
-			Collections.reverse(mConfigInfos);
-		}
-		
-		updateCurrentConfiguration();
-	}
+						@Override
+						public void onSuccess(OnDemandVpnListRequest request,
+								OnDemandVpnListPerformer performer) {
+							mIsRequestActive = false;
+							if(mConfigInfos != null) {
+								mConfigInfos.clear();
+							}
+							
+							mConfigInfos = request.result;
+							
+							if(mConfigInfos != null) {
+								Collections.reverse(mConfigInfos);
+							}
+							
+							updateCurrentConfiguration();
+						}
 
-	@Override
-	public void obtainOnDemandVpnsError(ObtainOnDemandVpns task) {
-		// TODO Auto-generated method stub
-		mIsRequestActive = false;
-		Log.e(TAG, "Error while getting On-Demand VPN configuration");
+						@Override
+						public void onError(OnDemandVpnListRequest request,
+								OnDemandVpnListPerformer performer) {
+							// TODO Auto-generated method stub
+							mIsRequestActive = false;
+							Log.e(TAG, "Error while getting On-Demand VPN configuration");
+						}
+					});
+			//new ObtainOnDemandVpns(this, this).execute((Void[]) null);
+		}
 	}
 	
 	@Override
@@ -733,94 +597,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			mCurrentTunnel.terminateConnection();
 		}
 		mCurrentTunnel = null;
-	}
-	
-	private void initIcons() {
-		TypedArray a;
-		a = getResources().obtainTypedArray(R.array.vpn_manager_icons);
-		mVpnManagerIcons = new int[a.length()];
-		for(int i = 0; i < a.length(); i++) {
-			mVpnManagerIcons[i] = a.getResourceId(i, 0);
-		}
-		a.recycle();
-		
-		a = getResources().obtainTypedArray(R.array.vpn_manager_error_icons);
-		mVpnManagerErrorIcons = new int[a.length()];
-		for(int i = 0; i < a.length(); i++) {
-			mVpnManagerErrorIcons[i] = a.getResourceId(i, 0);
-		}
-		a.recycle();
-	}
-	
-	private Notification buildNotification(int smallIconId, int largeIconId, String title, String text) {
-		NotificationCompat.Builder compatBuilder = new NotificationCompat.Builder(this);
-		if(smallIconId > 0) {
-			compatBuilder.setSmallIcon(smallIconId);
-		}
-		
-		if(largeIconId > 0) {
-			Drawable d = getResources().getDrawable(largeIconId);
-			if(d instanceof BitmapDrawable) {
-				compatBuilder.setLargeIcon(((BitmapDrawable) d).getBitmap());
-			}
-		}
-		
-		compatBuilder.setContentTitle(title);
-		compatBuilder.setContentText(text);
-		compatBuilder.setOngoing(true);
-		
-		Intent intent = new Intent(getApplicationContext(), Main.class);
-		intent.setAction(Intent.ACTION_MAIN);
-		PendingIntent pendingIntent = PendingIntent.getActivity(getApplicationContext(), 0, intent, 0);
-		compatBuilder.setContentIntent(pendingIntent);
-		
-		return compatBuilder.build();
-	}
-	
-	private boolean debugStartTunnelPcap(String fileNameFmt, VpnTunnel tunnel) {
-		if(BuildConfig.DEBUG) {
-			if(tunnel == null || fileNameFmt == null || fileNameFmt.isEmpty()) {
-				return false;
-			}
-			
-			if(!MiscUtils.isExternalStorageWriteable()) {
-				return false;
-			}
-			
-			File externalFilesDir = getExternalFilesDir(null);
-			if(externalFilesDir == null) {
-				//error: storage error
-				return false;
-			}
-			
-			
-			PcapOutputStream os = null;
-			try {
-				String pcapFileName = String.format(
-						fileNameFmt, 
-						tunnel.getTunnelId(), 
-						System.currentTimeMillis());
-				os = new PcapOutputStream(
-						new File(externalFilesDir, pcapFileName), 
-						mRouterLoop.getMtu(), 
-						PcapOutputStream.LINKTYPE_RAW);
-				tunnel.debugRestartPcap(os);
-			} catch(Exception e) {
-				Log.e(TAG, "Restart pcap error", e);
-				if(os != null) {
-					try {
-						os.close();
-					} catch(Exception ex) {
-						//nothing to do here
-					}
-				}
-				return false;
-			}
-			
-			return true;
-		}
-		
-		return false; //BuildConfig.DEBUG is false
 	}
 	
 	public void intlRemoveTunnel(VpnTunnel vpnTunnel) {
@@ -922,5 +698,140 @@ public class VpnManagerService extends Service implements VpnManagerInterface, O
 			int bitmask = ((int)0xffffffff >>> (32 - mask)) << (32 - mask);
 			return ip & bitmask;
 		}
+	}
+	
+	public class VpnManagerHelperThread extends 
+			HelperThread<OnDemandVpnListRequest, 
+					OnDemandVpnListPerformer, 
+					Callback<OnDemandVpnListRequest, 
+					OnDemandVpnListPerformer>> {
+		public VpnManagerHelperThread() {
+			super();
+		}
+
+		@Override
+		protected void checkConditionsToRun() throws IllegalStateException {
+			// TODO Auto-generated method stub
+			
+		}
+
+		@Override
+		protected void freeResources() {
+			// TODO Auto-generated method stub
+			
+		}
+	}
+	
+	public class OnDemandVpnListRequest {
+		public Bundle request;
+		public List<VpnConfigInfo> result;
+	}
+	
+	public class OnDemandVpnListPerformer implements Performer<OnDemandVpnListRequest> {
+		private Context mCtx;
+		
+		public OnDemandVpnListPerformer(Context ctx) {
+			mCtx = ctx;
+		}
+
+		@Override
+		public boolean perform(OnDemandVpnListRequest request) {
+			DbOpenHelper dbHelper = DbOpenHelper.getInstance(mCtx);
+			PayloadsPerformance payloadsPerformance = new PayloadsPerformance(mCtx, 0, request.request, dbHelper);
+			GsonBuilder gsonBuilder = new GsonBuilder();
+			gsonBuilder.registerTypeAdapterFactory(new PlistTypeAdapterFactory());
+			Gson gson = gsonBuilder.create();
+			
+			CertificateManager mgr = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_INTERNAL);
+			
+			try {
+				request.result = new LinkedList<VpnConfigInfo>();
+				Cursor payloads = payloadsPerformance.perform();
+				if(payloads.moveToFirst()) {
+					while(!payloads.isAfterLast()) {
+						String data = payloads.getString(3);
+						Payload payload = PayloadFactory.createPayload(gson.fromJson(data, Dictionary.class));
+						if(payload instanceof VpnPayload) {
+							VpnPayload vpnPayload = (VpnPayload) payload;
+							if(vpnPayload.isOnDemandEnabled()) {
+								Dictionary testDict;
+								
+								testDict = vpnPayload.getIpsec();
+								if(testDict == null) {
+									testDict = vpnPayload.getVpn();
+								}
+								if(testDict == null) {
+									testDict = vpnPayload.getPpp();
+								}
+								
+								if(testDict != null) {
+									VpnConfigInfo configInfo = new VpnConfigInfo();
+									configInfo.configId = vpnPayload.getPayloadUUID();
+									configInfo.networkConfig = ConfigUtils.buildNetworkConfig(vpnPayload);
+									configInfo.params = new HashMap<String, Object>();
+									
+									Dictionary tmpDict;
+									tmpDict = vpnPayload.getIpsec();
+									if(tmpDict != null) {
+										configInfo.params.put(VpnConfigInfo.PARAMS_IPSEC, tmpDict.asMap());
+									}
+									
+									tmpDict = vpnPayload.getPpp();
+									if(tmpDict != null) {
+										configInfo.params.put(VpnConfigInfo.PARAMS_PPP, tmpDict.asMap());
+									}
+									
+									tmpDict = vpnPayload.getVendorConfig();
+									if(tmpDict != null) {
+										configInfo.params.put(VpnConfigInfo.PARAMS_CUSTOM, tmpDict.asMap());
+									}
+									
+									if(VpnPayload.VPN_TYPE_CUSTOM.equals(vpnPayload.getVpnType())) {
+										configInfo.vpnType = vpnPayload.getVpnSubType();
+									} else {
+										configInfo.vpnType = vpnPayload.getVpnType();
+									}
+									
+									String method = testDict.getString(VpnPayload.KEY_AUTHENTICATION_METHOD);
+									if(VpnPayload.AUTH_METHOD_CERTIFICATE.equals(method)) {
+										String uuid = testDict.getString(VpnPayload.KEY_PAYLOAD_CERTIFICATE_UUID);
+										configInfo.certificates = mgr.getCertificateChain(uuid);
+										configInfo.privateKey = (PrivateKey) mgr.getKey(uuid);
+									}
+									
+									request.result.add(configInfo);
+								}
+							}
+						}
+						payloads.moveToNext();
+					}
+				}
+			} catch(Exception e) {
+				Log.e(TAG, "", e);
+				return false;
+			}
+			
+			return true;
+		}
+		
+	}
+
+	@Override
+	public boolean isDebugPcapEnabled() {
+		return mDebugDelegate.isDebugPcapEnabled();
+	}
+
+	@Override
+	public boolean debugStartPcap() {
+		return mDebugDelegate.debugStartPcap(
+				mRouterLoop.getMtu(), 
+				mRouterLoop, 
+				mUsernatTunnel, 
+				mCurrentTunnel);
+	}
+
+	@Override
+	public boolean debugStopPcap() {
+		return mDebugDelegate.debugStopPcap(mRouterLoop, mUsernatTunnel, mCurrentTunnel);
 	}
 }

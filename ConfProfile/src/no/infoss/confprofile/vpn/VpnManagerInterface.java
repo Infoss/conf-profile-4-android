@@ -70,11 +70,11 @@ public interface VpnManagerInterface extends IInterface {
 	public boolean protect(int socket);
 	public boolean protect(Socket socket);
 	
+	//methods need to be refactored/removed
+	public void intlRemoveTunnel(VpnTunnel vpnTunnel);
+	
 	//debug methods
 	public boolean isDebugPcapEnabled();
 	public boolean debugStartPcap();
 	public boolean debugStopPcap();
-	
-	//methods need to be refactored/removed
-	public void intlRemoveTunnel(VpnTunnel vpnTunnel);
 }
