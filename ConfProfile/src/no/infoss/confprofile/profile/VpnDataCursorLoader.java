@@ -29,6 +29,8 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 	public static final String COL_OVERRIDE_PRIMARY = "override_primary";
 	public static final String COL_ON_DEMAND_ENABLED = "on_demand_enabled";
 	public static final String COL_ON_DEMAND_ENABLED_BY_USER = "on_demand_enabled_by_user";
+	public static final String COL_ON_DEMAND_RULES = "on_demand_rules";
+	public static final String COL_ON_DEMAND_CREDENTIALS = "on_demand_credentials";
 	
 	public static final String P_PREFIX = PREFIX.concat(TABLE).concat(".");
 	public static final String P_PAYLOAD_UUID = P_PREFIX.concat("P_PAYLOAD_UUID");
@@ -36,6 +38,8 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 	public static final String P_OVERRIDE_PRIMARY = P_PREFIX.concat("P_OVERRIDE_PRIMARY");
 	public static final String P_ON_DEMAND_ENABLED = P_PREFIX.concat("P_ON_DEMAND_ENABLED");
 	public static final String P_ON_DEMAND_ENABLED_BY_USER = P_PREFIX.concat("P_ON_DEMAND_ENABLED_BY_USER");
+	public static final String P_ON_DEMAND_RULES = P_PREFIX.concat("P_ON_DEMAND_RULES");
+	public static final String P_ON_DEMAND_CREDENTIALS = P_PREFIX.concat("P_ON_DEMAND_CREDENTIALS");
 	
 	public static final CursorMapper<VpnData> VPN_DATA_CURSOR_MAPPER = new CursorMapper<VpnData>() {
 
@@ -57,6 +61,8 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 			data.setOverridePrimary(cursor.getInt(2) != 0);
 			data.setOnDemandEnabled(cursor.getInt(3) != 0);
 			data.setOnDemandEnabledByUser(cursor.getInt(4) != 0);
+			data.setOnDemandRules(cursor.getString(5));
+			data.setOnDemandCredentials(cursor.getString(6));
 			data.setModel(model);
 			return data;
 		}
@@ -76,6 +82,8 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 		private boolean mNewOverridePrimary[] = null;
 		private boolean mNewOnDemandEnabled[] = null;
 		private boolean mNewOnDemandEnabledByUser[] = null;
+		private String mNewOnDemandRules[] = null;
+		private String mNewOnDemandCredentials[] = null;
 		private String mSelectBy = null; 
 		private String mSelectValue = null;
 		
@@ -89,12 +97,16 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					mNewOverridePrimary = params.getBooleanArray(P_OVERRIDE_PRIMARY);
 					mNewOnDemandEnabled = params.getBooleanArray(P_ON_DEMAND_ENABLED);
 					mNewOnDemandEnabledByUser = params.getBooleanArray(P_ON_DEMAND_ENABLED_BY_USER);
+					mNewOnDemandRules = params.getStringArray(P_ON_DEMAND_RULES);
+					mNewOnDemandCredentials = params.getStringArray(P_ON_DEMAND_CREDENTIALS);
 				} else {
 					mNewPayloadUuid = new String[] { params.getString(P_PAYLOAD_UUID) };
 					mNewUserDefinedName = new String[] { params.getString(P_USER_DEFINED_NAME) };
 					mNewOverridePrimary = new boolean[] { params.getBoolean(P_OVERRIDE_PRIMARY) };
 					mNewOnDemandEnabled = new boolean[] { params.getBoolean(P_ON_DEMAND_ENABLED) };
 					mNewOnDemandEnabledByUser = new boolean[] { params.getBoolean(P_ON_DEMAND_ENABLED_BY_USER) };
+					mNewOnDemandRules = new String[] { params.getString(P_ON_DEMAND_RULES) };
+					mNewOnDemandCredentials = new String[] { params.getString(P_ON_DEMAND_CREDENTIALS) };
 				}
 				
 				if(params.containsKey(P_SELECT_BY)) {
@@ -137,7 +149,9 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					mNewUserDefinedName != null && 
 					mNewOverridePrimary != null && 
 					mNewOnDemandEnabled != null && 
-					mNewOnDemandEnabledByUser != null) {	
+					mNewOnDemandEnabledByUser != null &&
+					mNewOnDemandRules != null &&
+					mNewOnDemandCredentials != null) {	
 				Transaction transaction = new Transaction();
 				
 				for(int i = 0; i < mNewPayloadUuid.length; i++) {
@@ -147,6 +161,8 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					values.put(COL_OVERRIDE_PRIMARY, mNewOverridePrimary[i] ? 1 : 0);
 					values.put(COL_ON_DEMAND_ENABLED, mNewOnDemandEnabled[i] ? 1 : 0);
 					values.put(COL_ON_DEMAND_ENABLED_BY_USER, mNewOnDemandEnabledByUser[i] ? 1 : 0);
+					values.put(COL_ON_DEMAND_RULES, mNewOnDemandRules[i]);
+					values.put(COL_ON_DEMAND_CREDENTIALS, mNewOnDemandCredentials[i]);
 					transaction.addRequest(Insert.insert().into(TABLE).values(values));
 				}
 				

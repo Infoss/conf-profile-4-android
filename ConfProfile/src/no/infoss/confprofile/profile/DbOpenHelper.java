@@ -27,12 +27,14 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			"payload_uuid TEXT PRIMARY KEY NOT NULL, " + 
 			"payload_type TEXT NOT NULL, " + 
 			"data TEXT NOT NULL);";
-	private static final String SQL_VPN_DATA = "CREATE TABLE vpn_data ("+ 
-			"payload_uuid TEXT REFERENCES payloads (payload_uuid) ON DELETE CASCADE, " + 
-			"user_defined_name TEXT NOT NULL, " + 
-			"override_primary INT NOT NULL, " + 
-			"on_demand_enabled INT NOT NULL, " + 
-			"on_demand_enabled_by_user INT NOT NULL);";
+	private static final String SQL_VPN_DATA = "CREATE TABLE vpn_data (" + 
+			"payload_uuid TEXT REFERENCES payloads ( payload_uuid ) ON DELETE CASCADE, " +
+		    "user_defined_name TEXT NOT NULL, " +
+		    "override_primary INT  NOT NULL, " +
+		    "on_demand_enabled INT  NOT NULL, " +
+		    "on_demand_enabled_by_user INT  NOT NULL, " +
+		    "on_demand_rules TEXT NOT NULL, " +
+		    "on_demand_credentials TEXT NOT NULL);";
 	private static final String SQL_INDEX_PAYLOAD_TYPE = "CREATE INDEX idx_payloads " + 
 			"ON payloads (payload_type COLLATE NOCASE ASC);";
 	private static final String SQL_TRIGGER_DELETE_PROFILE = "CREATE TRIGGER delete_profile " + 

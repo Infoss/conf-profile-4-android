@@ -8,6 +8,8 @@ public class VpnData extends ListItem {
 	private boolean mOverridePrimary;
 	private boolean mOnDemandEnabled;
 	private boolean mOnDemandEnabledByUser;
+	private String mOnDemandRules;
+	private String mOnDemandCredentials;
 	
 	public String getPayloadUuid() {
 		return mPayloadUuid;
@@ -50,6 +52,22 @@ public class VpnData extends ListItem {
 		this.mOnDemandEnabledByUser = onDemandEnabledByUser;
 	}
 	
+	public String getOnDemandRules() {
+		return mOnDemandRules;
+	}
+
+	public void setOnDemandRules(String onDemandRules) {
+		this.mOnDemandRules = onDemandRules;
+	}
+
+	public String getOnDemandCredentials() {
+		return mOnDemandCredentials;
+	}
+
+	public void setOnDemandCredentials(String onDemandCredentials) {
+		this.mOnDemandCredentials = onDemandCredentials;
+	}
+
 	@Override
 	public void applyData() {
 		ListItemModel model = getModel();

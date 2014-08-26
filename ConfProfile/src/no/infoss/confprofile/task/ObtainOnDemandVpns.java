@@ -69,7 +69,7 @@ public class ObtainOnDemandVpns extends AsyncTask<Void, Void, Integer> {
 							if(testDict != null) {
 								VpnConfigInfo configInfo = new VpnConfigInfo();
 								configInfo.configId = vpnPayload.getPayloadUUID();
-								configInfo.networkConfig = ConfigUtils.build(vpnPayload);
+								configInfo.networkConfig = ConfigUtils.buildNetworkConfig(vpnPayload);
 								configInfo.params = new HashMap<String, Object>();
 								
 								Dictionary tmpDict;

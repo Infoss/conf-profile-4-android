@@ -21,6 +21,7 @@ import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.VpnDataCursorLoader;
+import no.infoss.confprofile.util.ConfigUtils;
 import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.ScepUtils;
 import no.infoss.confprofile.util.ScepUtils.ScepStruct;
@@ -172,7 +173,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 					if(instAction.payload instanceof VpnPayload) {
 						VpnPayload vpnPayload = (VpnPayload) instAction.payload;
 						
-						//TODO: do somethind gith these strange stray keys
+						//TODO: do something with these strange stray keys
 						int overridePrimary = 0;
 						if(vpnPayload.getIpv4() != null) {
 							overridePrimary = vpnPayload.getIpv4().getInteger(VpnPayload.KEY_OVERRIDE_PRIMARY, 0);
@@ -188,6 +189,11 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 						values.put(VpnDataCursorLoader.COL_OVERRIDE_PRIMARY, overridePrimary);
 						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED, onDemandEnabled);
 						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED_BY_USER, onDemandEnabled);
+						values.put(VpnDataCursorLoader.COL_ON_DEMAND_RULES, 
+								ConfigUtils.extractOnDemandRules(vpnPayload));
+						values.put(VpnDataCursorLoader.COL_ON_DEMAND_CREDENTIALS, 
+								ConfigUtils.extractOnDemandCredentials(vpnPayload));
+						
 						Insert request = Insert.insert().into(VpnDataCursorLoader.TABLE).values(values);
 						
 						SqliteRequestThread.getInstance().request(request, null);
