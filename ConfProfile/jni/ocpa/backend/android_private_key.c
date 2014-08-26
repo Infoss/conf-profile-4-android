@@ -94,7 +94,7 @@ METHOD(private_key_t, sign, bool,
 			return FALSE;
 	}
 
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 	/* we use java.security.Signature to create the signature without requiring
 	 * access to the actual private key */
 	method_id = (*env)->GetStaticMethodID(env, this->signature_class,
@@ -149,14 +149,18 @@ METHOD(private_key_t, sign, bool,
 		goto failed;
 	}
 	*signature = chunk_from_byte_array(env, jsigarray);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return TRUE;
 
 failed:
 	DBG1(DBG_LIB, "failed to build %N signature via JNI",
 		 signature_scheme_names, scheme);
 	androidjni_exception_occurred(env);
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return FALSE;
 }
 
@@ -213,7 +217,7 @@ METHOD(private_key_t, destroy, void,
 	{
 		JNIEnv *env;
 
-		androidjni_attach_thread(&env);
+		bool need_detach = androidjni_attach_thread(&env);
 		if (android_sdk_version == ANDROID_JELLY_BEAN)
 		{	/* there is a bug in JB that causes a SIGSEGV if the key object is
 			 * garbage collected so we intentionally leak the reference to it */
@@ -225,7 +229,9 @@ METHOD(private_key_t, destroy, void,
 			(*env)->DeleteGlobalRef(env, this->key);
 		}
 		(*env)->DeleteGlobalRef(env, this->signature_class);
-		androidjni_detach_thread();
+		if(need_detach) {
+			androidjni_detach_thread();
+		}
 		this->pubkey->destroy(this->pubkey);
 		free(this);
 	}
@@ -267,10 +273,12 @@ private_key_t *android_private_key_create(jobject key, public_key_t *pubkey)
 	/* in ICS we could simply call getEncoded and use the PKCS#8/DER encoded
 	 * private key, since JB that's not possible as there is no direct access
 	 * to private keys anymore (as these could now be hardware backed) */
-	androidjni_attach_thread(&env);
+	bool need_detach = androidjni_attach_thread(&env);
 	this->key = (*env)->NewGlobalRef(env, key);
 	this->signature_class = (*env)->NewGlobalRef(env, (*env)->FindClass(env,
 													"java/security/Signature"));
-	androidjni_detach_thread();
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
 	return &this->public;
 }
