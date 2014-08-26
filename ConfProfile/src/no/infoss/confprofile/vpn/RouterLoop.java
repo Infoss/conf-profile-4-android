@@ -2,12 +2,14 @@ package no.infoss.confprofile.vpn;
 
 import java.util.List;
 
+import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.vpn.OcpaVpnService.BuilderAdapter;
+import no.infoss.confprofile.vpn.interfaces.Debuggable;
 import android.util.Log;
 
-/*package*/ class RouterLoop implements Runnable {
+/*package*/ class RouterLoop implements Runnable, Debuggable {
 	public static final String TAG = RouterLoop.class.getSimpleName();
 	
 	private int mMtu;
@@ -122,12 +124,25 @@ import android.util.Log;
 		return mRouterCtx;
 	}
 	
-	/*package*/ void debugRestartPcap(PcapOutputStream pos) {
+	@Override
+	public boolean debugRestartPcap(PcapOutputStream pos) {
 		debugRestartPcap(mRouterCtx, pos);
+		return true;
 	}
 	
-	/*package*/ void debugStopPcap() {
+	@Override
+	public boolean debugStopPcap() {
 		debugStopPcap(mRouterCtx);
+		return true;
+	}
+	
+	@Override
+	public String generatePcapFilename() {
+		if(BuildConfig.DEBUG) {
+			return String.format("router-%d.pcap", System.currentTimeMillis());
+		}
+		
+		return null;
 	}
 
 	private void closeConnection() {
@@ -191,4 +206,5 @@ import android.util.Log;
 			return String.format("%d.%d.%d.%d/%d [tun ctx %#016x]", b1, b2, b3, b4, mMask4, mVpnTunnelCtx);
 		}
 	}
+
 }
