@@ -11,8 +11,9 @@
 #include "protoheaders.h"
 #include "router.h"
 #include "iputils.h"
-
 #include "tun_dev_tun.h"
+
+#include "debug.h"
 
 #define LOG_TAG "router.c"
 
@@ -327,14 +328,19 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	}
 
 	pthread_rwlock_wrlock(ctx->rwlock4);
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "unroute(%p) started", tun_ctx);
 
 	if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_DEL, tun_ctx->getLocalFd(tun_ctx), NULL) == -1) {
-	    LOGE(LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_DEL) %d: %s", errno, strerror(errno));
+	    LOGEIF(ROUTER_DEBUG, LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_DEL) %d: %s", errno, strerror(errno));
 	    //just notify about error and continue working
 	}
 
 	int i;
 	for(i = 0; i < ctx->epoll_links_capacity; i++) {
+		LOGDIF(ROUTER_DEBUG, LOG_TAG, "Checking epoll_links[%d]: tun_ctx=%p, fd=%d",
+				i,
+				ctx->epoll_links[i].tun_ctx,
+				ctx->epoll_links[i].fd);
 		if(ctx->epoll_links[i].tun_ctx == tun_ctx) {
 			//free reference to tun_ctx
 			tun_ctx->ref_put(tun_ctx);
@@ -349,6 +355,11 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	route4_link_t* next4 = NULL;
 	while(curr4 != NULL) {
 		next4 = curr4->next;
+		LOGDIF(ROUTER_DEBUG, LOG_TAG, "Checking ip4_routes: curr=%p [prev=%p, next=%p], search=%p",
+				curr4,
+				prev4,
+				next4,
+				tun_ctx);
 		if(curr4->tun_ctx == tun_ctx) {
 			//remove this link
 			if(prev4 == NULL) {
@@ -359,9 +370,7 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 
 			curr4->ip4 = 0;
 			curr4->next = NULL;
-			if(curr4->tun_ctx != NULL) {
-				curr4->tun_ctx->ref_put(curr4->tun_ctx);
-			}
+			tun_ctx->ref_put(tun_ctx);
 			curr4->tun_ctx = NULL;
 			free(curr4);
 
@@ -376,6 +385,7 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	}
 
 	if(ctx->ip4_default_tun_ctx == tun_ctx) {
+		LOGDIF(ROUTER_DEBUG, LOG_TAG, "Remove ip4_default_tun_ctx");
 		ctx->ip4_default_tun_ctx = NULL;
 		tun_ctx->ref_put(tun_ctx);
 		ctx->routes_updated = true;
@@ -387,6 +397,11 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	route6_link_t* next6 = NULL;
 	while(curr6 != NULL) {
 		next6 = curr6->next;
+		LOGDIF(ROUTER_DEBUG, LOG_TAG, "Checking ip6_routes: curr=%p [prev=%p, next=%p], search=%p",
+				curr6,
+				prev6,
+				next6,
+				tun_ctx);
 
 		if(curr6->tun_ctx == tun_ctx) {
 			//remove this link
@@ -398,9 +413,7 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 
 			memset(curr6->ip6, 0x00, 16);
 			curr6->next = NULL;
-			if(curr6->tun_ctx != NULL) {
-				curr6->tun_ctx->ref_put(curr6->tun_ctx);
-			}
+			tun_ctx->ref_put(tun_ctx);
 			curr6->tun_ctx = NULL;
 			free(curr6);
 
@@ -415,11 +428,13 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	}
 
 	if(ctx->ip6_default_tun_ctx == tun_ctx) {
+		LOGDIF(ROUTER_DEBUG, LOG_TAG, "Remove ip6_default_tun_ctx");
 		ctx->ip6_default_tun_ctx = NULL;
 		tun_ctx->ref_put(tun_ctx);
 		ctx->routes_updated = true;
 	}
 
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "unroute(%p) finished", tun_ctx);
 	pthread_rwlock_unlock(ctx->rwlock4);
 }
 

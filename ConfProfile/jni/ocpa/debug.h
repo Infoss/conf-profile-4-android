@@ -4,13 +4,12 @@
  *      Author: Dmitry Vorobiev
  */
 
-#ifndef DEBUG_H_
-#define DEBUG_H_
+#ifndef OCPA_DEBUG_H_
+#define OCPA_DEBUG_H_
 
-#ifdef NDK_DEBUG
-
-#else
-
-#endif
+#define JNI_CORE_DEBUG 1
+#define STRONGSWAN_DEBUG 1
+#define REFS_DEBUG 1
+#define ROUTER_DEBUG 1
 
 #endif /* DEBUG_H_ */

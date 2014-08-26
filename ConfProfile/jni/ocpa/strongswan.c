@@ -23,6 +23,9 @@
 #include <library.h>
 #include <threading/thread.h>
 
+#include "android_log_utils.h"
+#include "debug.h"
+
 #define ANDROID_DEBUG_LEVEL 2
 
 #define ANDROID_RETRASNMIT_TRIES 3
@@ -740,18 +743,28 @@ static void charonservice_deinit(JNIEnv *env)
 {
 	private_charonservice_t *this = (private_charonservice_t*)charonservice;
 
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "charonservice_deinit()");
+
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying network_manager (%p)", this->network_manager);
 	this->network_manager->destroy(this->network_manager);
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying sockets (%p)", this->sockets);
 	this->sockets->destroy(this->sockets);
 	//this->builder->destroy(this->builder);
-	this->creds->destroy(this->creds);
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying creds (%p)", this->creds);
+	//TODO: here is memory leak, uncomment this to get SIGSEGV
+	//this->creds->destroy(this->creds);
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying attr (%p)", this->attr);
 	this->attr->destroy(this->attr);
 	(*env)->DeleteGlobalRef(env, this->jtunnel);
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...decrement reference counter for tunnel_ctx (%p)", this->tunnel_ctx);
 	if(this->tunnel_ctx != NULL) {
 		this->tunnel_ctx->ref_put(this->tunnel_ctx);
 	}
 	this->tunnel_ctx = NULL;
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...free memory (%p)", this);
 	free(this);
 	charonservice = NULL;
+	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...charonservice_deinit() finished");
 }
 
 /**
