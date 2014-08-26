@@ -13,12 +13,13 @@ import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
+import no.infoss.confprofile.vpn.interfaces.Debuggable;
 import android.content.Context;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
 
-public abstract class VpnTunnel implements Runnable {
+public abstract class VpnTunnel implements Runnable, Debuggable {
 	public static final int LOG_VERBOSE = 2;
 	public static final int LOG_DEBUG = 3;
 	public static final int LOG_INFO = 4;
@@ -185,12 +186,26 @@ public abstract class VpnTunnel implements Runnable {
 		return mVpnMgr.protect(fd);
 	}
 	
-	protected void debugRestartPcap(PcapOutputStream pos) {
+	public final boolean debugRestartPcap(PcapOutputStream pos) {
 		debugRestartPcap(mVpnTunnelCtx, pos);
+		return true;
 	}
 	
-	protected void debugStopPcap() {
+	public final boolean debugStopPcap() {
 		debugStopPcap(mVpnTunnelCtx);
+		return true;
+	}
+	
+	@Override
+	public String generatePcapFilename() {
+		if(BuildConfig.DEBUG) {
+			return String.format(
+					"tun(%s)-%d.pcap", 
+					getTunnelId(), 
+					System.currentTimeMillis());
+		}
+		
+		return null;
 	}
 	
 	private native void setMasqueradeIp4Mode(long vpnTunnelCtx, boolean isOn);

@@ -11,6 +11,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
+import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
@@ -41,6 +42,15 @@ public class UsernatTunnel extends VpnTunnel {
 		super(ctx, VPN_CFG_INFO, vpnMgr);
 		mVpnServiceCtx = routerLoop.getRouterCtx();
 		mQueue = new ConcurrentLinkedQueue<SocatTunnelContext>();
+	}
+	
+	@Override
+	public String generatePcapFilename() {
+		if(BuildConfig.DEBUG) {
+			return String.format("usernat(%s)-%d.pcap", getTunnelId(), System.currentTimeMillis());
+		}
+		
+		return null;
 	}
 
 	@Override
