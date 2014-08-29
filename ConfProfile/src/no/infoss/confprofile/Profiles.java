@@ -23,21 +23,12 @@ import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
-import no.infoss.confprofile.task.BackupTask;
-import no.infoss.confprofile.util.SimpleServiceBindKit;
-import no.infoss.confprofile.vpn.VpnManagerInterface;
-import no.infoss.confprofile.vpn.VpnManagerService;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
-import android.content.ComponentName;
-import android.content.Context;
 import android.content.Intent;
 import android.content.Loader;
-import android.content.ServiceConnection;
 import android.database.Cursor;
 import android.os.Bundle;
-import android.os.IBinder;
-import android.util.Log;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -45,21 +36,19 @@ import android.view.View;
 import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
+import android.widget.ImageView;
 import android.widget.ListAdapter;
 import android.widget.TextView;
-import android.widget.Toast;
 
 import com.litecoding.classkit.view.LazyCursorList;
 import com.litecoding.classkit.view.ObjectAdapter;
 import com.litecoding.classkit.view.ObjectAdapter.ObjectMapper;
 
-public class Profiles extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection {
+public class Profiles extends Activity implements LoaderCallbacks<Cursor> {
 	public static final String TAG = Profiles.class.getSimpleName();
 	
 	private LazyCursorList<ProfileInfo> mProfileInfoList;
 	private DbOpenHelper mDbHelper;
-	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
-	private boolean mDebugPcapEnabled = false;
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
@@ -68,7 +57,6 @@ public class Profiles extends Activity implements LoaderCallbacks<Cursor>, Servi
 		
 		mProfileInfoList = new LazyCursorList<ProfileInfo>(ProfilesCursorLoader.PROFILE_CURSOR_MAPPER);
 		mDbHelper = DbOpenHelper.getInstance(this);
-		mBindKit = new SimpleServiceBindKit<VpnManagerInterface>(this, VpnManagerInterface.TAG);
 		
 		ListAdapter profileAdapter = new ObjectAdapter<ProfileInfo>(
 				getLayoutInflater(), 
@@ -91,10 +79,7 @@ public class Profiles extends Activity implements LoaderCallbacks<Cursor>, Servi
 				Profiles.this.startActivity(intent);
 			}
 		});
-		
-		if(!mBindKit.bind(VpnManagerService.class, this, Context.BIND_AUTO_CREATE)) {
-			Log.e(TAG, "Can't bind VpnManagerService");
-		}
+
 	}
 	
 	@Override
@@ -107,51 +92,27 @@ public class Profiles extends Activity implements LoaderCallbacks<Cursor>, Servi
 	@Override
 	protected void onDestroy() {
 		super.onDestroy();
-		mBindKit.unbind();
 	}
 	
 	@Override
 	public boolean onCreateOptionsMenu(Menu menu) {
-		if(BuildConfig.DEBUG) {
 			MenuInflater inflater = getMenuInflater();
-			inflater.inflate(R.menu.main, menu);
-			
-			MenuItem item;
-			
-			item = menu.findItem(R.id.menu_item_start_capture);
-			if(item != null) {
-				item.setEnabled(!mDebugPcapEnabled);
-			}
-			
-			item = menu.findItem(R.id.menu_item_stop_capture);
-			if(item != null) {
-				item.setEnabled(mDebugPcapEnabled);
-			}
-			
-			
-			return true;
-		}
-		
-		return super.onCreateOptionsMenu(menu);
+			inflater.inflate(R.menu.profiles, menu);
+			return super.onCreateOptionsMenu(menu);
 	}
 	
 	@Override
 	public boolean onOptionsItemSelected(MenuItem item) {
-	    if(BuildConfig.DEBUG) {
-		    switch (item.getItemId()) {
-		        case R.id.menu_item_backup_all: {
-		            backupData();
-		            return true;
-		        }
-		        case R.id.menu_item_start_capture:
-		        case R.id.menu_item_stop_capture: {
-		        	startStopDebugPcap();
-		        	return true;
-		        }
-		        default: {
-		            return super.onOptionsItemSelected(item);
-		        }
-		    }
+	    switch (item.getItemId()) {
+	        case R.id.menu_item_go_main: {
+	            finish();
+	            return true;
+	        }
+	        case R.id.menu_item_go_info: {
+	        	Intent intent = new Intent(this, About.class);
+				startActivity(intent);
+				return true;
+	        }
 	    }
 	    
 	    return super.onOptionsItemSelected(item);
@@ -170,52 +131,6 @@ public class Profiles extends Activity implements LoaderCallbacks<Cursor>, Servi
 	@Override
 	public void onLoaderReset(Loader<Cursor> loader) {
 		// nothing to do here
-	}
-	
-	@Override
-	public void onServiceConnected(ComponentName name, IBinder service) {
-		VpnManagerInterface vpnMgr = mBindKit.lock();
-		try {
-			if(vpnMgr != null) {
-				vpnMgr.startVpnService();
-				mDebugPcapEnabled = vpnMgr.isDebugPcapEnabled();
-				invalidateOptionsMenu();
-			}
-		} finally {
-			mBindKit.unlock();
-		}
-	}
-
-	@Override
-	public void onServiceDisconnected(ComponentName name) {
-		// nothing to do here
-	}
-	
-	private void backupData() {
-		new BackupTask(this).execute();
-	}
-	
-	private void startStopDebugPcap() {
-		VpnManagerInterface vpnMgr = mBindKit.lock();
-		if(vpnMgr == null) {
-			Toast.makeText(this, "Service is busy, try again later",  Toast.LENGTH_SHORT).show();
-		} else {
-			boolean changed = false;
-			if(mDebugPcapEnabled) {
-				//stop
-				changed = vpnMgr.debugStopPcap();
-			} else {
-				//start
-				changed = vpnMgr.debugStartPcap();
-			}
-			
-			if(changed) {
-				mDebugPcapEnabled = vpnMgr.isDebugPcapEnabled();
-			}
-			invalidateOptionsMenu();
-		}
-		
-		mBindKit.unlock();
 	}
 	
 	private static class ProfileInfoMapper implements ObjectMapper<ProfileInfo> {
@@ -244,6 +159,12 @@ public class Profiles extends Activity implements LoaderCallbacks<Cursor>, Servi
 		
 		@Override
 		public void mapData(int position, View view, ProfileInfo data) {
+			ImageView image;
+			image = (ImageView) view.findViewById(R.id.icon);
+			if(image != null) {
+				image.setImageResource(R.drawable.profiles);
+			}
+			
 			TextView text;
 			text = (TextView) view.findViewById(R.id.profileName);
 			if(text != null) {
@@ -252,7 +173,7 @@ public class Profiles extends Activity implements LoaderCallbacks<Cursor>, Servi
 			
 			text = (TextView) view.findViewById(R.id.profileDetails);
 			if(text != null) {
-				text.setText(data.id);
+				text.setText(data.organization);
 			}
 		}
 		
