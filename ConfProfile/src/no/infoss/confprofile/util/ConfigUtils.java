@@ -80,6 +80,11 @@ public class ConfigUtils {
 			result.put(VpnPayload.KEY_VENDOR_CONFIG, testDict.asMap());
 		}
 		
+		testDict = payload.getVpn();
+		if(testDict != null) {
+			result.put(VpnPayload.KEY_VPN, testDict.asMap());
+		}
+		
 		result.put(VpnPayload.KEY_VPN_TYPE, payload.getVpnType());
 		result.put(VpnPayload.KEY_VPN_SUB_TYPE, payload.getVpnSubType());
 		
