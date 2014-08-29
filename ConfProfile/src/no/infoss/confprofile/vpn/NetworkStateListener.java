@@ -1,6 +1,7 @@
 package no.infoss.confprofile.vpn;
 
 import no.infoss.confprofile.util.BroadcastReceiverEx;
+import no.infoss.confprofile.vpn.delegates.ConfigurationDelegate;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -8,14 +9,14 @@ import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.net.wifi.WifiManager;
 
-public class NetworkStateListener extends BroadcastReceiverEx<VpnManagerInterface> {
+public class NetworkStateListener extends BroadcastReceiverEx<ConfigurationDelegate> {
 	public static final IntentFilter FILTER = new IntentFilter(ConnectivityManager.CONNECTIVITY_ACTION);
 	
 	private final ConnectivityManager mConnMgr;
 	private final WifiManager mWifiMgr;
 	private final NetworkConfig mNetworkConfig;
 
-	public NetworkStateListener(Context context, VpnManagerInterface listener) {
+	public NetworkStateListener(Context context, ConfigurationDelegate listener) {
 		super(context, listener);
 		
 		mConnMgr = (ConnectivityManager) getContext().getSystemService(Context.CONNECTIVITY_SERVICE);
