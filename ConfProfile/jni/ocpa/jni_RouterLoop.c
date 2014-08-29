@@ -118,7 +118,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 
 		for(i = 0; i < res; i++) {
 			if((epoll_events[i].events & POLLIN) != 0) {
-				LOGD(LOG_TAG, "Read from fd=%d", epoll_events[i].data.fd);
+				LOGD(LOG_TAG, "Read from fd=%d (events=%08x)", epoll_events[i].data.fd, epoll_events[i].events);
 
 				res = 0;
 				tun_ctx_t* tmp_tun_ctx = NULL;
