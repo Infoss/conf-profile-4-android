@@ -4,49 +4,164 @@
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical" >
-
-    <TextView
-        android:layout_width="wrap_content"
+    
+	<LinearLayout
+	    android:id="@+id/profileListItem"
+	    android:layout_width="match_parent"
+	    android:layout_height="wrap_content"
+	    android:minHeight="?android:attr/listPreferredItemHeight"
+	    android:orientation="horizontal"
+	    android:paddingLeft="16dip"
+	    android:paddingTop="6dip"
+	    android:paddingBottom="6dip">
+	    
+	    <ImageView 
+	        android:id="@+id/icon"
+	        android:src="@drawable/profiles"
+	        android:layout_width="wrap_content"
+	        android:layout_height="match_parent"
+	        android:layout_gravity="center"
+	        android:layout_marginRight="16dip" />
+	
+	    <LinearLayout
+	        android:orientation="vertical"
+	        android:layout_width="match_parent"
+	        android:layout_height="wrap_content"
+	        android:layout_gravity="center_vertical">
+	        
+	        <TextView android:id="@+id/profileName"
+	            android:layout_width="match_parent"
+	            android:layout_height="wrap_content"
+	            android:layout_gravity="top"
+	            android:gravity="center_vertical"
+	            android:textAppearance="?android:attr/textAppearanceLarge" />
+	        
+	        <TextView android:id="@+id/profileOrganization"
+	            android:layout_width="match_parent"
+	            android:layout_height="wrap_content"
+	            android:layout_gravity="bottom"
+	            android:minHeight="26dp"
+	            android:textAppearance="?android:attr/textAppearanceSmall" />
+	        
+	    </LinearLayout>
+	</LinearLayout>
+	
+	<TableLayout 
+	    android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/fragment_add_profile_info_name_label"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
-
-    <TextView
-        android:id="@+id/name"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/fragment_add_profile_info_org_label"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
-
-    <TextView
-        android:id="@+id/organization"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="" />
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/fragment_add_profile_info_desc_label"
-        android:textAppearance="?android:attr/textAppearanceLarge" />
-
-    <TextView
-        android:id="@+id/desc"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="" />
-
-    <ExpandableListView
-        android:id="@+id/list"
-        android:layout_width="match_parent"
-        android:layout_height="0dip"
-        android:layout_weight="1"
-        android:orientation="horizontal"
-        tools:listitem="@android:layout/simple_expandable_list_item_2" />
+        android:layout_margin="10dip"
+        android:minHeight="?android:attr/listPreferredItemHeight" 
+        android:stretchColumns="1">
+	    <TableRow 
+	        android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal">
+	        <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="right"
+                android:minHeight="26dp"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:layout_marginRight="10dip" 
+                android:text="@string/fragment_profile_details_desc_label" />
+	        <TextView android:id="@+id/profileDescription"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:minHeight="26dp"
+                android:maxLines="4"
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+	    </TableRow>
+	    
+	    <TableRow 
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="right"
+                android:minHeight="26dp"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:layout_marginRight="10dip" 
+                android:text="@string/fragment_profile_details_signed_label" />
+            <TextView android:id="@+id/profileSigned"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:minHeight="26dp"
+                android:maxLines="2"
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+        </TableRow>
+        
+	    <TableRow 
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="right"
+                android:minHeight="26dp"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:layout_marginRight="10dip" 
+                android:text="@string/fragment_profile_details_received_label" />
+            <TextView android:id="@+id/profileReceived"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:minHeight="26dp"
+                android:maxLines="1"
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+        </TableRow>
+        
+	    <TableRow 
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="right"
+                android:minHeight="26dp"
+                android:textAppearance="?android:attr/textAppearanceSmall"
+                android:layout_marginRight="10dip" 
+                android:text="@string/fragment_profile_details_contains_label" />
+            <TextView android:id="@+id/profileContains"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:minHeight="26dp"
+                android:maxLines="6"
+                android:textAppearance="?android:attr/textAppearanceSmall" />
+        </TableRow>
+	    
+	</TableLayout>
+	
+	<LinearLayout
+	    android:id="@+id/list_item_1_images"
+	    android:layout_width="match_parent"
+	    android:layout_height="wrap_content"
+	    android:paddingTop="1dip"
+	    android:paddingBottom="1dip"
+	    android:paddingStart="8dip"
+	    android:paddingEnd="8dip">
+	
+	    <TextView android:id="@android:id/text1"
+	        android:layout_width="wrap_content"
+	        android:layout_height="wrap_content"
+	        android:layout_gravity="center_horizontal"
+	        android:layout_weight="1"
+	        android:textAppearance="?android:attr/textAppearanceMedium"
+	        android:paddingStart="?android:attr/listPreferredItemPaddingStart"
+	        android:paddingEnd="?android:attr/listPreferredItemPaddingEnd" 
+	        android:text="More details" />
+	    
+	    <ImageView 
+	        android:layout_width="32dip"
+	        android:layout_height="32dip" 
+	        android:src="@drawable/arrow" />
+	    
+	</LinearLayout>
 
 </LinearLayout>
