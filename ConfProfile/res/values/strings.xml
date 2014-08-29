@@ -39,6 +39,11 @@
 	<string name="fragment_add_profile_info_org_label">Organization:</string>
 	<string name="fragment_add_profile_info_desc_label">Description:</string>
 	
+	<string name="fragment_profile_details_desc_label">Description</string>
+	<string name="fragment_profile_details_signed_label">Signed</string>
+	<string name="fragment_profile_details_received_label">Received</string>
+	<string name="fragment_profile_details_contains_label">Contains</string>
+	
 	<string name="error_add_profile_generic">Internal error. \nTry to reinstall profile later.</string>
 	<string name="error_add_profile_http_failed">Server doesn\'t respond. \nCheck your internet connectivity and try to reinstall profile.</string>
 	<string name="error_add_profile_scep_failed">Can\'t enroll certificate by SCEP. \nTry to reinstall profile later.</string>
