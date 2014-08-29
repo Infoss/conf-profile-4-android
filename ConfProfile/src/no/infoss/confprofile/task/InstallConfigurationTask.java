@@ -269,6 +269,8 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 			bundle.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_INSERT);
 			bundle.putString(ProfilesCursorLoader.P_ID, profile.getPayloadIdentifier());
 			bundle.putString(ProfilesCursorLoader.P_NAME, profile.getPayloadDisplayName());
+			bundle.putString(ProfilesCursorLoader.P_DESCRIPTION, profile.getPayloadDescription());
+			bundle.putString(ProfilesCursorLoader.P_ORGANIZATION, profile.getPayloadOrganization());
 			
 			GsonBuilder gsonBuilder = new GsonBuilder();
 			gsonBuilder.registerTypeAdapterFactory(new PlistTypeAdapterFactory());

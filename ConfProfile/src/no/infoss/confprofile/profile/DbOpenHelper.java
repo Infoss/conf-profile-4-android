@@ -16,7 +16,10 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 	private static final String SQL_PROFILES = "CREATE TABLE profiles (" + 
 			"id TEXT PRIMARY KEY NOT NULL, " + 
 			"name TEXT NOT NULL, " + 
-			"data TEXT NOT NULL);";
+			"description TEXT, " + 
+			"organization TEXT," +
+			"data TEXT NOT NULL, " +
+			"added_at DATETIME DEFAULT (CURRENT_TIMESTAMP));";
 	private static final String SQL_LINKED_OBJECTS = "CREATE TABLE linked_objects (" + 
 			"profile_id TEXT NOT NULL REFERENCES profiles (id), " + 
 			"object_id TEXT PRIMARY KEY NOT NULL, " + 
