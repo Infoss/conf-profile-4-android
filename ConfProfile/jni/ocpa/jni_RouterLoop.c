@@ -160,12 +160,12 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 					goto failed;
 				}
 
-			} else if((epoll_events[i].events & POLLHUP) != 0) {
+			}
+
+			if((epoll_events[i].events & POLLHUP) != 0) {
 				LOGE(LOG_TAG, "HUP for fd %d", epoll_events[i].data.fd);
-			} else if(epoll_events[i].events != POLLOUT) {
-				LOGD(LOG_TAG, "no action for fd %d (revents=%d)",
-						epoll_events[i].data.fd,
-						epoll_events[i].events);
+
+
 			}
 
 		}
