@@ -279,6 +279,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			return true;
 		}
 		case R.id.menu_item_go_profiles: {
+			intent = new Intent(this, Profiles.class);
+			startActivity(intent);
 			return true;
 		}
 		
