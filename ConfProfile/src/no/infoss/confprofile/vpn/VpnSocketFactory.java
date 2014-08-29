@@ -13,6 +13,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.os.IBinder;
 
+@Deprecated
 public class VpnSocketFactory extends SocketFactory {
 	public static final String TAG = VpnSocketFactory.class.getSimpleName();
 	
