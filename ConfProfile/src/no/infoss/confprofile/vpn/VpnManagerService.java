@@ -4,6 +4,7 @@ import java.net.Socket;
 import java.security.PrivateKey;
 import java.security.Security;
 import java.security.cert.Certificate;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
@@ -17,19 +18,26 @@ import no.infoss.confprofile.format.ConfigurationProfile.Payload;
 import no.infoss.confprofile.format.PayloadFactory;
 import no.infoss.confprofile.format.Plist.Dictionary;
 import no.infoss.confprofile.format.VpnPayload;
+import no.infoss.confprofile.format.json.BuiltinTypeAdapterFactory;
 import no.infoss.confprofile.format.json.PlistTypeAdapterFactory;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader.PayloadsPerformance;
+import no.infoss.confprofile.profile.VpnDataCursorLoader;
+import no.infoss.confprofile.profile.VpnDataCursorLoader.VpnDataPerformance;
+import no.infoss.confprofile.profile.data.VpnData;
+import no.infoss.confprofile.profile.data.VpnDataEx;
+import no.infoss.confprofile.profile.data.VpnOnDemandConfig;
 import no.infoss.confprofile.util.ConfigUtils;
 import no.infoss.confprofile.util.HelperThread;
+import no.infoss.confprofile.util.LocalNetworkConfig;
 import no.infoss.confprofile.util.HelperThread.Callback;
 import no.infoss.confprofile.util.HelperThread.Performer;
 import no.infoss.confprofile.util.MiscUtils;
-import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
 import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
 import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
+import no.infoss.confprofile.vpn.delegates.ConfigurationDelegate;
 import no.infoss.confprofile.vpn.delegates.DebugDelegate;
 import no.infoss.confprofile.vpn.delegates.NotificationDelegate;
 import no.infoss.jcajce.InfossJcaProvider;
@@ -91,31 +99,25 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	private String mLastVpnTunnelUuid = null;
 	private String mPendingVpnTunnelUuid = null;
 	
-	private boolean mIsRequestActive = false;
-	private boolean mReevaluateOnRequest = false;
-	private List<VpnConfigInfo> mConfigInfos;
-	
-	private NetworkConfig mSavedNetworkConfig;
-	private boolean mSavedFailoverFlag;
-	
 	private LocalNetworkConfig mCurrLocalNetConfig = null;
 	
 	private VpnManagerHelperThread mHelperThread;
 	private DebugDelegate mDebugDelegate;
 	private NotificationDelegate mNtfDelegate;
+	private ConfigurationDelegate mCfgDelegate;
 	
 	@Override
 	public void onCreate() {
 		super.onCreate();
 		
-		mDebugDelegate = new DebugDelegate(this);
-		mNtfDelegate = new NotificationDelegate(this);
-		
-		mNetworkListener = new NetworkStateListener(getApplicationContext(), this);
 		mHelperThread = new VpnManagerHelperThread();
 		mHelperThread.start();
-		obtainOnDemandVpns();
 		
+		mDebugDelegate = new DebugDelegate(this);
+		mNtfDelegate = new NotificationDelegate(this);
+		mCfgDelegate = new ConfigurationDelegate(this);
+		
+		mNetworkListener = new NetworkStateListener(getApplicationContext(), mCfgDelegate);
 		
 		mVpnServiceState = SERVICE_STATE_REVOKED;
 		mNtfDelegate.notifyPreparing();
@@ -242,7 +244,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			mRouterLoop.startLoop();
 			
 			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
-			mUsernatTunnel.establishConnection(null);
+			mUsernatTunnel.establishConnection();
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);
 			
@@ -256,12 +258,12 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			} else {
 				Log.d(TAG, "+ IPv4 routes: " + routes4.toString());
 			}
-			
-			updateCurrentConfiguration();
 		} finally {
 			mBindKit.unlock();
 		}
 		
+		mCfgDelegate.setOnDemandEnabled(true);
+		mCfgDelegate.updateCurrentConfiguration(true);
 	}
 
 	@Override
@@ -289,6 +291,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		mRouterLoop = null;
 		
 		mNtfDelegate.notifyRevoked();
+		
+		mCfgDelegate.setOnDemandEnabled(false);
 	}
 	
 	@Override
@@ -352,6 +356,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 	}
 
+	/*
 	@Override
 	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover) {
 		Log.d(TAG, "lost " + netConfig.toString() + (isFailover ? ", failover" : ""));
@@ -360,7 +365,9 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		
 		updateCurrentConfiguration();
 	}
+	*/
 	
+	/*
 	@Override
 	public void notifyConnectivityChanged(NetworkConfig netConfig, boolean isFailover) {
 		Log.d(TAG, "changed to " + netConfig.toString() + (isFailover ? ", failover" : ""));
@@ -373,76 +380,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		
 		updateCurrentConfiguration();
 	}
-	
-	private synchronized void updateCurrentConfiguration() {
-		if(mSavedNetworkConfig == null || mConfigInfos == null || mRouterLoop == null) {
-			return;
-		}
-		
-		List<Route4> routes4 = mRouterLoop.getRoutes4();
-		if(routes4 == null) {
-			Log.d(TAG, "IPv4 routes: none");
-		} else {
-			Log.d(TAG, "IPv4 routes: " + routes4.toString());
-		}
-		
-		VpnTunnel tun = null;
-		
-		for(VpnConfigInfo info : mConfigInfos) {
-			if(info.configId == null || info.configId.isEmpty()) {
-				Log.w(TAG, "Skipping VpnConfigInfo with null or empty configId");
-				continue;
-			}
-			
-			if(mSavedNetworkConfig.match(info.networkConfig)) {
-				Log.d(TAG, "MATCHED==========");
-				Log.d(TAG, mSavedNetworkConfig.toString());
-				Log.d(TAG, info.networkConfig.toString());
-				Log.d(TAG, "=================");
-				//TODO: check routes
-				if(mCurrentTunnel != null && info.configId.equals(mCurrentTunnel.getTunnelId())) {
-					//current tunnel is up and matches network configuration
-					String logFmt = "Tunnel with id=%s is up and matches network configuration";
-					Log.d(TAG, String.format(logFmt, info.configId));
-					break;
-				} else {
-					tun = VpnTunnelFactory.getTunnel(getApplicationContext(), this, info);
-					if(tun == null) {
-						Log.d(TAG, "Can't create tun " + info.vpnType + " with id=" + info.configId);
-					} else {
-						if(mLastVpnTunnelUuid == null) {
-							mLastVpnTunnelUuid = tun.getTunnelId();
-						}
-						
-						VpnTunnel oldTun = mCurrentTunnel;
-						mCurrentTunnel = tun;
-						tun.establishConnection(info.params);
-						
-						if(mDebugDelegate.isDebugPcapEnabled()) {
-							mDebugDelegate.debugStartTunnelPcap(mRouterLoop.getMtu(), tun);
-						}
-						
-						mRouterLoop.defaultRoute4(tun);
-						
-						if(oldTun != null) {
-							oldTun.terminateConnection();
-						}
-						
-						routes4 = mRouterLoop.getRoutes4();
-						if(routes4 != null) {
-							Log.d(TAG, "IPv4 routes: " + routes4.toString());
-						}
-						
-						break;
-					}
-				}
-			}
-		}
-		
-		if(mRouterLoop.isPaused()) {
-			mRouterLoop.pause(false);
-		}
-	}
+	*/
 	
 	@Override
 	public void notifyVpnLockedBySystem() {
@@ -521,41 +459,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		return mRouterLoop;
 	}
 	
-	public void obtainOnDemandVpns() {
-		if(!mIsRequestActive && mHelperThread != null) {
-			mIsRequestActive = true;
-			mHelperThread.request(new OnDemandVpnListRequest(), 
-					new OnDemandVpnListPerformer(getApplicationContext()), 
-					new Callback<VpnManagerService.OnDemandVpnListRequest, 
-							VpnManagerService.OnDemandVpnListPerformer>() {
-
-						@Override
-						public void onSuccess(OnDemandVpnListRequest request,
-								OnDemandVpnListPerformer performer) {
-							mIsRequestActive = false;
-							if(mConfigInfos != null) {
-								mConfigInfos.clear();
-							}
-							
-							mConfigInfos = request.result;
-							
-							if(mConfigInfos != null) {
-								Collections.reverse(mConfigInfos);
-							}
-							
-							updateCurrentConfiguration();
-						}
-
-						@Override
-						public void onError(OnDemandVpnListRequest request,
-								OnDemandVpnListPerformer performer) {
-							// TODO Auto-generated method stub
-							mIsRequestActive = false;
-							Log.e(TAG, "Error while getting On-Demand VPN configuration");
-						}
-					});
-			//new ObtainOnDemandVpns(this, this).execute((Void[]) null);
-		}
+	public VpnManagerHelperThread getHelperThread() {
+		return mHelperThread;
 	}
 	
 	@Override
@@ -640,6 +545,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		return retVal;
 	}
 	
+	@Deprecated
 	public static class VpnConfigInfo {
 		public static final String PARAMS_IPSEC = "IPSec";
 		public static final String PARAMS_PPP = "PPP";
@@ -653,169 +559,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		public PrivateKey privateKey;
 	}
 	
-	private static class LocalNetworkConfig {
-		public final int subnetIp;
-		public final int subnetMask;
-		public final int localIp;
-		public final int remoteIp;
-		
-		public final String subnetAddr;
-		public final String localAddr;
-		public final String remoteAddr;
-		
-		public LocalNetworkConfig(String subnet, int mask, String local, String remote) {
-			subnetAddr = subnet;
-			subnetMask = mask;
-			localAddr = local;
-			remoteAddr = remote;
-			
-			subnetIp = NetUtils.ip4StrToInt(subnet);
-			localIp = NetUtils.ip4StrToInt(local);
-			remoteIp = NetUtils.ip4StrToInt(remote);
-		}
-		
-		public LocalNetworkConfig(int subnet, int mask, int local, int remote) {
-			subnetIp = subnet;
-			subnetMask = mask;
-			localIp = local;
-			remoteIp = remote;
-			
-			subnetAddr = NetUtils.ip4IntToStr(subnet);
-			localAddr = NetUtils.ip4IntToStr(local);
-			remoteAddr = NetUtils.ip4IntToStr(remote);
-		}
-		
-		public LocalNetworkConfig(String subnet) {
-			this(applyMask(subnet, 30));
-		}
-		
-		private LocalNetworkConfig(int subnet) {
-			this(subnet, 30, subnet + 2, subnet + 1);
-		}
-		
-		private static int applyMask(String addr, int mask) {
-			int ip = NetUtils.ip4StrToInt(addr);
-			int bitmask = ((int)0xffffffff >>> (32 - mask)) << (32 - mask);
-			return ip & bitmask;
-		}
-	}
-	
-	public class VpnManagerHelperThread extends 
-			HelperThread<OnDemandVpnListRequest, 
-					OnDemandVpnListPerformer, 
-					Callback<OnDemandVpnListRequest, 
-					OnDemandVpnListPerformer>> {
-		public VpnManagerHelperThread() {
-			super();
-		}
-
-		@Override
-		protected void checkConditionsToRun() throws IllegalStateException {
-			// TODO Auto-generated method stub
-			
-		}
-
-		@Override
-		protected void freeResources() {
-			// TODO Auto-generated method stub
-			
-		}
-	}
-	
-	public class OnDemandVpnListRequest {
-		public Bundle request;
-		public List<VpnConfigInfo> result;
-	}
-	
-	public class OnDemandVpnListPerformer implements Performer<OnDemandVpnListRequest> {
-		private Context mCtx;
-		
-		public OnDemandVpnListPerformer(Context ctx) {
-			mCtx = ctx;
-		}
-
-		@Override
-		public boolean perform(OnDemandVpnListRequest request) {
-			DbOpenHelper dbHelper = DbOpenHelper.getInstance(mCtx);
-			PayloadsPerformance payloadsPerformance = new PayloadsPerformance(mCtx, 0, request.request, dbHelper);
-			GsonBuilder gsonBuilder = new GsonBuilder();
-			gsonBuilder.registerTypeAdapterFactory(new PlistTypeAdapterFactory());
-			Gson gson = gsonBuilder.create();
-			
-			CertificateManager mgr = CertificateManager.getManagerSync(mCtx, CertificateManager.MANAGER_INTERNAL);
-			
-			try {
-				request.result = new LinkedList<VpnConfigInfo>();
-				Cursor payloads = payloadsPerformance.perform();
-				if(payloads.moveToFirst()) {
-					while(!payloads.isAfterLast()) {
-						String data = payloads.getString(3);
-						Payload payload = PayloadFactory.createPayload(gson.fromJson(data, Dictionary.class));
-						if(payload instanceof VpnPayload) {
-							VpnPayload vpnPayload = (VpnPayload) payload;
-							if(vpnPayload.isOnDemandEnabled()) {
-								Dictionary testDict;
-								
-								testDict = vpnPayload.getIpsec();
-								if(testDict == null) {
-									testDict = vpnPayload.getVpn();
-								}
-								if(testDict == null) {
-									testDict = vpnPayload.getPpp();
-								}
-								
-								if(testDict != null) {
-									VpnConfigInfo configInfo = new VpnConfigInfo();
-									configInfo.configId = vpnPayload.getPayloadUUID();
-									configInfo.networkConfig = ConfigUtils.buildNetworkConfig(vpnPayload);
-									configInfo.params = new HashMap<String, Object>();
-									
-									Dictionary tmpDict;
-									tmpDict = vpnPayload.getIpsec();
-									if(tmpDict != null) {
-										configInfo.params.put(VpnConfigInfo.PARAMS_IPSEC, tmpDict.asMap());
-									}
-									
-									tmpDict = vpnPayload.getPpp();
-									if(tmpDict != null) {
-										configInfo.params.put(VpnConfigInfo.PARAMS_PPP, tmpDict.asMap());
-									}
-									
-									tmpDict = vpnPayload.getVendorConfig();
-									if(tmpDict != null) {
-										configInfo.params.put(VpnConfigInfo.PARAMS_CUSTOM, tmpDict.asMap());
-									}
-									
-									if(VpnPayload.VPN_TYPE_CUSTOM.equals(vpnPayload.getVpnType())) {
-										configInfo.vpnType = vpnPayload.getVpnSubType();
-									} else {
-										configInfo.vpnType = vpnPayload.getVpnType();
-									}
-									
-									String method = testDict.getString(VpnPayload.KEY_AUTHENTICATION_METHOD);
-									if(VpnPayload.AUTH_METHOD_CERTIFICATE.equals(method)) {
-										String uuid = testDict.getString(VpnPayload.KEY_PAYLOAD_CERTIFICATE_UUID);
-										configInfo.certificates = mgr.getCertificateChain(uuid);
-										configInfo.privateKey = (PrivateKey) mgr.getKey(uuid);
-									}
-									
-									request.result.add(configInfo);
-								}
-							}
-						}
-						payloads.moveToNext();
-					}
-				}
-			} catch(Exception e) {
-				Log.e(TAG, "", e);
-				return false;
-			}
-			
-			return true;
-		}
-		
-	}
-
 	@Override
 	public boolean isDebugPcapEnabled() {
 		return mDebugDelegate.isDebugPcapEnabled();
@@ -833,5 +576,57 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	@Override
 	public boolean debugStopPcap() {
 		return mDebugDelegate.debugStopPcap(mRouterLoop, mUsernatTunnel, mCurrentTunnel);
+	}
+
+	public void onCurrentConfigChanged(VpnDataEx vpnData) {
+		if(vpnData == null) {
+			Log.w(TAG, "onCurrentConfigChanged(null)");
+			return;
+		}
+		
+		if(mCurrentTunnel != null && mCurrentTunnel.getTunnelId().equals(vpnData.getPayloadUuid())) {
+			String logFmt = "Tunnel with id=%s is up and matches network configuration";
+			Log.d(TAG, String.format(logFmt, vpnData.getPayloadUuid()));
+			return;
+		}
+		
+		VpnTunnel tun = null;
+		
+		tun = VpnTunnelFactory.getTunnel(getApplicationContext(), 
+				this, 
+				vpnData.getVpnType(),
+				vpnData.getPayloadUuid(),
+				vpnData.getOnDemandCredentials());
+		
+		if(tun == null) {
+			Log.d(TAG, "Can't create tun " + vpnData.getVpnType() + " with id=" + vpnData.getPayloadUuid());
+		} else {
+			if(mLastVpnTunnelUuid == null) {
+				mLastVpnTunnelUuid = tun.getTunnelId();
+			}
+			
+			VpnTunnel oldTun = mCurrentTunnel;
+			mCurrentTunnel = tun;
+			tun.establishConnection();
+			
+			if(mDebugDelegate.isDebugPcapEnabled()) {
+				mDebugDelegate.debugStartTunnelPcap(mRouterLoop.getMtu(), tun);
+			}
+			
+			mRouterLoop.defaultRoute4(tun);
+			
+			if(oldTun != null) {
+				oldTun.terminateConnection();
+			}
+			
+			List<Route4> routes4 = mRouterLoop.getRoutes4();
+			if(routes4 != null) {
+				Log.d(TAG, "IPv4 routes: " + routes4.toString());
+			}
+			
+			if(mRouterLoop.isPaused()) {
+				mRouterLoop.pause(false);
+			}
+		}
 	}
 }

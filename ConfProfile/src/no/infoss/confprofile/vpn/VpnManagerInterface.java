@@ -42,9 +42,6 @@ public interface VpnManagerInterface extends IInterface {
 	public void notifyVpnServiceRevoked();
 	public void notifyTunnelStateChanged();
 	
-	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover);
-	public void notifyConnectivityChanged(NetworkConfig netConfig, boolean isFailover);
-	
 	/**
 	 * Called by StartVpn activity when system can't prepare VPN tunnel due to "VPN Always on" feature 
 	 * (Android 4.2+). Just turn this feature off to make this application work correctly.
