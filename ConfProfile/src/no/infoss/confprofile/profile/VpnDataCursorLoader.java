@@ -31,6 +31,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 	public static final String COL_ON_DEMAND_ENABLED_BY_USER = "on_demand_enabled_by_user";
 	public static final String COL_ON_DEMAND_RULES = "on_demand_rules";
 	public static final String COL_ON_DEMAND_CREDENTIALS = "on_demand_credentials";
+	public static final String COL_VPN_TYPE = "vpn_type";
 	
 	public static final String P_PREFIX = PREFIX.concat(TABLE).concat(".");
 	public static final String P_PAYLOAD_UUID = P_PREFIX.concat("P_PAYLOAD_UUID");
@@ -40,6 +41,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 	public static final String P_ON_DEMAND_ENABLED_BY_USER = P_PREFIX.concat("P_ON_DEMAND_ENABLED_BY_USER");
 	public static final String P_ON_DEMAND_RULES = P_PREFIX.concat("P_ON_DEMAND_RULES");
 	public static final String P_ON_DEMAND_CREDENTIALS = P_PREFIX.concat("P_ON_DEMAND_CREDENTIALS");
+	public static final String P_VPN_TYPE = P_PREFIX.concat("P_VPN_TYPE");
 	
 	public static final CursorMapper<VpnData> VPN_DATA_CURSOR_MAPPER = new CursorMapper<VpnData>() {
 
@@ -63,6 +65,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 			data.setOnDemandEnabledByUser(cursor.getInt(4) != 0);
 			data.setOnDemandRules(cursor.getString(5));
 			data.setOnDemandCredentials(cursor.getString(6));
+			data.setVpnType(cursor.getString(7));
 			data.setModel(model);
 			return data;
 		}
@@ -84,6 +87,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 		private boolean mNewOnDemandEnabledByUser[] = null;
 		private String mNewOnDemandRules[] = null;
 		private String mNewOnDemandCredentials[] = null;
+		private String mNewVpnType[] = null;
 		private String mSelectBy = null; 
 		private String mSelectValue = null;
 		
@@ -99,6 +103,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					mNewOnDemandEnabledByUser = params.getBooleanArray(P_ON_DEMAND_ENABLED_BY_USER);
 					mNewOnDemandRules = params.getStringArray(P_ON_DEMAND_RULES);
 					mNewOnDemandCredentials = params.getStringArray(P_ON_DEMAND_CREDENTIALS);
+					mNewVpnType = params.getStringArray(P_VPN_TYPE);
 				} else {
 					mNewPayloadUuid = new String[] { params.getString(P_PAYLOAD_UUID) };
 					mNewUserDefinedName = new String[] { params.getString(P_USER_DEFINED_NAME) };
@@ -107,6 +112,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					mNewOnDemandEnabledByUser = new boolean[] { params.getBoolean(P_ON_DEMAND_ENABLED_BY_USER) };
 					mNewOnDemandRules = new String[] { params.getString(P_ON_DEMAND_RULES) };
 					mNewOnDemandCredentials = new String[] { params.getString(P_ON_DEMAND_CREDENTIALS) };
+					mNewVpnType = new String[] { params.getString(P_VPN_TYPE) };
 				}
 				
 				if(params.containsKey(P_SELECT_BY)) {
@@ -151,7 +157,8 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					mNewOnDemandEnabled != null && 
 					mNewOnDemandEnabledByUser != null &&
 					mNewOnDemandRules != null &&
-					mNewOnDemandCredentials != null) {	
+					mNewOnDemandCredentials != null && 
+					mNewVpnType != null) {	
 				Transaction transaction = new Transaction();
 				
 				for(int i = 0; i < mNewPayloadUuid.length; i++) {
@@ -163,6 +170,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					values.put(COL_ON_DEMAND_ENABLED_BY_USER, mNewOnDemandEnabledByUser[i] ? 1 : 0);
 					values.put(COL_ON_DEMAND_RULES, mNewOnDemandRules[i]);
 					values.put(COL_ON_DEMAND_CREDENTIALS, mNewOnDemandCredentials[i]);
+					values.put(COL_VPN_TYPE, mNewVpnType[i]);
 					transaction.addRequest(Insert.insert().into(TABLE).values(values));
 				}
 				

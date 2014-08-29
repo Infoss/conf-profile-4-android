@@ -10,6 +10,24 @@ public class VpnData extends ListItem {
 	private boolean mOnDemandEnabledByUser;
 	private String mOnDemandRules;
 	private String mOnDemandCredentials;
+	private String mVpnType;
+	
+	public VpnData() {
+		super();
+	}
+	
+	public VpnData(VpnData data) {
+		this();
+		
+		this.mPayloadUuid = data.mPayloadUuid;
+		this.mUserDefinedName = data.mUserDefinedName;
+		this.mOverridePrimary = data.mOverridePrimary;
+		this.mOnDemandEnabled = data.mOnDemandEnabled;
+		this.mOnDemandEnabledByUser = data.mOnDemandEnabledByUser;
+		this.mOnDemandRules = data.mOnDemandRules;
+		this.mOnDemandCredentials = data.mOnDemandCredentials;
+		this.mVpnType = data.mVpnType;
+	}
 	
 	public String getPayloadUuid() {
 		return mPayloadUuid;
@@ -66,6 +84,14 @@ public class VpnData extends ListItem {
 
 	public void setOnDemandCredentials(String onDemandCredentials) {
 		this.mOnDemandCredentials = onDemandCredentials;
+	}
+
+	public String getVpnType() {
+		return mVpnType;
+	}
+
+	public void setVpnType(String vpnType) {
+		this.mVpnType = vpnType;
 	}
 
 	@Override

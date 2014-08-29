@@ -34,7 +34,8 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 		    "on_demand_enabled INT  NOT NULL, " +
 		    "on_demand_enabled_by_user INT  NOT NULL, " +
 		    "on_demand_rules TEXT NOT NULL, " +
-		    "on_demand_credentials TEXT NOT NULL);";
+		    "on_demand_credentials TEXT NOT NULL, " + 
+		    "vpn_type TEXT NOT NULL);";
 	private static final String SQL_INDEX_PAYLOAD_TYPE = "CREATE INDEX idx_payloads " + 
 			"ON payloads (payload_type COLLATE NOCASE ASC);";
 	private static final String SQL_TRIGGER_DELETE_PROFILE = "CREATE TRIGGER delete_profile " + 

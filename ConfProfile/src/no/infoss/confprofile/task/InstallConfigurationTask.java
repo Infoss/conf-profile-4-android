@@ -173,6 +173,11 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 					if(instAction.payload instanceof VpnPayload) {
 						VpnPayload vpnPayload = (VpnPayload) instAction.payload;
 						
+						String vpnType = vpnPayload.getVpnType();
+						if(VpnPayload.VPN_TYPE_CUSTOM.equals(vpnType)) {
+							vpnType = vpnPayload.getVpnSubType();
+						}
+						
 						//TODO: do something with these strange stray keys
 						int overridePrimary = 0;
 						if(vpnPayload.getIpv4() != null) {
@@ -193,6 +198,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 								ConfigUtils.extractOnDemandRules(vpnPayload));
 						values.put(VpnDataCursorLoader.COL_ON_DEMAND_CREDENTIALS, 
 								ConfigUtils.extractOnDemandCredentials(vpnPayload));
+						values.put(VpnDataCursorLoader.COL_VPN_TYPE, vpnType);
 						
 						Insert request = Insert.insert().into(VpnDataCursorLoader.TABLE).values(values);
 						
