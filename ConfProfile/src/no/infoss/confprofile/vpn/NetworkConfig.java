@@ -1,9 +1,13 @@
 package no.infoss.confprofile.vpn;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
+
+import no.infoss.confprofile.format.Plist.Array;
 
 public class NetworkConfig {
 	public static final NetworkConfig NETWORK_CONFIG_ANY = new NetworkConfig();
@@ -13,7 +17,13 @@ public class NetworkConfig {
 	public static final String IF_WIFI  = "WiFi";
 	public static final String IF_CELL  = "Cellular";
 	
+	/**
+	 * Strict config means that current NetworkConfig can match the only network configuration
+	 */
 	private boolean mIsStrict;
+	/**
+	 * Active mode is applied to strict configurations only.
+	 */
 	private boolean mIsActive;
 	private String mInterfaceType; //null == any
 	private String mSsid; //null == any
@@ -214,6 +224,53 @@ public class NetworkConfig {
 				return false;
 			}
 		}
+		
+		return result;
+	}
+	
+	@SuppressWarnings("unchecked")
+	public static NetworkConfig fromMap(Map<String, Object> map) {
+		NetworkConfig result = new NetworkConfig();
+		
+		Object testObject;
+		List<Object> testList;
+		
+		ArrayList<String> strList = new ArrayList<String>();
+		
+		testObject = map.get("DNSDomainMatch");
+		if(testObject instanceof Array) {
+			testList = ((Array) testObject).asList();
+		} else {
+			testList = (List<Object>) testObject;
+		}
+		
+		if(testList != null) {
+			strList.ensureCapacity(testList.size());
+			for(Object obj : testList) {
+				strList.add((String) obj);
+			}
+			result.setDnsDomains(strList);
+			strList.clear();
+		}
+		
+		testObject = map.get("DNSServerAddressMatch");
+		if(testObject instanceof Array) {
+			testList = ((Array) testObject).asList();
+		} else {
+			testList = (List<Object>) testObject;
+		}
+		
+		if(testList != null) {
+			strList.ensureCapacity(testList.size());
+			for(Object obj : testList) {
+				strList.add((String) obj);
+			}
+			result.setDnsDomains(strList);
+			strList.clear();
+		}
+		
+		result.setInterfaceType((String) map.get("InterfaceTypeMatch"));
+		result.setSsid((String) map.get("SSIDMatch"));
 		
 		return result;
 	}
