@@ -6,10 +6,17 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
+
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 
 import no.infoss.confprofile.BuildConfig;
+import no.infoss.confprofile.format.json.BuiltinTypeAdapterFactory;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
@@ -20,6 +27,8 @@ import android.os.Looper;
 import android.util.Log;
 
 public abstract class VpnTunnel implements Runnable, Debuggable {
+	public static final String TAG = VpnTunnel.class.getSimpleName();
+	
 	public static final int LOG_VERBOSE = 2;
 	public static final int LOG_DEBUG = 3;
 	public static final int LOG_INFO = 4;
@@ -30,11 +39,13 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 	protected final String mInstanceLogTag;
 	protected final Logger mLogger;
 	protected final Handler mHandler;
+	private final List<TunnelStateListener> mListeners;
 	protected final VpnManagerInterface mVpnMgr;
+	private final String mTunnelUuid;
 	
 	protected Thread mThread;
 	protected Context mCtx;
-	protected VpnConfigInfo mCfg;
+	protected String mCfgStr;
 	private ConnectionStatus mConnectionStatus;
 	protected ConnectionError mConnectionError;
 	private Date mConnectedSince;
@@ -60,14 +71,19 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 		AUTH_FAILED
 	}
 	
+	@Deprecated
 	public VpnTunnel(Context ctx, VpnConfigInfo cfg, VpnManagerInterface vpnMgr) {
+		this(ctx, cfg.configId, null, vpnMgr);
+	}
+	
+	public VpnTunnel(Context ctx, String uuid, String cfg, VpnManagerInterface vpnMgr) {
 		mThread = new Thread(this);
 		mCtx = ctx;
-		mCfg = cfg;
 		
 		mInstanceLogTag = String.format("%s (id=%d)", getClass().getSimpleName(), mThread.getId());
 		mLogger = new Logger();
 		mHandler = new Handler(Looper.getMainLooper());
+		mListeners = new ArrayList<TunnelStateListener>();
 		
 		mConnectionStatus = ConnectionStatus.DISCONNECTED;
 		mConnectionError = ConnectionError.NO_ERROR;
@@ -77,18 +93,47 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 		mRemoteAddress = null;
 		
 		mVpnMgr = vpnMgr;
+
+		mTunnelUuid = uuid;
+		mCfgStr = cfg;
 	}
 	
+	
+	
 	protected abstract String getThreadName();
-	public abstract void establishConnection(Map<String, Object> options);
+	
+	@Deprecated
+	public final void establishConnection(Map<String, Object> options) {
+		establishConnection();
+	}
+	
+	public final void establishConnection() {
+		if(isTerminated()) {
+			return;
+		}
+		
+		if(getConnectionStatus() != ConnectionStatus.DISCONNECTED) {
+			return;
+		}
+		
+		doEstablishConnection();
+	}
+	
+	protected abstract void doEstablishConnection();
+	
+	@SuppressWarnings("unchecked")
+	protected final Map<String, Object> doParseCredentials() {
+		GsonBuilder gsonBuilder = new GsonBuilder();
+		gsonBuilder.registerTypeAdapterFactory(new BuiltinTypeAdapterFactory());
+		Gson gson = gsonBuilder.create();
+		
+		return gson.fromJson(mCfgStr, Map.class);
+	}
+	
 	public abstract void terminateConnection();
 	
 	public final String getTunnelId() {
-		if(mCfg == null) {
-			return null;
-		}
-		
-		return mCfg.configId;
+		return mTunnelUuid;
 	}
 	
 	public final Context getContext() {
@@ -116,7 +161,7 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 		return (mConnectionStatus == ConnectionStatus.TERMINATED);
 	}
 	
-	public void startLoop() {
+	public final void startLoop() {
 		mThread.setName(getThreadName());
 		mThread.start();
 	}
@@ -186,6 +231,33 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 		return mVpnMgr.protect(fd);
 	}
 	
+	/*from IpSecVpnStateService*/
+	/**
+	 * Update state and notify all listeners about the change. By using a Handler
+	 * this is done from the main UI thread and not the initial reporter thread.
+	 * Also, in doing the actual state change from the main thread, listeners
+	 * see all changes and none are skipped.
+	 *
+	 * @param change the state update to perform before notifying listeners, returns true if state changed
+	 */
+	protected final void notifyListeners(final Callable<Boolean> change) {
+		mHandler.post(new Runnable() {
+			@Override
+			public void run() {
+				try {
+					if(change.call()) {
+						/* otherwise there is no need to notify the listeners */
+						for(TunnelStateListener listener : mListeners) {
+							listener.stateChanged();
+						}
+					}
+				} catch(Exception e) {
+					Log.e(TAG, "Error while notifying listeners", e);
+				}
+			}
+		});
+	}
+	
 	public final boolean debugRestartPcap(PcapOutputStream pos) {
 		debugRestartPcap(mVpnTunnelCtx, pos);
 		return true;
@@ -215,6 +287,10 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 	
 	private native void debugRestartPcap(long vpnTunnelCtx, PcapOutputStream pos);
 	private native void debugStopPcap(long vpnTunnelCtx);
+	
+	public interface TunnelStateListener {
+		public void stateChanged();
+	}
 	
 	private final void debugLogMessage(int level, String msg) {
 		switch (level) {

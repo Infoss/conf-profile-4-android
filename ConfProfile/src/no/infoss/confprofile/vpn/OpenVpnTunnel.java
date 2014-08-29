@@ -16,8 +16,15 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.security.Key;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.UnrecoverableKeyException;
+import java.security.cert.Certificate;
 
 import no.infoss.confprofile.BuildConfig;
+import no.infoss.confprofile.crypto.CertificateManager;
+import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.StringUtils;
@@ -37,10 +44,10 @@ public class OpenVpnTunnel extends VpnTunnel {
 	
 	public static final String VPN_TYPE = "net.openvpn.OpenVPN-Connect.vpnplugin";
 	
+	private Map<String, Object> mGlobalOptions;
 	private Map<String, Object> mOptions;
 	private Thread mWorkerThread;
 	private OpenVpnWorker mWorker;
-	
 	
 	private LocalSocket mSocket;
 	private LinkedList<FileDescriptor> mFDList = new LinkedList<FileDescriptor>();
@@ -63,9 +70,19 @@ public class OpenVpnTunnel extends VpnTunnel {
     
     private PauseReason mLastPauseReason = PauseReason.noNetwork;
 	
-	
+	@Deprecated
 	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg, vpnMgr);
+		mVpnServiceCtx = vpnServiceCtx;
+		
+		boolean managemeNetworkState = true;
+		if(managemeNetworkState) {
+			mReleaseHold = false;
+		}
+	}
+	
+	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+		super(ctx, uuid, cfg, vpnMgr);
 		mVpnServiceCtx = vpnServiceCtx;
 		
 		boolean managemeNetworkState = true;
@@ -79,18 +96,9 @@ public class OpenVpnTunnel extends VpnTunnel {
 		return VPN_TYPE;
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
-	public void establishConnection(Map<String, Object> options) {
-		if(getConnectionStatus() != ConnectionStatus.DISCONNECTED) {
-			return;
-		}
-		
-		mOptions = (Map<String, Object>) options.get(VpnConfigInfo.PARAMS_CUSTOM);
+	protected void doEstablishConnection() {
 		mVpnTunnelCtx = initOpenVpnTun();
-		
-		setServerName((String) mOptions.get("remote")); 
-		
 		startLoop();
 	}
 	
@@ -103,6 +111,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 		}
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
 	public void run() {
 		if(MiscUtils.writeExecutableToCache(mCtx, OpenVpnWorker.MINIVPN) == null) {
@@ -111,13 +120,17 @@ public class OpenVpnTunnel extends VpnTunnel {
 			return;
 		}
 		
+		mGlobalOptions = doParseCredentials(); 
+		mOptions = (Map<String, Object>) mGlobalOptions.get(VpnPayload.KEY_VENDOR_CONFIG);
+		setServerName((String) mOptions.get("remote"));
+		
 		mBytesIn = 0;
 		mBytesOut = 0;
 		
 		byte[] buffer = new byte[2048];
 		String pendingInput = "";
 		
-		String confFileName = mCfg.configId.concat(".ovpn");
+		String confFileName = getTunnelId().concat(".ovpn");
 		File cacheDir = mCtx.getCacheDir();
 		File confFile = new File(cacheDir, confFileName);
 		
@@ -394,6 +407,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 		}
 
 	}
+	
 	private void processState(String argument) {
 		String[] args = argument.split(",",3);
 		String currentstate = args[1];
@@ -421,7 +435,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 	}
 
 	private void processNeedCommand(String argument) {
-		int p1 =argument.indexOf('\'');
+		int p1 = argument.indexOf('\'');
 		int p2 = argument.indexOf('\'',p1+1);
 
 		String needed = argument.substring(p1+1, p2);
@@ -447,7 +461,7 @@ public class OpenVpnTunnel extends VpnTunnel {
             }
 		} else if ("ROUTE6".equals(needed)) {
             String[] routeparts = extra.split(" ");
-			addRoute6(routeparts[0],routeparts[1]);
+			addRoute6(routeparts[0], routeparts[1]);
 		} else if ("IFCONFIG".equals(needed)) {
 			String[] ifconfigparts = extra.split(" ");
 			int mtu = Integer.parseInt(ifconfigparts[2]);
@@ -474,10 +488,10 @@ public class OpenVpnTunnel extends VpnTunnel {
 
 	private boolean sendTunFD (String needed, String extra) {
 		boolean result = false;
-		if(!extra.equals("tun")) {
+		if(!"tun".equals(extra)) {
 			// We only support tun
 			String logFmt = "Device type %s requested, but only tun is possible with the Android API";
-			mLogger.log(LOG_ERROR, String.format(logFmt, extra));
+			mLogger.log(LOG_ERROR, String.format(logFmt, (extra == null ? "<null>" : extra)));
 
 			return false;
 		}
@@ -724,10 +738,19 @@ public class OpenVpnTunnel extends VpnTunnel {
 			builder.append("\n");
 		}
 		
+		@SuppressWarnings("unchecked")
+		Map<String, Object> vpnOptions = (Map<String, Object>) mGlobalOptions.get(VpnPayload.KEY_VPN);
+		String certUuid = (String) vpnOptions.get(VpnPayload.KEY_PAYLOAD_CERTIFICATE_UUID);
+		CertificateManager certMgr = 
+				CertificateManager.getManagerSync(getContext(), CertificateManager.MANAGER_INTERNAL);
+		
 		StringWriter strWriter = new StringWriter();
 		PEMWriter pemWriter = new PEMWriter(strWriter);
 		try {
-			pemWriter.writeObject(mCfg.certificates[0]);
+			Certificate[] certs = certMgr.getCertificateChain(certUuid);
+			Key privKey = certMgr.getKey(certUuid);
+			
+			pemWriter.writeObject(certs[0]);
 			pemWriter.flush();
 			builder.append("<cert>\n");
 			builder.append(strWriter.toString());
@@ -736,7 +759,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 			
 			strWriter = new StringWriter();
 			pemWriter = new PEMWriter(strWriter);
-			pemWriter.writeObject(mCfg.privateKey);
+			pemWriter.writeObject(privKey);
 			pemWriter.flush();
 			builder.append("<key>\n");
 			builder.append(strWriter.toString());
@@ -744,6 +767,12 @@ public class OpenVpnTunnel extends VpnTunnel {
 			pemWriter.close();
 		} catch (IOException e) {
 			Log.e(TAG, "Can't write pem", e);
+		} catch (UnrecoverableKeyException e) {
+			Log.e(TAG, "Can't read certificate or key [1]", e);
+		} catch (KeyStoreException e) {
+			Log.e(TAG, "Can't read certificate or key [2]", e);
+		} catch (NoSuchAlgorithmException e) {
+			Log.e(TAG, "Can't read certificate or key [3]", e);
 		}
 		
 		return builder.toString();

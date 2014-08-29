@@ -32,9 +32,16 @@ public class L2tpTunnel extends VpnTunnel {
 	
 	private LocalSocket mSocket;
 	private LinkedList<FileDescriptor> mFds = new LinkedList<FileDescriptor>();
-	
+
+	@Deprecated
 	/*package*/ L2tpTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg, vpnMgr);
+		mVpnServiceCtx = vpnServiceCtx;
+		mIsTerminating = false;
+	}
+	
+	/*package*/ L2tpTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+		super(ctx, uuid, cfg, vpnMgr);
 		mVpnServiceCtx = vpnServiceCtx;
 		mIsTerminating = false;
 	}
@@ -44,6 +51,8 @@ public class L2tpTunnel extends VpnTunnel {
 		if(MiscUtils.writeExecutableToCache(mCtx, L2tpWorker.MINIVPN) == null) {
 			Log.e(TAG, "Error writing ocpamtpd");
 		}
+		
+		mOptions = prepareOptions(doParseCredentials());
 
 		int tries = 8;
 		String unixSockName = (new File(mCtx.getCacheDir(), "mgmtsocket-mtpd")).getAbsolutePath();
@@ -165,16 +174,10 @@ public class L2tpTunnel extends VpnTunnel {
 	protected String getThreadName() {
 		return VPN_TYPE;
 	}
-
+	
 	@Override
-	public void establishConnection(Map<String, Object> options) {
-		if(mIsTerminating) {
-			return;
-		}
-		
-		mOptions = prepareOptions(options);
+	protected void doEstablishConnection() {
 		mVpnTunnelCtx = initL2tpTun();
-		
 		startLoop();
 	}
 

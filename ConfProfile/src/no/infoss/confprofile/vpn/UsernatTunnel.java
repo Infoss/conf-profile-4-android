@@ -8,13 +8,11 @@ import java.io.OutputStream;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.NetUtils;
-import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import android.content.Context;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
@@ -22,12 +20,6 @@ import android.util.Log;
 
 public class UsernatTunnel extends VpnTunnel {
 	public static final String TAG = UsernatTunnel.class.getSimpleName();
-	
-	private static final VpnConfigInfo VPN_CFG_INFO;
-	static {
-		VPN_CFG_INFO = new VpnConfigInfo();
-		VPN_CFG_INFO.configId = "0000";
-	}
 	
 	private Thread mWorkerThread;
 	private UsernatWorker mWorker;
@@ -39,7 +31,7 @@ public class UsernatTunnel extends VpnTunnel {
 	private final byte[] mOutBuff = new byte[65537];
 
 	public UsernatTunnel(Context ctx, RouterLoop routerLoop, VpnManagerInterface vpnMgr) {
-		super(ctx, VPN_CFG_INFO, vpnMgr);
+		super(ctx, "0000", null, vpnMgr);
 		mVpnServiceCtx = routerLoop.getRouterCtx();
 		mQueue = new ConcurrentLinkedQueue<SocatTunnelContext>();
 	}
@@ -204,11 +196,7 @@ public class UsernatTunnel extends VpnTunnel {
 	}
 
 	@Override
-	public void establishConnection(Map<String, Object> options) {
-		if(getConnectionStatus() != ConnectionStatus.DISCONNECTED) {
-			return;
-		}
-		
+	protected void doEstablishConnection() {
 		mVpnTunnelCtx = initUsernatTun();
 		
 		startLoop();
