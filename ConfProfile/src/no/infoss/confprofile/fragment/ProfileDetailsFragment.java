@@ -44,7 +44,6 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	
 	private DbOpenHelper mDbHelper;
 	private String mProfileId;
-	private ConfigurationProfile mProfile;
 	
 	private final PayloadInfoMapper mInfoMapper;
 	private final PayloadGroupInfoMapper mGroupInfoMapper;
@@ -109,8 +108,10 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 		super.onCreateView(inflater, container, savedInstanceState);
 		
 		View view = inflater.inflate(R.layout.fragment_profile_details, null);
+		/*
 		ExpandableListView list = (ExpandableListView) view.findViewById(R.id.list);
 		list.setAdapter(mPayloadAdapter);
+		*/
 		
 		return view;
 	}
@@ -119,6 +120,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	public void onActivityCreated(Bundle savedInstanceState) {
 		super.onActivityCreated(savedInstanceState);
 		
+		/*
 		ExpandableListView list = (ExpandableListView) getView().findViewById(R.id.list);
 		list.setOnChildClickListener(new OnChildClickListener() {
 			
@@ -133,7 +135,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 				return false;
 			}
 		});
-		
+		*/
 		
 		Bundle request = new Bundle();
 		request.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);

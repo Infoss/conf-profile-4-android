@@ -272,8 +272,7 @@ public class CryptoUtils {
 			
 			idx++;
 		}
-		
-		builder.append(signedData.getSignedContent().getContent());
+
 		return builder.toString();
 	}
 }
