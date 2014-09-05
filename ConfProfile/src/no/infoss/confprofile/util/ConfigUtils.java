@@ -3,11 +3,13 @@ package no.infoss.confprofile.util;
 import java.util.HashMap;
 import java.util.Map;
 
+import no.infoss.confprofile.R;
 import no.infoss.confprofile.format.Plist.Array;
 import no.infoss.confprofile.format.Plist.Dictionary;
 import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.format.json.BuiltinTypeAdapterFactory;
 import no.infoss.confprofile.vpn.NetworkConfig;
+import android.content.Context;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -93,6 +95,22 @@ public class ConfigUtils {
 		Gson gson = gsonBuilder.create();
 		
 		return gson.toJson(result);
+	}
+	
+	public static String getPayloadNameByType(Context context, String type) {
+		String result = null;
+		
+		if("com.apple.security.scep".equals(type)) {
+			result = context.getString(R.string.payload_type_scep);
+		} else if("com.apple.vpn.managed".equals(type)) {
+			result = context.getString(R.string.payload_type_vpn);
+		} else if("com.apple.security.root".equals(type)) {
+			result = context.getString(R.string.payload_type_cert);
+		} else {
+			result = context.getString(R.string.payload_type_unknown);
+		}
+		
+		return result;
 	}
 	
 }
