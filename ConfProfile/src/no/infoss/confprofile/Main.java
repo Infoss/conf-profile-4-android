@@ -210,7 +210,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			mGrid.setAdapter(null);
 			Bundle params = new Bundle();
 			params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
-			getLoaderManager().restartLoader(0, params, this);
+			getLoaderManager().initLoader(0, params, this);
 		}
 		
 		mVpnEvtReceiver.register();
