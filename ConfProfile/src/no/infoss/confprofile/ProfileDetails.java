@@ -1,7 +1,7 @@
 package no.infoss.confprofile;
 
 import no.infoss.confprofile.fragment.ProfileDetailsFragment;
-import no.infoss.confprofile.profile.PayloadsCursorLoader;
+import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import android.app.Activity;
 import android.app.FragmentManager;
 import android.content.Intent;
@@ -24,7 +24,7 @@ public class ProfileDetails extends Activity {
 				return;
 			}
 			
-			f.setProfileId(intent.getStringExtra(PayloadsCursorLoader.P_PROFILE_ID));
+			f.setProfileId(intent.getStringExtra(ProfilesCursorLoader.P_ID));
 		}		
 	}
 	

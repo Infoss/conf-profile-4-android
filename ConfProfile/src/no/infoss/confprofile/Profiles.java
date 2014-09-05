@@ -20,7 +20,6 @@
 package no.infoss.confprofile;
 
 import no.infoss.confprofile.profile.DbOpenHelper;
-import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
 import android.app.Activity;
@@ -75,7 +74,7 @@ public class Profiles extends Activity implements LoaderCallbacks<Cursor> {
 				ObjectAdapter<ProfileInfo> adapter = (ObjectAdapter<ProfileInfo>) parent.getAdapter();
 				ProfileInfo info = (ProfileInfo) adapter.getItem(position);
 				Intent intent = new Intent(Profiles.this, ProfileDetails.class);
-				intent.putExtra(PayloadsCursorLoader.P_PROFILE_ID, info.id);
+				intent.putExtra(ProfilesCursorLoader.P_ID, info.id);
 				Profiles.this.startActivity(intent);
 			}
 		});
