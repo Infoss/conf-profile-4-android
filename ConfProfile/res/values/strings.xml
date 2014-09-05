@@ -43,6 +43,8 @@
 	<string name="fragment_profile_details_signed_label">Signed</string>
 	<string name="fragment_profile_details_received_label">Received</string>
 	<string name="fragment_profile_details_contains_label">Contains</string>
+	<string name="fragment_profile_details_more_label">More details</string>
+	<string name="fragment_profile_details_date_label_fmt">dd MMM yyyy</string>
 	
 	<string name="error_add_profile_generic">Internal error. \nTry to reinstall profile later.</string>
 	<string name="error_add_profile_http_failed">Server doesn\'t respond. \nCheck your internet connectivity and try to reinstall profile.</string>
@@ -63,4 +65,9 @@
     <string name="notification_text_error_always_on">Please turn off VPN Always On</string>
 	<string name="notification_title_error_revoked">Access revoked by another app</string>
     <string name="notification_text_error_revoked">Please tap here to protect your traffic with VPN</string>
+    
+    <string name="payload_type_unknown">Unknown</string>
+    <string name="payload_type_scep">SCEP Enrollment Request</string>
+    <string name="payload_type_cert">Certificate</string>
+    <string name="payload_type_vpn">VPN Settings</string>
 </resources>
