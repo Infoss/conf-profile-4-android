@@ -21,7 +21,8 @@
 	        android:layout_width="wrap_content"
 	        android:layout_height="match_parent"
 	        android:layout_gravity="center"
-	        android:layout_marginRight="16dip" />
+	        android:layout_marginRight="16dip" 
+	        android:contentDescription="@null" />
 	
 	    <LinearLayout
 	        android:orientation="vertical"
@@ -50,14 +51,14 @@
 	    android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_margin="10dip"
-        android:minHeight="?android:attr/listPreferredItemHeight" 
-        android:stretchColumns="1">
+        android:minHeight="?android:attr/listPreferredItemHeight"
+        android:shrinkColumns="1">
 	    <TableRow 
 	        android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal">
 	        <TextView
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="right"
                 android:minHeight="26dp"
@@ -65,20 +66,22 @@
                 android:layout_marginRight="10dip" 
                 android:text="@string/fragment_profile_details_desc_label" />
 	        <TextView android:id="@+id/profileDescription"
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
                 android:minHeight="26dp"
                 android:maxLines="4"
+                android:ellipsize="end"
+                android:text="More more more more more more more more more more more more more more more more more more more more more more more more"
                 android:textAppearance="?android:attr/textAppearanceSmall" />
 	    </TableRow>
 	    
 	    <TableRow 
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal">
             <TextView
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="right"
                 android:minHeight="26dp"
@@ -95,11 +98,11 @@
         </TableRow>
         
 	    <TableRow 
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal">
             <TextView
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="right"
                 android:minHeight="26dp"
@@ -116,11 +119,11 @@
         </TableRow>
         
 	    <TableRow 
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal">
             <TextView
-                android:layout_width="match_parent"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="right"
                 android:minHeight="26dp"
@@ -148,19 +151,20 @@
 	    android:paddingEnd="8dip">
 	
 	    <TextView android:id="@android:id/text1"
-	        android:layout_width="wrap_content"
+	        android:layout_width="0dip"
 	        android:layout_height="wrap_content"
 	        android:layout_gravity="center_horizontal"
 	        android:layout_weight="1"
 	        android:textAppearance="?android:attr/textAppearanceMedium"
 	        android:paddingStart="?android:attr/listPreferredItemPaddingStart"
 	        android:paddingEnd="?android:attr/listPreferredItemPaddingEnd" 
-	        android:text="More details" />
+	        android:text="@string/fragment_profile_details_more_label" />
 	    
 	    <ImageView 
 	        android:layout_width="32dip"
 	        android:layout_height="32dip" 
-	        android:src="@drawable/arrow" />
+	        android:src="@drawable/arrow" 
+	        android:contentDescription="@null" />
 	    
 	</LinearLayout>
 
