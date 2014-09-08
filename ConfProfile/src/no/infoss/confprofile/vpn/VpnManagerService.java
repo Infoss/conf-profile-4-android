@@ -4,34 +4,15 @@ import java.net.Socket;
 import java.security.PrivateKey;
 import java.security.Security;
 import java.security.cert.Certificate;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
-import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
 import no.infoss.confprofile.StartVpn;
-import no.infoss.confprofile.crypto.CertificateManager;
-import no.infoss.confprofile.format.ConfigurationProfile.Payload;
-import no.infoss.confprofile.format.PayloadFactory;
-import no.infoss.confprofile.format.Plist.Dictionary;
-import no.infoss.confprofile.format.VpnPayload;
-import no.infoss.confprofile.format.json.BuiltinTypeAdapterFactory;
-import no.infoss.confprofile.format.json.PlistTypeAdapterFactory;
-import no.infoss.confprofile.profile.DbOpenHelper;
-import no.infoss.confprofile.profile.PayloadsCursorLoader.PayloadsPerformance;
-import no.infoss.confprofile.profile.VpnDataCursorLoader;
-import no.infoss.confprofile.profile.VpnDataCursorLoader.VpnDataPerformance;
-import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.profile.data.VpnDataEx;
-import no.infoss.confprofile.profile.data.VpnOnDemandConfig;
-import no.infoss.confprofile.util.ConfigUtils;
-import no.infoss.confprofile.util.HelperThread;
 import no.infoss.confprofile.util.LocalNetworkConfig;
-import no.infoss.confprofile.util.HelperThread.Callback;
-import no.infoss.confprofile.util.HelperThread.Performer;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
@@ -42,18 +23,12 @@ import no.infoss.confprofile.vpn.delegates.DebugDelegate;
 import no.infoss.confprofile.vpn.delegates.NotificationDelegate;
 import no.infoss.jcajce.InfossJcaProvider;
 import android.app.Service;
-import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.content.SharedPreferences.Editor;
-import android.database.Cursor;
 import android.os.Binder;
-import android.os.Bundle;
 import android.os.IBinder;
 import android.util.Log;
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 
 public class VpnManagerService extends Service implements VpnManagerInterface {
 	public static final String TAG = VpnManagerService.class.getSimpleName();
@@ -262,8 +237,12 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			mBindKit.unlock();
 		}
 		
-		mCfgDelegate.setOnDemandEnabled(true);
-		mCfgDelegate.updateCurrentConfiguration(true);
+		if(mPendingVpnTunnelUuid != null) {
+			activateVpnTunnel(mPendingVpnTunnelUuid);
+		} else {
+			mCfgDelegate.setOnDemandEnabled(true);
+			mCfgDelegate.updateCurrentConfiguration(true);
+		}
 	}
 
 	@Override
@@ -484,6 +463,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			return;
 		}
 		
+		mPendingVpnTunnelUuid = null;
+		
 		if(uuid == null) {
 			uuid = mLastVpnTunnelUuid;
 		}
@@ -494,6 +475,44 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 		
 		//find appropriate tunnel and start connection
+		VpnDataEx vpnData = mCfgDelegate.getTunnelData(uuid);
+		
+		VpnTunnel tun = VpnTunnelFactory.getTunnel(getApplicationContext(), 
+				this, 
+				vpnData.getVpnType(),
+				vpnData.getPayloadUuid(),
+				vpnData.getOnDemandCredentials());
+		
+		if(tun == null) {
+			Log.d(TAG, "Can't create tun " + vpnData.getVpnType() + " with id=" + vpnData.getPayloadUuid());
+		} else {
+			if(mLastVpnTunnelUuid == null) {
+				mLastVpnTunnelUuid = tun.getTunnelId();
+			}
+			
+			VpnTunnel oldTun = mCurrentTunnel;
+			mCurrentTunnel = tun;
+			tun.establishConnection();
+			
+			if(mDebugDelegate.isDebugPcapEnabled()) {
+				mDebugDelegate.debugStartTunnelPcap(mRouterLoop.getMtu(), tun);
+			}
+			
+			mRouterLoop.defaultRoute4(tun);
+			
+			if(oldTun != null) {
+				oldTun.terminateConnection();
+			}
+			
+			List<Route4> routes4 = mRouterLoop.getRoutes4();
+			if(routes4 != null) {
+				Log.d(TAG, "IPv4 routes: " + routes4.toString());
+			}
+			
+			if(mRouterLoop.isPaused()) {
+				mRouterLoop.pause(false);
+			}
+		}
 	}
 	
 	@Override
@@ -578,55 +597,18 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		return mDebugDelegate.debugStopPcap(mRouterLoop, mUsernatTunnel, mCurrentTunnel);
 	}
 
-	public void onCurrentConfigChanged(VpnDataEx vpnData) {
-		if(vpnData == null) {
+	public void onCurrentConfigChanged(String uuid) {
+		if(uuid == null) {
 			Log.w(TAG, "onCurrentConfigChanged(null)");
 			return;
 		}
 		
-		if(mCurrentTunnel != null && mCurrentTunnel.getTunnelId().equals(vpnData.getPayloadUuid())) {
+		if(mCurrentTunnel != null && mCurrentTunnel.getTunnelId().equals(uuid)) {
 			String logFmt = "Tunnel with id=%s is up and matches network configuration";
-			Log.d(TAG, String.format(logFmt, vpnData.getPayloadUuid()));
+			Log.d(TAG, String.format(logFmt, uuid));
 			return;
 		}
 		
-		VpnTunnel tun = null;
-		
-		tun = VpnTunnelFactory.getTunnel(getApplicationContext(), 
-				this, 
-				vpnData.getVpnType(),
-				vpnData.getPayloadUuid(),
-				vpnData.getOnDemandCredentials());
-		
-		if(tun == null) {
-			Log.d(TAG, "Can't create tun " + vpnData.getVpnType() + " with id=" + vpnData.getPayloadUuid());
-		} else {
-			if(mLastVpnTunnelUuid == null) {
-				mLastVpnTunnelUuid = tun.getTunnelId();
-			}
-			
-			VpnTunnel oldTun = mCurrentTunnel;
-			mCurrentTunnel = tun;
-			tun.establishConnection();
-			
-			if(mDebugDelegate.isDebugPcapEnabled()) {
-				mDebugDelegate.debugStartTunnelPcap(mRouterLoop.getMtu(), tun);
-			}
-			
-			mRouterLoop.defaultRoute4(tun);
-			
-			if(oldTun != null) {
-				oldTun.terminateConnection();
-			}
-			
-			List<Route4> routes4 = mRouterLoop.getRoutes4();
-			if(routes4 != null) {
-				Log.d(TAG, "IPv4 routes: " + routes4.toString());
-			}
-			
-			if(mRouterLoop.isPaused()) {
-				mRouterLoop.pause(false);
-			}
-		}
+		activateVpnTunnel(uuid);
 	}
 }
