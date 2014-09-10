@@ -366,8 +366,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		VpnManagerInterface vpnMgr = mBindKit.lock();
 		try {
 			if(vpnMgr != null) {
-				//TODO: start or not to start VPN tunnel immediately, that is the question
-				//vpnMgr.startVpnService();
 				mDebugPcapEnabled = vpnMgr.isDebugPcapEnabled();
 				invalidateOptionsMenu();
 			}
