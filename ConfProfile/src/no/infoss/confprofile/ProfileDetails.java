@@ -8,7 +8,7 @@ import android.content.Intent;
 import android.os.Bundle;
 
 public class ProfileDetails extends Activity {
-	public static final String TAG = InstallProfile.class.getSimpleName();
+	public static final String TAG = ProfileDetails.class.getSimpleName();
 	
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
