@@ -74,6 +74,11 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 				
 				List<Payload> payloads = confProfile.getPayloads();
 				for(Payload payload : payloads) {
+					InstallPayload instAction = new InstallPayload();
+					instAction.profileId = profileId;
+					instAction.payload = payload;
+					mActions.add(instAction);
+					
 					if(payload instanceof ScepPayload) {
 						ScepStruct scep = ScepUtils.doScep((ScepPayload) payload, mCtx, mUserAgent);
 						if(!scep.isFailed && !scep.isPending) {
@@ -85,9 +90,12 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 							mActions.add(action);
 						}
 					} else if(payload instanceof VpnPayload) {
+						//TODO: check this part and remove
+						/*
 						InstallPayload action = new InstallPayload();
 						action.payload = (VpnPayload) payload;
 						mActions.add(action);
+						*/
 					} else if(payload instanceof RootCertPayload) {
 						InstallCertificate action = new InstallCertificate();
 						action.certificate = ((RootCertPayload) payload).getPayloadContent();
