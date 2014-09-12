@@ -5,6 +5,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import no.infoss.confprofile.ProfilePayloads;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
@@ -16,24 +17,19 @@ import no.infoss.confprofile.util.ConfigUtils;
 import android.app.Activity;
 import android.app.Fragment;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
+import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.TextView;
 
 public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<Cursor>  {
 	public static final String TAG = ProfileDetailsFragment.class.getSimpleName(); 
 	
-	private static final String FSK_NAME = TAG.concat(":name");
-	private static final String FSK_ORGANIZATION = TAG.concat(":organization");
-	private static final String FSK_DESC = TAG.concat(":desc");
-	
-	private String mName;
-	private String mOrganization;
-	private String mDescription;
 	private ProfileInfo mData;
 	
 	private DbOpenHelper mDbHelper;
@@ -52,9 +48,6 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	}
 
 	private void resetFields() {
-		mName = null;
-		mOrganization = null;
-		mDescription = null;
 	}
 
 	public void setProfileId(String profileId) {
@@ -72,18 +65,27 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		
-		if(savedInstanceState != null) {
-			mName = savedInstanceState.getString(FSK_NAME, mName);
-			mOrganization = savedInstanceState.getString(FSK_ORGANIZATION, mOrganization);
-			mDescription = savedInstanceState.getString(FSK_DESC, mDescription);
-		}
 	}
 
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		super.onCreateView(inflater, container, savedInstanceState);
 		View view = inflater.inflate(R.layout.fragment_profile_details, container, false);
+		View subView = view.findViewById(R.id.list_item_1_images);
+		if(subView != null) {
+			subView.setOnClickListener(new OnClickListener() {
+				
+				@Override
+				public void onClick(View v) {
+					Activity activity = getActivity();
+					if(activity != null) {
+						Intent intent = new Intent(activity, ProfilePayloads.class);
+						intent.putExtra(ProfilesCursorLoader.P_ID, mProfileId);
+						activity.startActivity(intent);
+					}
+				}
+			});
+		}
 		return view;
 	}
 	
@@ -114,10 +116,6 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	@Override
 	public void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
-		
-		outState.putString(FSK_NAME, mName);
-		outState.putString(FSK_ORGANIZATION, mOrganization);
-		outState.putString(FSK_DESC, mDescription);
 	}
 
 	@Override

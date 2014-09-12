@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import no.infoss.confprofile.R;
+import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadInfoExLoader;
@@ -18,6 +19,7 @@ import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
 
@@ -72,11 +74,30 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 					
 					@Override
 					public void mapData(int position, View view, PayloadInfoEx data) {
+						ImageView imageView = null;
+						
+						imageView = (ImageView) view.findViewById(R.id.icon);
+						if(imageView != null) {
+							imageView.setImageResource(R.drawable.profiles);
+						}
+						
 						TextView textView = null;
 						
 						textView = (TextView) view.findViewById(R.id.payloadName);
 						if(textView != null) {
 							textView.setText(data.payload.getPayloadDisplayName());
+						}
+						
+						if(data.payload instanceof VpnPayload) {
+							textView = (TextView) view.findViewById(R.id.payloadDetails1);
+							if(textView != null) {
+								textView.setVisibility(View.GONE);
+							}
+							
+							textView = (TextView) view.findViewById(R.id.payloadDetails2);
+							if(textView != null) {
+								textView.setVisibility(View.GONE);
+							}
 						}
 					}
 
