@@ -25,6 +25,7 @@
 	<string name="menu_vpn">VPN</string>
 	<string name="menu_profiles">Profiles</string>
 	<string name="menu_info">Info</string>
+	<string name="menu_delete">Delete</string>
 	<string name="main_menu_backup">Backup</string>
 	<string name="main_menu_start_capture">Start packet capture</string>
 	<string name="main_menu_stop_capture">Stop packet capture</string>
@@ -45,6 +46,13 @@
 	<string name="fragment_profile_details_contains_label">Contains</string>
 	<string name="fragment_profile_details_more_label">More details</string>
 	<string name="fragment_profile_details_date_label_fmt">dd MMM yyyy</string>
+	
+	<string name="dialog_confirm_profile_removal_label">Profile removal</string>
+	<string name="dialog_confirm_profile_removal_text">A you sure want to remove this profile?</string>
+	<string name="dialog_confirm_profile_removal_btn_ok">Remove</string>
+	<string name="dialog_confirm_profile_removal_btn_cancel">Cancel</string>
+	<string name="toast_profile_removal_success">Profile was successfully removed</string>
+	<string name="toast_profile_removal_error">Can\'t remove profile. Try again later.</string>
 	
 	<string name="error_add_profile_generic">Internal error. \nTry to reinstall profile later.</string>
 	<string name="error_add_profile_http_failed">Server doesn\'t respond. \nCheck your internet connectivity and try to reinstall profile.</string>
