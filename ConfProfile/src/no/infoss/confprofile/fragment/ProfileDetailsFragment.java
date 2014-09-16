@@ -5,8 +5,14 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Map.Entry;
 
+import no.infoss.confprofile.Main;
 import no.infoss.confprofile.ProfilePayloads;
 import no.infoss.confprofile.R;
+import no.infoss.confprofile.db.Delete;
+import no.infoss.confprofile.db.Expressions;
+import no.infoss.confprofile.db.Request;
+import no.infoss.confprofile.db.Expressions.Expression;
+import no.infoss.confprofile.db.RequestWithAffectedRows;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
@@ -14,18 +20,26 @@ import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader.ProfileInfo;
 import no.infoss.confprofile.profile.data.PayloadInfo;
 import no.infoss.confprofile.util.ConfigUtils;
+import no.infoss.confprofile.util.SqliteRequestThread;
+import no.infoss.confprofile.util.SqliteRequestThread.SqliteUpdateDeleteCallback;
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.Fragment;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.Loader;
 import android.database.Cursor;
 import android.os.Bundle;
 import android.view.LayoutInflater;
+import android.view.Menu;
+import android.view.MenuInflater;
+import android.view.MenuItem;
 import android.view.View;
 import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.TextView;
+import android.widget.Toast;
 
 public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<Cursor>  {
 	public static final String TAG = ProfileDetailsFragment.class.getSimpleName(); 
@@ -60,6 +74,8 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 		if(mDbHelper == null) {
 			mDbHelper = DbOpenHelper.getInstance(activity);
 		}
+		
+		setHasOptionsMenu(true);
 	}
 
 	@Override
@@ -116,6 +132,70 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 	@Override
 	public void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
+	}
+	
+	@Override
+	public void onCreateOptionsMenu(Menu menu, MenuInflater inflater) {
+		inflater.inflate(R.menu.profile_details, menu);
+		super.onCreateOptionsMenu(menu, inflater);
+	}
+	
+	@Override
+	public boolean onOptionsItemSelected(MenuItem item) {
+		switch(item.getItemId()) {
+		case R.id.menu_item_delete: {
+			AlertDialog.Builder builder = new AlertDialog.Builder(getActivity());
+			builder.setTitle(R.string.dialog_confirm_profile_removal_label);
+			builder.setMessage(R.string.dialog_confirm_profile_removal_text);
+			builder.setPositiveButton(R.string.dialog_confirm_profile_removal_btn_ok, 
+					new DialogInterface.OnClickListener() {
+				
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					Expression expr = Expressions.column(ProfilesCursorLoader.COL_ID).eq(Expressions.literal(mProfileId));
+					Delete request = Delete.delete().from(ProfilesCursorLoader.TABLE).where(expr, (Object[]) null);
+					SqliteRequestThread.getInstance().request(request, new SqliteUpdateDeleteCallback() {
+						@Override
+						protected void onSqliteUpdateDeleteSuccess(RequestWithAffectedRows request) {
+							Toast.makeText(getActivity(), 
+									R.string.toast_profile_removal_success, 
+									Toast.LENGTH_SHORT).show();
+						}
+						
+						@Override
+						protected void onSqliteRequestSuccess(Request request) {
+							//nothing to do here
+						}
+						
+						@Override
+						protected void onSqliteRequestError(Request request) {
+							Toast.makeText(getActivity(), 
+									R.string.toast_profile_removal_success, 
+									Toast.LENGTH_SHORT).show();
+						}
+					});
+					
+					Intent intent = new Intent(getActivity(), Main.class);
+					intent.putExtra(Main.EXTRA_RESTART_LOADERS, true);
+					getActivity().startActivity(intent);
+				}
+			});
+			
+			builder.setNegativeButton(R.string.dialog_confirm_profile_removal_btn_cancel, 
+					new DialogInterface.OnClickListener() {
+				
+				@Override
+				public void onClick(DialogInterface dialog, int which) {
+					dialog.dismiss();
+				}
+			});
+			
+			builder.create().show();
+			return true;
+		}
+		}
+		
+		return super.onOptionsItemSelected(item);
 	}
 
 	@Override
@@ -177,6 +257,18 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 				String dateFmtStr = getString(R.string.fragment_profile_details_date_label_fmt);
 				SimpleDateFormat dateFmt = new SimpleDateFormat(dateFmtStr);
 				text.setText(dateFmt.format(mData.addedAt));
+			}
+			
+			
+			//hide details and show buttons
+			View v = view.findViewById(R.id.list_item_1_images);
+			if(v != null) {
+				v.setVisibility(View.VISIBLE);
+			}
+			
+			v = view.findViewById(R.id.buttonsSection);
+			if(v != null) {
+				v.setVisibility(View.GONE);
 			}
 		}
 	}
