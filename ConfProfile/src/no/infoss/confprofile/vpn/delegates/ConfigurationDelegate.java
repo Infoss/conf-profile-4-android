@@ -170,7 +170,6 @@ public class ConfigurationDelegate extends VpnManagerDelegate {
 						@Override
 						public void onError(OnDemandVpnListRequest request,
 								OnDemandVpnListPerformer performer) {
-							// TODO Auto-generated method stub
 							mIsRequestActive = false;
 							Log.e(TAG, "Error while getting On-Demand VPN configuration");
 						}
