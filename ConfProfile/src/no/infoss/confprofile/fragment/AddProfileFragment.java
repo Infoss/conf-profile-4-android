@@ -2,6 +2,21 @@ package no.infoss.confprofile.fragment;
 
 import java.util.List;
 
+import no.infoss.confprofile.Main;
+import no.infoss.confprofile.R;
+import no.infoss.confprofile.format.ConfigurationProfile;
+import no.infoss.confprofile.format.Plist;
+import no.infoss.confprofile.profile.DbOpenHelper;
+import no.infoss.confprofile.task.InstallConfigurationTask;
+import no.infoss.confprofile.task.InstallConfigurationTask.Action;
+import no.infoss.confprofile.task.InstallConfigurationTask.InstallConfigurationTaskListener;
+import no.infoss.confprofile.task.ParsePlistTask;
+import no.infoss.confprofile.task.ParsePlistTask.ParsePlistTaskListener;
+import no.infoss.confprofile.task.RetrieveConfigurationTask;
+import no.infoss.confprofile.task.RetrieveConfigurationTask.RetrieveConfigurationTaskListener;
+import no.infoss.confprofile.task.TaskError;
+import no.infoss.confprofile.util.ParsePlistHandler;
+
 import org.apache.http.HttpStatus;
 
 import android.app.Activity;
@@ -16,20 +31,6 @@ import android.view.View.OnClickListener;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.TextView;
-import no.infoss.confprofile.Main;
-import no.infoss.confprofile.R;
-import no.infoss.confprofile.format.ConfigurationProfile;
-import no.infoss.confprofile.format.Plist;
-import no.infoss.confprofile.profile.DbOpenHelper;
-import no.infoss.confprofile.task.InstallConfigurationTask.Action;
-import no.infoss.confprofile.task.InstallConfigurationTask.InstallConfigurationTaskListener;
-import no.infoss.confprofile.task.ParsePlistTask;
-import no.infoss.confprofile.task.InstallConfigurationTask;
-import no.infoss.confprofile.task.RetrieveConfigurationTask;
-import no.infoss.confprofile.task.TaskError;
-import no.infoss.confprofile.task.ParsePlistTask.ParsePlistTaskListener;
-import no.infoss.confprofile.task.RetrieveConfigurationTask.RetrieveConfigurationTaskListener;
-import no.infoss.confprofile.util.ParsePlistHandler;
 
 public class AddProfileFragment extends Fragment 
 	implements ParsePlistTaskListener,
@@ -246,6 +247,108 @@ public class AddProfileFragment extends Fragment
 		}
 	}
 	
+	private void showPlistDetails(Plist config) {	
+		View view = getView();
+		if(config != null && view != null) {
+			TextView text = null;
+			
+			text = (TextView) view.findViewById(R.id.profileName);
+			if(text != null) {
+				text.setText(config.getString(ConfigurationProfile.KEY_PAYLOAD_DISPLAY_NAME, ""));
+			}
+			
+			text = (TextView) view.findViewById(R.id.profileOrganization);
+			if(text != null) {
+				text.setText(config.getString(ConfigurationProfile.KEY_PAYLOAD_ORGANIZATION, ""));
+			}
+			
+			text = (TextView) view.findViewById(R.id.profileDescription);
+			if(text != null) {
+				text.setText(config.getString(ConfigurationProfile.KEY_PAYLOAD_DESCRIPTION, ""));
+			}
+			
+			text = (TextView) view.findViewById(R.id.profileSigned);
+			if(text != null) {
+				text.setText("<<FIXME>>");
+			}
+
+			
+			//hide row for "received" and "contains" field
+			View v = view.findViewById(R.id.rowProfileReceived);
+			if(v != null) {
+				v.setVisibility(View.GONE);
+			}
+			
+			v = view.findViewById(R.id.rowProfileContains);
+			if(v != null) {
+				v.setVisibility(View.GONE);
+			}
+			
+			
+			//hide details and show buttons
+			v = view.findViewById(R.id.list_item_1_images);
+			if(v != null) {
+				v.setVisibility(View.GONE);
+			}
+			
+			v = view.findViewById(R.id.buttonsSection);
+			if(v != null) {
+				v.setVisibility(View.VISIBLE);
+			}
+		}
+	}
+	
+	private void showProfileDetails(ConfigurationProfile profile) {	
+		View view = getView();
+		if(profile != null && view != null) {
+			TextView text = null;
+			
+			text = (TextView) view.findViewById(R.id.profileName);
+			if(text != null) {
+				text.setText(profile.getPayloadDisplayName());
+			}
+			
+			text = (TextView) view.findViewById(R.id.profileOrganization);
+			if(text != null) {
+				text.setText(profile.getPayloadOrganization());
+			}
+			
+			text = (TextView) view.findViewById(R.id.profileDescription);
+			if(text != null) {
+				text.setText(profile.getPayloadDescription());
+			}
+			
+			text = (TextView) view.findViewById(R.id.profileSigned);
+			if(text != null) {
+				text.setText("<<FIXME>>");
+			}
+
+			
+			//hide row for "received" and "contains" field
+			View v = view.findViewById(R.id.rowProfileReceived);
+			if(v != null) {
+				v.setVisibility(View.GONE);
+			}
+			
+			v = view.findViewById(R.id.rowProfileContains);
+			if(v != null) {
+				v.setVisibility(View.GONE);
+			}
+			
+			
+			//hide details and show buttons
+			v = view.findViewById(R.id.list_item_1_images);
+			if(v != null) {
+				v.setVisibility(View.GONE);
+			}
+			
+			v = view.findViewById(R.id.buttonsSection);
+			if(v != null) {
+				v.setVisibility(View.VISIBLE);
+			}
+		}
+	}
+	
 	@Override
 	public void onSaveInstanceState(Bundle outState) {
 		super.onSaveInstanceState(outState);
@@ -262,6 +365,7 @@ public class AddProfileFragment extends Fragment
 	
 	@Override
 	public void onParsePlistFailed(ParsePlistTask task, int taskErrorCode) {
+		//step 1 finished
 		mName = null;
 		mOrganization = null;
 		mDescription = null;
@@ -274,6 +378,7 @@ public class AddProfileFragment extends Fragment
 
 	@Override
 	public void onParsePlistComplete(ParsePlistTask task, Plist plist) {
+		//step 1 finished
 		mName = plist.getString(ConfigurationProfile.KEY_PAYLOAD_DISPLAY_NAME, null);
 		mOrganization = plist.getString(ConfigurationProfile.KEY_PAYLOAD_ORGANIZATION, null);
 		mDescription = plist.getString(ConfigurationProfile.KEY_PAYLOAD_DESCRIPTION, null);
@@ -283,12 +388,13 @@ public class AddProfileFragment extends Fragment
 		
 		new RetrieveConfigurationTask(
 				AddProfileFragment.this.getActivity(), 
-				AddProfileFragment.this).execute(HANDLER.getPlist());
+				AddProfileFragment.this).execute(plist);
 	}
 	
 	@Override
 	public void onRetrieveConfigurationFailed(RetrieveConfigurationTask task,
 			int taskErrorCode) {
+		//step 2 finished
 		mErrCode = taskErrorCode;
 		mHttpErrCode = task.getHttpStatusCode();
 		
@@ -298,6 +404,7 @@ public class AddProfileFragment extends Fragment
 	@Override
 	public void onRetrieveConfigurationComplete(RetrieveConfigurationTask task,
 			ConfigurationProfile profile) {
+		//step 2 finished
 		mName = profile.getPayloadDisplayName();
 		mOrganization = profile.getPayloadOrganization();
 		mDescription = profile.getPayloadDescription();
