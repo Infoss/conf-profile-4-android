@@ -30,14 +30,16 @@
 	        android:layout_height="wrap_content"
 	        android:layout_gravity="center_vertical">
 	        
-	        <TextView android:id="@+id/profileName"
+	        <TextView 
+	            android:id="@+id/profileName"
 	            android:layout_width="match_parent"
 	            android:layout_height="wrap_content"
 	            android:layout_gravity="top"
 	            android:gravity="center_vertical"
 	            android:textAppearance="?android:attr/textAppearanceLarge" />
 	        
-	        <TextView android:id="@+id/profileOrganization"
+	        <TextView 
+	            android:id="@+id/profileOrganization"
 	            android:layout_width="match_parent"
 	            android:layout_height="wrap_content"
 	            android:layout_gravity="bottom"
@@ -65,7 +67,8 @@
                 android:textAppearance="?android:attr/textAppearanceSmall"
                 android:layout_marginRight="10dip" 
                 android:text="@string/fragment_profile_details_desc_label" />
-	        <TextView android:id="@+id/profileDescription"
+	        <TextView 
+	            android:id="@+id/profileDescription"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
@@ -88,7 +91,8 @@
                 android:textAppearance="?android:attr/textAppearanceSmall"
                 android:layout_marginRight="10dip" 
                 android:text="@string/fragment_profile_details_signed_label" />
-            <TextView android:id="@+id/profileSigned"
+            <TextView 
+                android:id="@+id/profileSigned"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
@@ -98,6 +102,7 @@
         </TableRow>
         
 	    <TableRow 
+	        android:id="@+id/rowProfileReceived"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal">
@@ -109,7 +114,8 @@
                 android:textAppearance="?android:attr/textAppearanceSmall"
                 android:layout_marginRight="10dip" 
                 android:text="@string/fragment_profile_details_received_label" />
-            <TextView android:id="@+id/profileReceived"
+            <TextView 
+                android:id="@+id/profileReceived"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
@@ -118,7 +124,8 @@
                 android:textAppearance="?android:attr/textAppearanceSmall" />
         </TableRow>
         
-	    <TableRow 
+	    <TableRow
+	        android:id="@+id/rowProfileContains" 
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:gravity="center_horizontal">
@@ -130,7 +137,8 @@
                 android:textAppearance="?android:attr/textAppearanceSmall"
                 android:layout_marginRight="10dip" 
                 android:text="@string/fragment_profile_details_contains_label" />
-            <TextView android:id="@+id/profileContains"
+            <TextView 
+                android:id="@+id/profileContains"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_gravity="bottom"
@@ -167,5 +175,37 @@
 	        android:contentDescription="@null" />
 	    
 	</LinearLayout>
+	
+	<LinearLayout
+        android:id="@+id/buttonsSection"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingTop="1dip"
+        android:paddingBottom="1dip"
+        android:paddingStart="8dip"
+        android:paddingEnd="8dip"
+        style="?android:attr/buttonBarStyle">
+	    
+	    <Button 
+	        android:id="@+id/btnNegative"
+	        android:layout_width="0dip"
+	        android:layout_height="wrap_content"
+	        android:layout_weight="1"
+	        android:layout_marginRight="20dip"
+	        android:text="@string/fragment_add_profile_btn_cancel"
+	        style="?android:attr/buttonBarButtonStyle"
+	        />
+	    
+	    <Button 
+            android:id="@+id/btnPositive"
+            android:layout_width="0dip"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginLeft="20dip"
+            android:text="@string/fragment_add_profile_btn_ok"
+            style="?android:attr/buttonBarButtonStyle"
+            />
+    
+    </LinearLayout>
 
 </LinearLayout>
