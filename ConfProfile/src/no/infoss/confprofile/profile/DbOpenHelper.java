@@ -5,6 +5,7 @@ import android.content.Context;
 import android.database.Cursor;
 import android.database.sqlite.SQLiteDatabase;
 import android.database.sqlite.SQLiteOpenHelper;
+import android.os.Build;
 import android.util.Log;
 
 public class DbOpenHelper extends SQLiteOpenHelper {
@@ -21,12 +22,12 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			"data TEXT NOT NULL, " +
 			"added_at DATETIME DEFAULT (CURRENT_TIMESTAMP));";
 	private static final String SQL_LINKED_OBJECTS = "CREATE TABLE linked_objects (" + 
-			"profile_id TEXT NOT NULL REFERENCES profiles (id), " + 
+			"profile_id TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE, " + 
 			"object_id TEXT PRIMARY KEY NOT NULL, " + 
 			"manager_id  TEXT NOT NULL, " + 
 			"manager_key TEXT NOT NULL);";
 	private static final String SQL_PAYLOADS = "CREATE TABLE payloads (" + 
-			"profile_id TEXT NOT NULL REFERENCES profiles (id), " + 
+			"profile_id TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE, " + 
 			"payload_uuid TEXT PRIMARY KEY NOT NULL, " + 
 			"payload_type TEXT NOT NULL, " + 
 			"data TEXT NOT NULL);";
@@ -76,6 +77,15 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 	public void onOpen(SQLiteDatabase db) {
 		if(BuildConfig.DEBUG) {
 			traceTables(db);
+		}
+	}
+	
+	@Override
+	public void onConfigure(SQLiteDatabase db) {
+		if(Build.VERSION.SDK_INT >= 16) {
+			db.setForeignKeyConstraintsEnabled(true);
+		} else {
+			db.execSQL("PRAGMA foreign_keys=ON;");
 		}
 	}
  
