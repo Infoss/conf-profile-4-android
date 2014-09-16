@@ -25,6 +25,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Stack;
 
+import no.infoss.confprofile.db.Expressions;
+import no.infoss.confprofile.db.Request;
+import no.infoss.confprofile.db.RequestWithAffectedRows;
+import no.infoss.confprofile.db.Transaction;
+import no.infoss.confprofile.db.Update;
+import no.infoss.confprofile.db.Expressions.Expression;
 import no.infoss.confprofile.model.CompositeListItemModel;
 import no.infoss.confprofile.model.ImageViewModel;
 import no.infoss.confprofile.model.ListItemModel;
@@ -49,6 +55,7 @@ import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
 import android.app.Activity;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.ComponentName;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.Loader;
@@ -77,9 +84,14 @@ import com.litecoding.classkit.view.LazyCursorList;
 public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection, VpnEventListener {
 	public static final String TAG = Main.class.getSimpleName();
 	
+	public static final String EXTRA_RESTART_LOADERS = Main.class.getCanonicalName().concat(".RESTART_LOADERS");
+	
 	private static final String ACTION_SERVICE_INFO = Main.class.getCanonicalName().concat(".SERVICE_INFO");
 	private static final String ACTION_VPN_INFO = Main.class.getCanonicalName().concat(".VPN_INFO");
 	private static final String ACTION_EXIT = Main.class.getCanonicalName().concat(".EXIT");
+	
+	private static final String EXTRA_VPN_PAYLOAD_UUID = Main.class.getCanonicalName().concat(".VPN_PAYLOAD_UUID");
+	private static final String EXTRA_VPN_IS_ON_DEMAND = Main.class.getCanonicalName().concat(".VPN_IS_ON_DEMAND");
 	
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
@@ -122,6 +134,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private boolean mDebugPcapEnabled = false;
 	private Thread mUpdateTimerThread;
 	
+	private boolean mRestartLoaderOnNextIntent;
+	private boolean mIsCurrentItemOnDemandEnabled;
+	private VpnData mCurrentVpnData;
+	
 	private volatile boolean mServiceStateReceived;
 	private volatile boolean mTunnelStateReceived;
 	
@@ -138,6 +154,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mServiceStateReceived = false;
 		mTunnelStateReceived = false;
+		
+		mRestartLoaderOnNextIntent = false;
 		
 		mVpnEvtReceiver = new VpnEventReceiver(this, this);
 		
@@ -173,6 +191,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	protected void onNewIntent(Intent intent) {
 		super.onNewIntent(intent);
 		
+		mRestartLoaderOnNextIntent = false;
+		
 		setActionBarDisplayHomeAsUp(intent);
 		
 		if(ACTION_EXIT.equals(intent.getAction())) {
@@ -182,12 +202,39 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			mGrid.setAdapter(mStatusAdapter);
 			mStatusAdapter.notifyDataSetChanged();
 		} else if(ACTION_VPN_INFO.equals(intent.getAction())) {
+			List<ListItem> cmdList = VPN_DATA_LIST.get(0);
+			ListItem item = new ListItem(getString(R.string.main_vpn_item_on_demand_label), null);
+			
+			mIsCurrentItemOnDemandEnabled = intent.getBooleanExtra(EXTRA_VPN_IS_ON_DEMAND, false);
+			
+			CompositeListItemModel model = new CompositeListItemModel();
+			SwitchModel swModel = new SwitchModel(R.id.switchWidget);
+			swModel.setChecked(mIsCurrentItemOnDemandEnabled);
+			model.addMapping(swModel);
+			model.setLayoutId(R.layout.simple_list_item_2_switch);
+			model.setRootViewId(R.id.simple_list_item_2_switch);
+			
+			swModel.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+				
+				@Override
+				public void onCheckedChanged(SwitchModel model, Switch buttonView,
+						boolean isChecked) {
+					mIsCurrentItemOnDemandEnabled = isChecked;
+				}
+			});
+			
+			item.setModel(model);
+			
+			cmdList.clear();
+			cmdList.add(item);
 			mGrid.setAdapter(mPayloadInfoAdapter);
 			mPayloadInfoAdapter.notifyDataSetChanged();
 		} else {
 			mGrid.setAdapter(mPayloadAdapter);
 			mPayloadAdapter.notifyDataSetChanged();
 		}
+		
+		invalidateOptionsMenu();
 	}
 	
 	@Override
@@ -210,7 +257,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			mGrid.setAdapter(null);
 			Bundle params = new Bundle();
 			params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
-			getLoaderManager().initLoader(0, params, this);
+			if(intent.hasExtra(EXTRA_RESTART_LOADERS)) {
+				intent.removeExtra(EXTRA_RESTART_LOADERS);
+				getLoaderManager().restartLoader(0, params, this);
+			} else {
+				getLoaderManager().initLoader(0, params, this);
+			}
 		}
 		
 		mVpnEvtReceiver.register();
@@ -237,7 +289,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		MenuInflater inflater = getMenuInflater();
 		MenuItem item;
 		
-		inflater.inflate(R.menu.main, menu);
+		Intent intent = mIntentStack.peek();
+		if(intent.hasExtra(EXTRA_VPN_PAYLOAD_UUID)) {
+			inflater.inflate(R.menu.main_vpn_info, menu);
+		} else {
+			inflater.inflate(R.menu.main, menu);
+		}
 		
 		/*
 		 * While building release version the following block of code 
@@ -269,13 +326,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		switch(item.getItemId()) {
 		case android.R.id.home: {
-			if(mIntentStack.size() >= 2) {
-				mIntentStack.pop(); //pop current intent and resend parent intent
-				intent = mIntentStack.pop();
-				if(intent != null) {
-					startActivity(intent);
-				}
-			}
+			navigateHomeAsUp();
 			return true;
 		}
 		case R.id.menu_item_go_profiles: {
@@ -300,6 +351,50 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			intent = createExitIntent(this);
 			startActivity(intent);
 			return true;
+		}
+		
+		case R.id.menu_item_apply: {
+			intent = mIntentStack.peek();
+			if(intent.hasExtra(EXTRA_VPN_PAYLOAD_UUID)) {
+				//update
+				Expression expr = Expressions.
+						column(VpnDataCursorLoader.COL_PAYLOAD_UUID).
+						eq(Expressions.literal(intent.getStringExtra(EXTRA_VPN_PAYLOAD_UUID)));
+				ContentValues values = new ContentValues();
+				values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED_BY_USER, mIsCurrentItemOnDemandEnabled);
+				Update request = Update.
+						update().
+						table(VpnDataCursorLoader.TABLE).
+						values(values).
+						where(expr, new Object[0]);
+				
+				Transaction transaction = new Transaction();
+				transaction.addRequest(request);
+				SqliteRequestThread.getInstance().request(transaction, new SqliteRequestThread.SqliteUpdateDeleteCallback() {
+					
+					@Override
+					protected void onSqliteRequestSuccess(Request request) {
+						//ignore this
+					}
+					
+					@Override
+					protected void onSqliteRequestError(Request request) {
+						mRestartLoaderOnNextIntent = true;
+					}
+					
+					@Override
+					protected void onSqliteUpdateDeleteSuccess(RequestWithAffectedRows request) {
+						mRestartLoaderOnNextIntent = true;
+					}
+				});
+				
+				mCurrentVpnData.setOnDemandEnabledByUser(mIsCurrentItemOnDemandEnabled);
+				
+				mRestartLoaderOnNextIntent = true;
+				
+				navigateHomeAsUp();
+				return true;
+			}
 		}
 		}
 		
@@ -335,6 +430,40 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	@Override
 	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
 		mVpnInfoList.populateFrom(data, true);
+		
+		for(ListItem item : mVpnInfoList) {
+			final VpnData vpnData = (VpnData) item;
+			CompositeListItemModel model = (CompositeListItemModel) vpnData.getModel();
+			model.setOnClickListener(new Model.OnClickListener() {
+				
+				@Override
+				public void onClick(Model model, View v) {
+					VpnManagerInterface vpnMgr = mBindKit.lock();
+					if(vpnMgr != null) {
+						vpnMgr.activateVpnTunnel(vpnData.getPayloadUuid());
+					}
+					mBindKit.unlock();
+				}
+			});
+
+			ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon2);
+			if(vpnData.isOnDemandEnabled()) {
+				imgModel.setOnClickListener(new Model.OnClickListener() {
+					
+					@Override
+					public void onClick(Model model, View v) {
+						mCurrentVpnData = vpnData;
+						
+						Intent intent = new Intent(Main.this, Main.class);
+						intent.setAction(ACTION_VPN_INFO);
+						intent.putExtra(EXTRA_VPN_PAYLOAD_UUID, vpnData.getPayloadUuid());
+						intent.putExtra(EXTRA_VPN_IS_ON_DEMAND, vpnData.isOnDemandEnabledByUser());
+						startActivity(intent);
+					}
+				});
+			}
+		}
+		
 		mPayloadAdapter.notifyDataSetChanged();
 		
 		if(mVpnInfoList.size() > 0) {
@@ -355,7 +484,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 
 	@Override
 	public void onLoaderReset(Loader<Cursor> loader) {
-		// nothing to do here
+		mVpnInfoList.populateFrom(null, true);
 	}
 	
 	@Override
@@ -377,6 +506,22 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	@Override
 	public void onServiceDisconnected(ComponentName name) {
 		// nothing to do here
+	}
+	
+	private void navigateHomeAsUp() {
+		Intent intent = null;
+		if(mIntentStack.size() >= 2) {
+			mIntentStack.pop(); //pop current intent and resend parent intent
+			intent = mIntentStack.pop();
+			if(intent != null) {
+				if(mRestartLoaderOnNextIntent) {
+					intent.putExtra(EXTRA_RESTART_LOADERS, true);
+					mRestartLoaderOnNextIntent = false;
+				}
+				
+				startActivity(intent);
+			}
+		}
 	}
 	
 	private void initHeaders() {
@@ -429,7 +574,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			
 			@Override
 			public void onClick(Model model, View v) {
-				//Toast.makeText(Main.this, "STATUS_LIST_ITEM_MODEL onClick()", Toast.LENGTH_SHORT).show();
 				Intent intent = new Intent(Main.this, Main.class);
 				intent.setAction(ACTION_SERVICE_INFO);
 				startActivity(intent);
