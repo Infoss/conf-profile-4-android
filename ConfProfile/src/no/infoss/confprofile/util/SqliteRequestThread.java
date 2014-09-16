@@ -180,7 +180,7 @@ public class SqliteRequestThread extends Thread {
 		return INSTANCE;
 	}
 	
-	public abstract class SqliteRequestCallback {
+	public static abstract class SqliteRequestCallback {
 		public final void sqliteRequestSuccess(Request request) {
 			onSqliteRequestSuccess(request);
 		}
@@ -193,7 +193,7 @@ public class SqliteRequestThread extends Thread {
 		protected abstract void onSqliteRequestError(Request request);
 	}
 	
-	public abstract class SqliteInsertCallback extends SqliteRequestCallback {
+	public static abstract class SqliteInsertCallback extends SqliteRequestCallback {
 		public final void sqliteInsertSuccess(Insert request) {
 			onSqliteInsertSuccess(request);
 			sqliteRequestSuccess(request);
@@ -202,7 +202,7 @@ public class SqliteRequestThread extends Thread {
 		protected abstract void onSqliteInsertSuccess(Insert request);
 	}
 	
-	public abstract class SqliteUpdateDeleteCallback extends SqliteRequestCallback {
+	public static abstract class SqliteUpdateDeleteCallback extends SqliteRequestCallback {
 		public final void sqliteUpdateDeleteSuccess(RequestWithAffectedRows request) {
 			onSqliteUpdateDeleteSuccess(request);
 			sqliteRequestSuccess(request);
