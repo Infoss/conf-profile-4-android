@@ -72,6 +72,7 @@ struct private_charonservice_t {
 	/**
 	 * CharonVpnService reference
 	 */
+	//TODO: use wrapped java_VpnTunnel instance instead and/or create java_IpSecTunnel
 	jobject jtunnel;
 
 	/**
@@ -223,14 +224,14 @@ static bool bypass_single_socket(intptr_t fd, private_charonservice_t *this)
 	bool need_detach = androidjni_attach_thread(&env);
 
 	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
-									"protect", "(I)Z");
+									"protectSocket", "(I)Z");
 	if (!method_id)
 	{
 		goto failed;
 	}
 	if (!(*env)->CallBooleanMethod(env, this->jtunnel, method_id, fd))
 	{
-		DBG2(DBG_KNL, "VpnService.protect() failed");
+		DBG2(DBG_KNL, "VpnTunnel.protectSocket() failed");
 		goto failed;
 	}
 
