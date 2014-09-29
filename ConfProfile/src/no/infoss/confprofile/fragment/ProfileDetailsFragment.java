@@ -176,6 +176,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 					});
 					
 					Intent intent = new Intent(getActivity(), Main.class);
+					intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
 					intent.putExtra(Main.EXTRA_RESTART_LOADERS, true);
 					getActivity().startActivity(intent);
 				}
