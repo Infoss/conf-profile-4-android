@@ -15,38 +15,41 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 	private static final int DB_VERSION = 1;
 	
 	private static final String SQL_PROFILES = "CREATE TABLE profiles (" + 
-			"id TEXT PRIMARY KEY NOT NULL, " + 
-			"name TEXT NOT NULL, " + 
-			"description TEXT, " + 
-			"organization TEXT," +
-			"data TEXT NOT NULL, " +
-			"added_at DATETIME DEFAULT (CURRENT_TIMESTAMP));";
+			"id           TEXT     PRIMARY KEY NOT NULL, " +
+			"name         TEXT     NOT NULL, " +
+			"description  TEXT, " +
+			"organization TEXT, " +
+			"data         TEXT     NOT NULL, " +
+			"added_at     DATETIME DEFAULT ( CURRENT_TIMESTAMP ));";
 	private static final String SQL_LINKED_OBJECTS = "CREATE TABLE linked_objects (" + 
-			"profile_id TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE, " + 
-			"object_id TEXT PRIMARY KEY NOT NULL, " + 
-			"manager_id  TEXT NOT NULL, " + 
-			"manager_key TEXT NOT NULL);";
+			"profile_id  TEXT NOT NULL REFERENCES profiles ( id ) ON DELETE CASCADE, " +
+            "object_id   TEXT PRIMARY KEY NOT NULL, " +
+            "manager_id  TEXT NOT NULL, " +
+    		"manager_key TEXT NOT NULL);";
 	private static final String SQL_PAYLOADS = "CREATE TABLE payloads (" + 
-			"profile_id TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE, " + 
-			"payload_uuid TEXT PRIMARY KEY NOT NULL, " + 
-			"payload_type TEXT NOT NULL, " + 
-			"data TEXT NOT NULL);";
+			"profile_id           TEXT NOT NULL REFERENCES profiles ( id ) ON DELETE CASCADE, " +
+			"payload_uuid         TEXT PRIMARY KEY NOT NULL, " +
+			"payload_type         TEXT NOT NULL, " +
+			"payload_display_name TEXT, " +
+			"data                 TEXT NOT NULL);";
 	private static final String SQL_VPN_DATA = "CREATE TABLE vpn_data (" + 
-			"payload_uuid TEXT REFERENCES payloads ( payload_uuid ) ON DELETE CASCADE, " +
-		    "user_defined_name TEXT NOT NULL, " +
-		    "override_primary INT  NOT NULL, " +
-		    "on_demand_enabled INT  NOT NULL, " +
-		    "on_demand_enabled_by_user INT  NOT NULL, " +
-		    "on_demand_rules TEXT NOT NULL, " +
-		    "on_demand_credentials TEXT NOT NULL, " + 
-		    "vpn_type TEXT NOT NULL);";
+			"profile_id                TEXT NOT NULL REFERENCES profiles ( id ) ON DELETE CASCADE, " +
+			"payload_uuid              TEXT NOT NULL REFERENCES payloads ( payload_uuid ) ON DELETE CASCADE, " +
+			"user_defined_name         TEXT NOT NULL, " +
+			"override_primary          INT  NOT NULL, " +
+			"on_demand_enabled         INT  NOT NULL, " +
+			"on_demand_enabled_by_user INT  NOT NULL, " +
+			"on_demand_rules           TEXT NOT NULL, " +
+			"on_demand_credentials     TEXT NOT NULL, " +
+			"vpn_type                  TEXT NOT NULL);";
 	private static final String SQL_INDEX_PAYLOAD_TYPE = "CREATE INDEX idx_payloads " + 
 			"ON payloads (payload_type COLLATE NOCASE ASC);";
 	private static final String SQL_TRIGGER_DELETE_PROFILE = "CREATE TRIGGER delete_profile " + 
 			"BEFORE DELETE ON profiles " + 
 			"BEGIN " + 
 				"DELETE FROM linked_objects WHERE profile_id = old.id; " + 
-				"DELETE FROM payloads WHERE profile_id = old.id;" + 
+				"DELETE FROM payloads WHERE profile_id = old.id;" +
+				"DELETE FROM vpn_data WHERE profile_id = old.id;" +
 			"END;";
 	
 	private static DbOpenHelper INSTANCE = null;
