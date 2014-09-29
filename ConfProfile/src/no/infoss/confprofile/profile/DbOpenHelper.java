@@ -32,7 +32,8 @@ public class DbOpenHelper extends SQLiteOpenHelper {
 			"payload_type TEXT NOT NULL, " + 
 			"data TEXT NOT NULL);";
 	private static final String SQL_VPN_DATA = "CREATE TABLE vpn_data (" + 
-			"payload_uuid TEXT REFERENCES payloads ( payload_uuid ) ON DELETE CASCADE, " +
+			"profile_id TEXT NOT NULL REFERENCES profiles (id) ON DELETE CASCADE, " + 
+			"payload_uuid TEXT REFERENCES payloads (payload_uuid) ON DELETE CASCADE, " +
 		    "user_defined_name TEXT NOT NULL, " +
 		    "override_primary INT  NOT NULL, " +
 		    "on_demand_enabled INT  NOT NULL, " +

@@ -24,6 +24,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 	public static final String TAG = VpnDataCursorLoader.class.getSimpleName();
 	
 	public static final String TABLE = "vpn_data";
+	public static final String COL_PROFILE_ID = "profile_id";
 	public static final String COL_PAYLOAD_UUID = "payload_uuid";
 	public static final String COL_USER_DEFINED_NAME = "user_defined_name";
 	public static final String COL_OVERRIDE_PRIMARY = "override_primary";
@@ -34,6 +35,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 	public static final String COL_VPN_TYPE = "vpn_type";
 	
 	public static final String P_PREFIX = PREFIX.concat(TABLE).concat(".");
+	public static final String P_PROFILE_ID = P_PREFIX.concat("P_PROFILE_ID");
 	public static final String P_PAYLOAD_UUID = P_PREFIX.concat("P_PAYLOAD_UUID");
 	public static final String P_USER_DEFINED_NAME = P_PREFIX.concat("P_USER_DEFINED_NAME");
 	public static final String P_OVERRIDE_PRIMARY = P_PREFIX.concat("P_OVERRIDE_PRIMARY");
@@ -58,14 +60,15 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 			model.addMapping(iconModel);
 			
 			VpnData data = new VpnData();
-			data.setPayloadUuid(cursor.getString(0));
-			data.setUserDefinedName(cursor.getString(1));
-			data.setOverridePrimary(cursor.getInt(2) != 0);
-			data.setOnDemandEnabled(cursor.getInt(3) != 0);
-			data.setOnDemandEnabledByUser(cursor.getInt(4) != 0);
-			data.setOnDemandRules(cursor.getString(5));
-			data.setOnDemandCredentials(cursor.getString(6));
-			data.setVpnType(cursor.getString(7));
+			data.setProfileId(cursor.getString(0));
+			data.setPayloadUuid(cursor.getString(1));
+			data.setUserDefinedName(cursor.getString(2));
+			data.setOverridePrimary(cursor.getInt(3) != 0);
+			data.setOnDemandEnabled(cursor.getInt(4) != 0);
+			data.setOnDemandEnabledByUser(cursor.getInt(5) != 0);
+			data.setOnDemandRules(cursor.getString(6));
+			data.setOnDemandCredentials(cursor.getString(7));
+			data.setVpnType(cursor.getString(8));
 			data.setModel(model);
 			return data;
 		}
@@ -80,6 +83,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 	}
 	
 	public static class VpnDataPerformance extends LoaderQueryPerformance {
+		private String mNewProfileId[] = null;
 		private String mNewPayloadUuid[] = null;
 		private String mNewUserDefinedName[] = null;
 		private boolean mNewOverridePrimary[] = null;
@@ -96,6 +100,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 			
 			if(params != null) {
 				if(params.containsKey(P_BATCH_MODE)) {
+					mNewProfileId = params.getStringArray(P_PROFILE_ID);
 					mNewPayloadUuid = params.getStringArray(P_PAYLOAD_UUID);
 					mNewUserDefinedName = params.getStringArray(P_USER_DEFINED_NAME);
 					mNewOverridePrimary = params.getBooleanArray(P_OVERRIDE_PRIMARY);
@@ -105,6 +110,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 					mNewOnDemandCredentials = params.getStringArray(P_ON_DEMAND_CREDENTIALS);
 					mNewVpnType = params.getStringArray(P_VPN_TYPE);
 				} else {
+					mNewProfileId = new String[] { params.getString(P_PROFILE_ID) };
 					mNewPayloadUuid = new String[] { params.getString(P_PAYLOAD_UUID) };
 					mNewUserDefinedName = new String[] { params.getString(P_USER_DEFINED_NAME) };
 					mNewOverridePrimary = new boolean[] { params.getBoolean(P_OVERRIDE_PRIMARY) };
@@ -151,7 +157,8 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 		}
 		
 		private void insert() {
-			if(mNewPayloadUuid != null && 
+			if(mNewProfileId != null && 
+					mNewPayloadUuid != null && 
 					mNewUserDefinedName != null && 
 					mNewOverridePrimary != null && 
 					mNewOnDemandEnabled != null && 
@@ -163,6 +170,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 				
 				for(int i = 0; i < mNewPayloadUuid.length; i++) {
 					ContentValues values = new ContentValues();
+					values.put(COL_PROFILE_ID, mNewProfileId[i]);
 					values.put(COL_PAYLOAD_UUID, mNewPayloadUuid[i]);
 					values.put(COL_USER_DEFINED_NAME, mNewUserDefinedName[i]);
 					values.put(COL_OVERRIDE_PRIMARY, mNewOverridePrimary[i] ? 1 : 0);

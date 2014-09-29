@@ -3,6 +3,7 @@ package no.infoss.confprofile.profile.data;
 import no.infoss.confprofile.model.ListItemModel;
 
 public class VpnData extends ListItem {
+	private String mProfileId;
 	private String mPayloadUuid;
 	private String mUserDefinedName;
 	private boolean mOverridePrimary;
@@ -19,6 +20,7 @@ public class VpnData extends ListItem {
 	public VpnData(VpnData data) {
 		this();
 		
+		this.mProfileId = data.mProfileId;
 		this.mPayloadUuid = data.mPayloadUuid;
 		this.mUserDefinedName = data.mUserDefinedName;
 		this.mOverridePrimary = data.mOverridePrimary;
@@ -27,6 +29,14 @@ public class VpnData extends ListItem {
 		this.mOnDemandRules = data.mOnDemandRules;
 		this.mOnDemandCredentials = data.mOnDemandCredentials;
 		this.mVpnType = data.mVpnType;
+	}
+	
+	public String getProfileId() {
+		return mProfileId;
+	}
+	
+	public void setProfileId(String profileId) {
+		this.mProfileId = profileId;
 	}
 	
 	public String getPayloadUuid() {

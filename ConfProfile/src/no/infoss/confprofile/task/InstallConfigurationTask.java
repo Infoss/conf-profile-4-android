@@ -197,6 +197,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 						}
 						
 						ContentValues values = new ContentValues();
+						values.put(VpnDataCursorLoader.COL_PROFILE_ID, instAction.profileId);
 						values.put(VpnDataCursorLoader.COL_PAYLOAD_UUID, vpnPayload.getPayloadUUID());
 						values.put(VpnDataCursorLoader.COL_USER_DEFINED_NAME, vpnPayload.getUserDefinedName());
 						values.put(VpnDataCursorLoader.COL_OVERRIDE_PRIMARY, overridePrimary);
