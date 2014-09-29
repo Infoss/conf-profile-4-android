@@ -68,7 +68,6 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 
 					@Override
 					public View prepareView(int position, View convertView, PayloadInfoEx data) {
-						// TODO Auto-generated method stub
 						return null;
 					}
 					
@@ -103,7 +102,6 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 
 					@Override
 					public View prepareHeaderView(int position, View convertView, List<PayloadInfoEx> header) {
-						// TODO Auto-generated method stub
 						return null;
 					}
 
@@ -178,6 +176,7 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 			mPayloads.clear();
 			mPayloads.addAll(data);
 			mAdapter.notifyDataSetChanged();
+			//TODO: add onItemClickListener to the grid
 		}
 	}
 }
