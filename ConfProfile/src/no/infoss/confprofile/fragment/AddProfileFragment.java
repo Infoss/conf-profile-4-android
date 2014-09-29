@@ -142,14 +142,16 @@ public class AddProfileFragment extends Fragment
 			inflater = getActivity().getLayoutInflater();
 		}
 		
+		ViewGroup rootView = (ViewGroup) getView();
+		
 		switch (mState) {
 		case STATE_PARSED: {
-			view = inflater.inflate(R.layout.fragment_add_profile_info, null);
+			view = inflater.inflate(R.layout.fragment_add_profile_info, rootView, false);
 			fillProfileInfo(view);
 			break;
 		}
 		case STATE_ERROR: {
-			view = inflater.inflate(R.layout.fragment_add_profile_error, null);
+			view = inflater.inflate(R.layout.fragment_add_profile_error, rootView, false);
 			
 			TextView errorLabel = (TextView) view.findViewById(R.id.errorLabel);
 			if(errorLabel != null) {
@@ -159,7 +161,7 @@ public class AddProfileFragment extends Fragment
 		}
 		case STATE_LOADING:
 		default: {
-			view = inflater.inflate(R.layout.fragment_add_profile_wait, null);
+			view = inflater.inflate(R.layout.fragment_add_profile_wait, rootView, false);
 			break;
 		}
 		}
