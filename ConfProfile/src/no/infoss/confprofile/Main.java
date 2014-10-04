@@ -671,6 +671,16 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	
 	private void setActionBarDisplayHomeAsUp(Intent intent) {
+		if(intent == null) {
+			return;
+		}
+		
+		if(Intent.ACTION_MAIN.equals(intent.getAction())) {
+			//clear intent stack on new main intent
+			//this is critical when navigating Main -> other 1 -> other 2 -> Main
+			mIntentStack.clear();
+		}
+		
 		if(mIntentStack.size() == 0){
 			intent = new Intent(this, Main.class);
 			intent.setAction(Intent.ACTION_MAIN);
