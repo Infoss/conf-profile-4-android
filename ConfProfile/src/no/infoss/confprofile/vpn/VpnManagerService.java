@@ -158,6 +158,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	}
 	
 	@Override
+	public void cancelAllNotifications() {
+		mNtfDelegate.cancelAllNotifications();
+	}
+	
+	@Override
 	public void stopVpnService() {
 		if(mVpnServiceState == SERVICE_STATE_STARTED) {
 			if(mUsernatTunnel != null) {
@@ -174,16 +179,9 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 				mRouterLoop.terminate();
 			}
 			mRouterLoop = null;
-			
-			mNtfDelegate.cancelNotification();
-			/*
-			OcpaVpnInterface vpnService = mBindKit.lock();
-			if(vpnService != null) {
-				vpnService.stopVpnService();
-			}
-			mBindKit.unlock();
-			*/
 		}
+		
+		mNtfDelegate.cancelNotification();
 	}
 	
 	@Override

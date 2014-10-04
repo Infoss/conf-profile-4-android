@@ -35,6 +35,8 @@ public interface VpnManagerInterface extends IInterface {
 	public static final String KEY_REMOTE_ADDRESS = "REMOTE_ADDRESS";
 	public static final String KEY_LOCAL_ADDRESS = "LOCAL_ADDRESS";
 	
+	public void cancelAllNotifications();
+	
 	public void startVpnService();
 	public void stopVpnService();
 	public int getVpnServiceState();
