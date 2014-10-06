@@ -79,12 +79,10 @@ public class IpSecTunnel extends VpnTunnel {
 	@Deprecated
 	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 	}
 	
-	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+	public IpSecTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 	}
 
 	@SuppressWarnings("unchecked")

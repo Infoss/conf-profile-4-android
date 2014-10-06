@@ -234,7 +234,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			mRouterLoop = new RouterLoop(this, vpnService.createBuilderAdapter("OpenProfile"));
 			mRouterLoop.startLoop();
 			
-			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
+			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), this);
 			mUsernatTunnel.establishConnection();
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);

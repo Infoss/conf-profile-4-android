@@ -73,7 +73,6 @@ public class OpenVpnTunnel extends VpnTunnel {
 	@Deprecated
 	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 		
 		boolean managemeNetworkState = true;
 		if(managemeNetworkState) {
@@ -81,9 +80,8 @@ public class OpenVpnTunnel extends VpnTunnel {
 		}
 	}
 	
-	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+	/*package*/ OpenVpnTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 		
 		boolean managemeNetworkState = true;
 		if(managemeNetworkState) {

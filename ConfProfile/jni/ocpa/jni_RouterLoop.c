@@ -61,6 +61,8 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 	int res = 0;
 	bool do_rebuild_epoll_struct = false;
 	int epoll_fd = ctx->epoll_fd;
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "epoll_fd=%d", epoll_fd);
+
 	struct epoll_event epoll_events[MAX_EPOLL_EVENTS];
 	while(true) {
 

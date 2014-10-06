@@ -53,7 +53,6 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 	private String mLocalAddress;
 	private String mRemoteAddress;
 	
-	protected long mVpnServiceCtx; //native
 	protected long mVpnTunnelCtx; //native
 	
 	enum ConnectionStatus {

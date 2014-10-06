@@ -36,13 +36,11 @@ public class L2tpTunnel extends VpnTunnel {
 	@Deprecated
 	/*package*/ L2tpTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
 		super(ctx, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 		mIsTerminating = false;
 	}
 	
-	/*package*/ L2tpTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+	/*package*/ L2tpTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 		mIsTerminating = false;
 	}
 
