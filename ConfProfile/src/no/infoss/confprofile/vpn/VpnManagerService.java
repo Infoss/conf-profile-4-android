@@ -82,6 +82,21 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	private ConfigurationDelegate mCfgDelegate;
 	
 	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		if(intent != null) { 
+			if(ACTION_NOTIFY_VPN_SERVICE_STARTED.equals(intent.getAction())) {
+				notifyVpnServiceStarted();
+				Log.d(TAG, "notifyVpnServiceStarted()");
+			} else if(ACTION_NOTIFY_VPN_SERVICE_REVOKED.equals(intent.getAction())) {
+				notifyVpnServiceRevoked();
+				Log.d(TAG, "notifyVpnServiceRevoked()");
+			}
+		}
+		
+		return START_NOT_STICKY;
+	}
+	
+	@Override
 	public void onCreate() {
 		super.onCreate();
 		
@@ -114,10 +129,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		mDebugDelegate = null;
 		
 		mNtfDelegate.releaseResources();
+		mNtfDelegate.cancelNotification();
 		mNtfDelegate = null;
 		
 		mNetworkListener = null;
-		mNtfDelegate.cancelNotification();
 		
 		if(mHelperThread != null) {
 			mHelperThread.interrupt();
@@ -179,6 +194,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 				mRouterLoop.terminate();
 			}
 			mRouterLoop = null;
+			
+			Intent intent = new Intent(this,  VpnManagerService.class);
+			intent.setAction(OcpaVpnInterface.ACTION_TERMINATE_VPN_SERVICE);
+			startService(intent);
 		}
 		
 		mNtfDelegate.cancelNotification();
