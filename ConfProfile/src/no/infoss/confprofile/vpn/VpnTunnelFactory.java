@@ -35,15 +35,15 @@ public class VpnTunnelFactory {
 		
 		if(IpSecTunnel.VPN_TYPE.equals(vpnType)) {
 			if(routerLoop != null) {
-				tunnel = new IpSecTunnel(ctx, routerLoop.getRouterCtx(), mgr, uuid, cfg);
+				tunnel = new IpSecTunnel(ctx, mgr, uuid, cfg);
 			}
 		} else if(OpenVpnTunnel.VPN_TYPE.equals(vpnType)) {
 			if(routerLoop != null) {
-				tunnel = new OpenVpnTunnel(ctx, routerLoop.getRouterCtx(), mgr, uuid, cfg);
+				tunnel = new OpenVpnTunnel(ctx, mgr, uuid, cfg);
 			}
 		} else if(L2tpTunnel.VPN_TYPE.equals(vpnType)) {
 			if(routerLoop != null) {
-				tunnel = new L2tpTunnel(ctx, routerLoop.getRouterCtx(), mgr, uuid, cfg);
+				tunnel = new L2tpTunnel(ctx, mgr, uuid, cfg);
 			}
 		}  
 		

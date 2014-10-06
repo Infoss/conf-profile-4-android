@@ -8,6 +8,9 @@ import android.os.IInterface;
 public interface VpnManagerInterface extends IInterface {
 	public static final String TAG = VpnManagerInterface.class.getSimpleName();
 	
+	public static final String ACTION_NOTIFY_VPN_SERVICE_STARTED = "VPN_SERVICE_STARTED";
+	public static final String ACTION_NOTIFY_VPN_SERVICE_REVOKED = "VPN_SERVICE_REVOKED";
+	
 	public static final String BROADCAST_VPN_EVENT = 
 			VpnManagerInterface.class.getCanonicalName().concat(".VPN_EVENT");
 	
@@ -34,6 +37,8 @@ public interface VpnManagerInterface extends IInterface {
 	public static final String KEY_SERVER_NAME = "SERVER_NAME";
 	public static final String KEY_REMOTE_ADDRESS = "REMOTE_ADDRESS";
 	public static final String KEY_LOCAL_ADDRESS = "LOCAL_ADDRESS";
+	
+	public void cancelAllNotifications();
 	
 	public void startVpnService();
 	public void stopVpnService();

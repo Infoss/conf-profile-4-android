@@ -1,7 +1,6 @@
 package no.infoss.confprofile.vpn;
 
 import no.infoss.confprofile.Main;
-import no.infoss.confprofile.util.SimpleServiceBindKit;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
@@ -28,20 +27,13 @@ public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 			return super.onTransact(code, data, reply, flags);
 		}
 	};
-	
-	private SimpleServiceBindKit<VpnManagerService> mBindKit;
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-		VpnManagerService vpnMgr = mBindKit.lock();
-		try {
-			if(vpnMgr != null) {
-				vpnMgr.notifyVpnServiceStarted();
-			} else {
-				Log.e(TAG, "Can't call notifyVpnServiceStarted(). VpnManagerService is now bound");
-			}
-		} finally {
-			mBindKit.unlock();
+		if(intent != null && !ACTION_TERMINATE_VPN_SERVICE.equals(intent.getAction())) {
+			//notify about started service
+			startService(getVpnMgrNotifyIntent(VpnManagerInterface.ACTION_NOTIFY_VPN_SERVICE_STARTED));
+			Log.d(TAG, "notifyVpnServiceStarted()");
 		}
 		
 		return START_NOT_STICKY;
@@ -49,28 +41,21 @@ public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 
 	@Override
 	public void onCreate() {
-		mBindKit = new SimpleServiceBindKit<VpnManagerService>(this, VpnManagerInterface.TAG);
-		if(!mBindKit.bind(VpnManagerService.class, BIND_AUTO_CREATE)) {
-			Log.e(TAG, "Can't bind VpnManagerService");
-		}
+		super.onCreate();
 	}
 
 	@Override
 	public void onRevoke() {
+		super.onRevoke();
+		
 		Log.d(TAG, "onRevoke()");
-		VpnManagerInterface vpnMgr = mBindKit.lock();
-		try {
-			if (vpnMgr != null) {
-				vpnMgr.notifyVpnServiceRevoked();
-			}
-		} finally {
-			mBindKit.unlock();
-		}
+		startService(getVpnMgrNotifyIntent(VpnManagerInterface.ACTION_NOTIFY_VPN_SERVICE_REVOKED));
+		Log.d(TAG, "notifyVpnServiceRevoked()");
 	}
 
 	@Override
 	public void onDestroy() {		
-		mBindKit.unbind();
+		super.onDestroy();
 	}
 	
 	@Override
@@ -94,10 +79,10 @@ public class OcpaVpnService extends VpnService implements OcpaVpnInterface {
 		return new BuilderAdapter(displayName);
 	}
 	
-	@Override
-	public void stopVpnService() {
-		//onRevoke();
-		stopSelf();
+	private Intent getVpnMgrNotifyIntent(String action) {
+		Intent intent = new Intent(this,  VpnManagerService.class);
+		intent.setAction(action);
+		return intent;
 	}
 	
 

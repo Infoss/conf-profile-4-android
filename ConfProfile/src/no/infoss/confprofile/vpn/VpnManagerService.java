@@ -82,6 +82,21 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	private ConfigurationDelegate mCfgDelegate;
 	
 	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		if(intent != null) { 
+			if(ACTION_NOTIFY_VPN_SERVICE_STARTED.equals(intent.getAction())) {
+				notifyVpnServiceStarted();
+				Log.d(TAG, "notifyVpnServiceStarted()");
+			} else if(ACTION_NOTIFY_VPN_SERVICE_REVOKED.equals(intent.getAction())) {
+				notifyVpnServiceRevoked();
+				Log.d(TAG, "notifyVpnServiceRevoked()");
+			}
+		}
+		
+		return START_NOT_STICKY;
+	}
+	
+	@Override
 	public void onCreate() {
 		super.onCreate();
 		
@@ -117,7 +132,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		mNtfDelegate = null;
 		
 		mNetworkListener = null;
-		mNtfDelegate.cancelNotification();
 		
 		if(mHelperThread != null) {
 			mHelperThread.interrupt();
@@ -158,6 +172,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	}
 	
 	@Override
+	public void cancelAllNotifications() {
+		mNtfDelegate.cancelAllNotifications();
+	}
+	
+	@Override
 	public void stopVpnService() {
 		if(mVpnServiceState == SERVICE_STATE_STARTED) {
 			if(mUsernatTunnel != null) {
@@ -175,15 +194,12 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			}
 			mRouterLoop = null;
 			
-			mNtfDelegate.cancelNotification();
-			/*
-			OcpaVpnInterface vpnService = mBindKit.lock();
-			if(vpnService != null) {
-				vpnService.stopVpnService();
-			}
-			mBindKit.unlock();
-			*/
+			Intent intent = new Intent(this,  VpnManagerService.class);
+			intent.setAction(OcpaVpnInterface.ACTION_TERMINATE_VPN_SERVICE);
+			startService(intent);
 		}
+		
+		mNtfDelegate.cancelNotification();
 	}
 	
 	@Override
@@ -218,7 +234,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			mRouterLoop = new RouterLoop(this, vpnService.createBuilderAdapter("OpenProfile"));
 			mRouterLoop.startLoop();
 			
-			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
+			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), this);
 			mUsernatTunnel.establishConnection();
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);
