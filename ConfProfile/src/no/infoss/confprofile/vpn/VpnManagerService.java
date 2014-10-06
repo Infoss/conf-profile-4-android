@@ -129,7 +129,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		mDebugDelegate = null;
 		
 		mNtfDelegate.releaseResources();
-		mNtfDelegate.cancelNotification();
 		mNtfDelegate = null;
 		
 		mNetworkListener = null;
