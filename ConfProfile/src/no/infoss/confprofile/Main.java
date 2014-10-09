@@ -48,6 +48,7 @@ import no.infoss.confprofile.task.BackupTask;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.util.SqliteRequestThread;
 import no.infoss.confprofile.util.VpnEventReceiver;
+import no.infoss.confprofile.util.SqliteRequestThread.SqliteRequestStatusListener;
 import no.infoss.confprofile.util.VpnEventReceiver.VpnEventListener;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
@@ -84,6 +85,10 @@ import com.litecoding.classkit.view.LazyCursorList;
 public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection, VpnEventListener {
 	public static final String TAG = Main.class.getSimpleName();
 	
+	/**
+	 * If present, loaders will be restarted. If supplied as integer value, 
+	 * it will restart loader after performing db request with corresponding id. 
+	 */
 	public static final String EXTRA_RESTART_LOADERS = Main.class.getCanonicalName().concat(".RESTART_LOADERS");
 	
 	private static final String ACTION_SERVICE_INFO = Main.class.getCanonicalName().concat(".SERVICE_INFO");
@@ -255,11 +260,23 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			}
 			
 			mGrid.setAdapter(null);
-			Bundle params = new Bundle();
+			final Bundle params = new Bundle();
 			params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
 			if(intent.hasExtra(EXTRA_RESTART_LOADERS)) {
+				int requestId = intent.getIntExtra(EXTRA_RESTART_LOADERS, -1);
+				if(requestId == -1) {
+					getLoaderManager().restartLoader(0, params, this);
+				} else {
+					SqliteRequestThread.getInstance().subscribe(new SqliteRequestStatusListener() {
+						
+						@Override
+						public void onSqliteRequestExecuted(SqliteRequestStatusListener listener,
+								int requestId) {
+							getLoaderManager().restartLoader(0, params, Main.this);
+						}
+					}, requestId);
+				}
 				intent.removeExtra(EXTRA_RESTART_LOADERS);
-				getLoaderManager().restartLoader(0, params, this);
 			} else {
 				getLoaderManager().initLoader(0, params, this);
 			}
@@ -682,8 +699,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		}
 		
 		if(mIntentStack.size() == 0){
+			Bundle oldIntentExtras = intent.getExtras();
 			intent = new Intent(this, Main.class);
 			intent.setAction(Intent.ACTION_MAIN);
+			if(oldIntentExtras != null) {
+				intent.putExtras(oldIntentExtras);
+			}
 			getActionBar().setDisplayHomeAsUpEnabled(false);
 		} else {
 			getActionBar().setDisplayHomeAsUpEnabled(true);
