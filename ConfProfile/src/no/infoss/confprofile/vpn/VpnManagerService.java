@@ -1,14 +1,11 @@
 package no.infoss.confprofile.vpn;
 
 import java.net.Socket;
-import java.security.PrivateKey;
 import java.security.Security;
-import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.profile.data.VpnDataEx;
@@ -578,20 +575,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 		
 		return retVal;
-	}
-	
-	@Deprecated
-	public static class VpnConfigInfo {
-		public static final String PARAMS_IPSEC = "IPSec";
-		public static final String PARAMS_PPP = "PPP";
-		public static final String PARAMS_CUSTOM = "Custom";
-		
-		public String configId;
-		public String vpnType;
-		public NetworkConfig networkConfig;
-		public Map<String, Object> params;
-		public Certificate[] certificates;
-		public PrivateKey privateKey;
 	}
 	
 	@Override

@@ -14,12 +14,6 @@ public class HttpClientTransportFactory implements TransportFactory {
 
 	private Context mCtx;
 	private Map<String, String> mAdditionalHeaders;
-
-	@Deprecated
-	public HttpClientTransportFactory(Context ctx, String userAgent) {
-		this(ctx, (Map<String, String>) null);
-		mAdditionalHeaders.put("User-Agent", userAgent);
-	}
 	
 	public HttpClientTransportFactory(Context ctx, Map<String, String> additionalHeaders) {
 		mCtx = ctx.getApplicationContext();

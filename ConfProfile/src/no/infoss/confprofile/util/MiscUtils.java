@@ -40,16 +40,6 @@ public class MiscUtils {
 		}
 	}
 	
-	@Deprecated
-	public static String genLibraryPath(Context ctx, ProcessBuilder pb) {	
-		String[] paths = new String[] {
-			ctx.getApplicationInfo().nativeLibraryDir, 
-			pb.environment().get("LD_LIBRARY_PATH")
-		};
-	
-		return StringUtils.join(paths, ":", true);
-	}
-	
 	public static String genLibraryPath(Context ctx, String oldLibraryPath) {	
 		String[] paths = new String[] {
 			ctx.getApplicationInfo().nativeLibraryDir, 
