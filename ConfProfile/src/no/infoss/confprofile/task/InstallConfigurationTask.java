@@ -45,6 +45,8 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 	private String mUserAgent;
 	private List<Action> mActions = new LinkedList<Action>();
 	
+	private int mLastRequestId = -1;
+	
 	public InstallConfigurationTask(Context ctx, DbOpenHelper dbHelper, InstallConfigurationTaskListener listener) {
 		mCtx = ctx;
 		mDbHelper = dbHelper;
@@ -211,7 +213,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 						
 						Insert request = Insert.insert().into(VpnDataCursorLoader.TABLE).values(values);
 						
-						SqliteRequestThread.getInstance().request(request, null);
+						mLastRequestId = SqliteRequestThread.getInstance().request(request, null);
 					}
 				}
 			}
@@ -230,7 +232,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 		InstallConfigurationTaskListener listener = mListener.get();
 		if(listener != null) {
 			if(result == TaskError.SUCCESS) {
-				listener.onInstallConfigurationComplete(this, mActions);
+				listener.onInstallConfigurationComplete(this, mActions, mLastRequestId);
 			} else {
 				listener.onInstallConfigurationFailed(this, result);
 			}
@@ -241,7 +243,7 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 	
 	public interface InstallConfigurationTaskListener {
 		public void onInstallConfigurationFailed(InstallConfigurationTask task, int taskErrorCode);
-		public void onInstallConfigurationComplete(InstallConfigurationTask task, List<Action> actions);
+		public void onInstallConfigurationComplete(InstallConfigurationTask task, List<Action> actions, int lastRequestId);
 	}
 	
 	public abstract static class Action {
