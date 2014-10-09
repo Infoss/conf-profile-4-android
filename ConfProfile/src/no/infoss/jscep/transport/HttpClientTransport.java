@@ -39,12 +39,6 @@ public class HttpClientTransport extends AbstractTransport {
 	private final Method mMethod;
 	private final Map<String, String> mAdditionalHeaders;
 	
-	@Deprecated
-	protected HttpClientTransport(Context ctx, URL url, Method method, String userAgent) {
-		this(ctx, url, method, (Map<String, String>) null);
-		mAdditionalHeaders.put("User-Agent", userAgent);
-	}
-	
 	protected HttpClientTransport(Context ctx, 
 			URL url, 
 			Method method, 

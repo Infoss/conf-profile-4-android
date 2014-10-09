@@ -28,7 +28,6 @@ import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.StringUtils;
-import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 
 import org.bouncycastle.openssl.PEMWriter;
 
@@ -69,16 +68,6 @@ public class OpenVpnTunnel extends VpnTunnel {
 	long mBytesOut;
     
     private PauseReason mLastPauseReason = PauseReason.noNetwork;
-	
-	@Deprecated
-	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg, vpnMgr);
-		
-		boolean managemeNetworkState = true;
-		if(managemeNetworkState) {
-			mReleaseHold = false;
-		}
-	}
 	
 	/*package*/ OpenVpnTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);

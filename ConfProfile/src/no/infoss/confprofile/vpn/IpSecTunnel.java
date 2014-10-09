@@ -15,7 +15,6 @@ import java.util.concurrent.Callable;
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.util.NetUtils;
-import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import no.infoss.confprofile.vpn.ipsec.imc.ImcState;
 import no.infoss.confprofile.vpn.ipsec.imc.RemediationInstruction;
 import android.content.Context;
@@ -74,12 +73,6 @@ public class IpSecTunnel extends VpnTunnel {
 	 * Listener interface for bound clients that are interested in changes to
 	 * this Service.
 	 */
-	
-	
-	@Deprecated
-	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg, vpnMgr);
-	}
 	
 	public IpSecTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);
