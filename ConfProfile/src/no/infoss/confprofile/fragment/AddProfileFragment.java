@@ -429,13 +429,14 @@ public class AddProfileFragment extends Fragment
 
 	@Override
 	public void onInstallConfigurationComplete(InstallConfigurationTask task,
-			List<Action> actions) {
+			List<Action> actions,
+			int lastRequestId) {
 		Activity activity = getActivity();
 		if(activity != null) {
 			Intent intent = new Intent(activity, Main.class);
 			intent.setAction(Intent.ACTION_MAIN);
 			intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
-			intent.putExtra(Main.EXTRA_RESTART_LOADERS, true);
+			intent.putExtra(Main.EXTRA_RESTART_LOADERS, lastRequestId);
 			activity.startActivity(intent);
 			activity.finish();
 		}
