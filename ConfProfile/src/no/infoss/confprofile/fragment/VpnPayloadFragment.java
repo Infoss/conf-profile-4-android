@@ -21,6 +21,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.ListView;
+import android.widget.TabHost;
+import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TextView;
 
 import com.litecoding.classkit.view.HeaderObjectAdapter;
@@ -28,6 +30,10 @@ import com.litecoding.classkit.view.HeaderObjectAdapter.HeaderObjectMapper;
 
 public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List<List<PayloadInfoEx>>>  {
 	public static final String TAG = VpnPayloadFragment.class.getSimpleName(); 
+	
+	private static final String TAB_L2TP = "l2tp";
+	private static final String TAB_PPTP = "pptp";
+	private static final String TAB_IPSEC = "ipsec";
 	
 	private final List<List<PayloadInfoEx>> mPayloads = new ArrayList<List<PayloadInfoEx>>();
 	private HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>> mAdapter;
@@ -125,11 +131,43 @@ public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List
 	@Override
 	public View onCreateView(LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
 		super.onCreateView(inflater, container, savedInstanceState);
-		View view = inflater.inflate(R.layout.fragment_profile_payloads, container, false);
+		View view = inflater.inflate(R.layout.fragment_vpn_payload, container, false);
 		ListView list = (ListView) view.findViewById(android.R.id.list);
 		if(list != null) {
 			list.setAdapter(mAdapter);
 		}
+		
+		Activity activity = getActivity();
+		
+		TabHost tabHost = (TabHost) view.findViewById(android.R.id.tabhost);
+
+		tabHost.setup();
+
+		TabHost.TabSpec tabSpec = null;
+		
+		tabSpec = tabHost.newTabSpec(TAB_L2TP);
+		tabSpec.setIndicator(activity.getString(R.string.fragment_vpn_payload_l2tp_tab));
+		tabHost.addTab(tabSpec);
+
+		tabSpec = tabHost.newTabSpec(TAB_PPTP);
+		tabSpec.setIndicator(activity.getString(R.string.fragment_vpn_payload_pptp_tab));
+		tabHost.addTab(tabSpec);
+
+		tabSpec = tabHost.newTabSpec(TAB_IPSEC);
+		tabSpec.setIndicator(activity.getString(R.string.fragment_vpn_payload_ipsec_tab));
+		tabHost.addTab(tabSpec);
+
+		tabHost.setOnTabChangedListener(new OnTabChangeListener() {
+			
+			@Override
+			public void onTabChanged(String tabId) {
+				// TODO Auto-generated method stub
+				
+			}
+		});
+		
+		tabHost.setCurrentTab(0);
+		
 		return view;
 	}
 	
