@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="no.infoss.confprofile"
     android:versionCode="1"
-    android:versionName="0.2.1 (beta)" 
+    android:versionName="0.2.2 (beta)" 
     android:installLocation="internalOnly">
 
     <uses-sdk
