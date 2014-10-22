@@ -11,18 +11,22 @@
 #include "ocpa.h"
 #include "router.h"
 #include "tun_dev_tun.h"
+#include "util.h"
 
 #define LOG_TAG "jni_RouterLoop.c"
 
 JNI_METHOD(RouterLoop, initIpRouter, jlong) {
+	TRACEPRINT("");
 	return (jlong) (intptr_t) router_init();
 }
 
 JNI_METHOD(RouterLoop, deinitIpRouter, void, jlong jrouterctx) {
+	TRACEPRINT("(router_ctx=%p)", jrouterctx);
 	router_deinit((router_ctx_t*) (intptr_t) jrouterctx);
 }
 
 JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
+	TRACEPRINT("(router_ctx=%p, builder=%p)", jrouterctx, jbuilder);
 	jint ret_val = 0;
 	jmethodID method_id;
 	int fd;
@@ -92,9 +96,9 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		}
 
 		if(ROUTER_DEBUG && (res > 0)) {
-			LOGDIF(ROUTER_DEBUG, LOG_TAG, "Received %d epoll event(s)", res);
+			LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Received %d epoll event(s)", res);
 			for(i = 0; i < res; i++) {
-				LOGDIF(ROUTER_DEBUG, LOG_TAG, "%d. events=0x%x (%d), fd=%d",
+				LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "%d. events=0x%x (%d), fd=%d",
 						i,
 						epoll_events[i].events,
 						epoll_events[i].events,
@@ -104,7 +108,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 
 		for(i = 0; i < res; i++) {
 			if((epoll_events[i].events & EPOLLIN) != 0) {
-				LOGDIF(ROUTER_DEBUG, LOG_TAG, "Read from fd=%d (events=%08x)", epoll_events[i].data.fd, epoll_events[i].events);
+				LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Read from fd=%d (events=%08x)", epoll_events[i].data.fd, epoll_events[i].events);
 
 				res = 0;
 				tun_ctx_t* tmp_tun_ctx = NULL;
@@ -151,7 +155,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 			if((epoll_events[i].events & EPOLLHUP) != 0) {
 				LOGE(LOG_TAG, "HUP (events=0x%x) for fd %d", epoll_events[i].events, epoll_events[i].data.fd);
 				if(epoll_ctl(epoll_fd, EPOLL_CTL_DEL, epoll_events[i].data.fd, &epoll_events[i]) == -1) {
-					LOGEIF(ROUTER_DEBUG, LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_DEL) %d: %s", errno, strerror(errno));
+					LOGEIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_DEL) %d: %s", errno, strerror(errno));
 					//continue
 					goto failed;
 				}
@@ -186,6 +190,7 @@ exit:
 }
 
 JNI_METHOD(RouterLoop, addRoute4, void, jlong jrouterctx, jint jip4, jint jmask, jlong jtunctx) {
+	TRACEPRINT("(router_ctx=%p, ip=%08x, mask=%08x, tun_ctx=%p)", jrouterctx, jip4, jmask, jtunctx);
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	tun_ctx_t* tun_ctx = (tun_ctx_t*) (intptr_t) jtunctx;
 	if(router_ctx == NULL || tun_ctx == NULL) {
@@ -200,6 +205,7 @@ JNI_METHOD(RouterLoop, addRoute4, void, jlong jrouterctx, jint jip4, jint jmask,
 }
 
 JNI_METHOD(RouterLoop, defaultRoute4, void, jlong jrouterctx, jlong jtunctx) {
+	TRACEPRINT("(router_ctx=%p, tun_ctx=%p)", jrouterctx, jtunctx);
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	tun_ctx_t* tun_ctx = (tun_ctx_t*) (intptr_t) jtunctx;
 	if(router_ctx == NULL || tun_ctx == NULL) {
@@ -214,6 +220,7 @@ JNI_METHOD(RouterLoop, defaultRoute4, void, jlong jrouterctx, jlong jtunctx) {
 }
 
 JNI_METHOD(RouterLoop, removeRoute4, void, jlong jrouterctx, jint jip4, jint jmask) {
+	TRACEPRINT("(router_ctx=%p, ip=%08x, mask=%08x)", jrouterctx, jip4, jmask);
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(router_ctx == NULL) {
 		return;
@@ -223,6 +230,7 @@ JNI_METHOD(RouterLoop, removeRoute4, void, jlong jrouterctx, jint jip4, jint jma
 }
 
 JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
+	TRACEPRINT("(router_ctx=%p)", jrouterctx);
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(router_ctx == NULL) {
 		return NULL;
@@ -280,6 +288,7 @@ JNI_METHOD(RouterLoop, getRoutes4, jobject, jlong jrouterctx) {
 }
 
 JNI_METHOD(RouterLoop, removeTunnel, void, jlong jrouterctx, jlong jtunctx) {
+	TRACEPRINT("(router_ctx=%p, tun_ctx=%p)", jrouterctx, jtunctx);
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	tun_ctx_t* tun_ctx = (tun_ctx_t*) (intptr_t) jtunctx;
 
@@ -294,6 +303,7 @@ JNI_METHOD(RouterLoop, removeTunnel, void, jlong jrouterctx, jlong jtunctx) {
 }
 
 JNI_METHOD(RouterLoop, isPausedRouterLoop, jboolean, jlong jrouterctx) {
+	TRACEPRINT("(router_ctx=%p)", jrouterctx);
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(router_ctx == NULL) {
 		return false;
@@ -302,14 +312,16 @@ JNI_METHOD(RouterLoop, isPausedRouterLoop, jboolean, jlong jrouterctx) {
 }
 
 JNI_METHOD(RouterLoop, pauseRouterLoop, jboolean, jlong jrouterctx, jboolean jpause) {
+	TRACEPRINT("(router_ctx=%p, mode=%s)", jrouterctx, jpause == JNI_TRUE ? "on" : "off");
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(router_ctx == NULL) {
 		return false;
 	}
-	return router_pause(router_ctx, jpause);
+	return router_pause(router_ctx, jpause == JNI_TRUE);
 }
 
 JNI_METHOD(RouterLoop, terminateRouterLoop, void, jlong jrouterctx) {
+	TRACEPRINT("(router_ctx=%p)", jrouterctx);
 	router_ctx_t* router_ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(router_ctx == NULL) {
 		return;
@@ -320,6 +332,7 @@ JNI_METHOD(RouterLoop, terminateRouterLoop, void, jlong jrouterctx) {
 }
 
 JNI_METHOD(RouterLoop, setMasqueradeIp4Mode, void, jlong jrouterctx, jboolean jison) {
+	TRACEPRINT("(router_ctx=%p, mode=%s)", jrouterctx, jison == JNI_TRUE ? "on" : "off");
 	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
 			return;
 		}
@@ -330,6 +343,7 @@ JNI_METHOD(RouterLoop, setMasqueradeIp4Mode, void, jlong jrouterctx, jboolean ji
 }
 
 JNI_METHOD(RouterLoop, setMasqueradeIp4, void, jlong jrouterctx, jint jip) {
+	TRACEPRINT("(router_ctx=%p, ip=%08x)", jrouterctx, jip);
 	if(((router_ctx_t*) (intptr_t) jrouterctx) == NULL) {
 		return;
 	}
@@ -340,6 +354,7 @@ JNI_METHOD(RouterLoop, setMasqueradeIp4, void, jlong jrouterctx, jint jip) {
 }
 
 JNI_METHOD(RouterLoop, setMasqueradeIp6Mode, void, jlong jrouterctx, jboolean jison) {
+	TRACEPRINT("(router_ctx=%p, mode=%s)", jrouterctx, jison == JNI_TRUE ? "on" : "off");
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(ctx == NULL) {
 		return;
@@ -349,6 +364,7 @@ JNI_METHOD(RouterLoop, setMasqueradeIp6Mode, void, jlong jrouterctx, jboolean ji
 }
 
 JNI_METHOD(RouterLoop, setMasqueradeIp6, void, jlong jrouterctx, jbyteArray jip) {
+	TRACEPRINT("(router_ctx=%p, TODO: improve this)", jrouterctx);
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(ctx == NULL) {
 		return;
@@ -360,6 +376,7 @@ JNI_METHOD(RouterLoop, setMasqueradeIp6, void, jlong jrouterctx, jbyteArray jip)
 }
 
 JNI_METHOD(RouterLoop, debugRestartPcap, void, jlong jrouterctx, jobject jos) {
+	TRACEPRINT("(router_ctx=%p, os=%p)", jrouterctx, jos);
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(ctx == NULL) {
 		return;
@@ -369,6 +386,7 @@ JNI_METHOD(RouterLoop, debugRestartPcap, void, jlong jrouterctx, jobject jos) {
 }
 
 JNI_METHOD(RouterLoop, debugStopPcap, void, jlong jrouterctx) {
+	TRACEPRINT("(router_ctx=%p)", jrouterctx);
 	router_ctx_t* ctx = (router_ctx_t*) (intptr_t) jrouterctx;
 	if(ctx == NULL) {
 		return;
