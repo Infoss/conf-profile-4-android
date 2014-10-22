@@ -1,5 +1,11 @@
 #rename this file to ant.properties and fill the following
 
+ndk.dir=c:\\path\\to\\android\\ndk
+ndk.build.rebuild=true
+ndk.build.verbose=true
+ndk.build.jobs.count=8
+
+
 key.store=c:\\path\\to\\release.keystore
 key.store.password=password_for_keystore
 key.alias=key_alias
