@@ -79,9 +79,6 @@ public class SqliteRequestThread extends Thread {
 			if(data == null) {
 				synchronized(this) {
 					try {
-						if(BuildConfig.DEBUG) {
-							Log.d(TAG, "run(): wait");
-						}
 						wait(1000);
 					} catch(InterruptedException e) {
 						//wait interrupted
