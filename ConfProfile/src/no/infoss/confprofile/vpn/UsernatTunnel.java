@@ -216,17 +216,18 @@ public class UsernatTunnel extends VpnTunnel {
 			
 			if(mSocket != null) {
 				try {
-					mSocket.getInputStream().close();
+					mSocket.shutdownInput();
 				} catch(Exception e) { 
 					//suppress this
 				}
 				
 				try {
-					mSocket.getOutputStream().close();
+					mSocket.shutdownOutput();
 				} catch(Exception e) { 
 					//suppress this
 				}
 				
+				/*
 				try {
 					mSocket.close();
 				} catch(Exception e) { 
@@ -234,6 +235,8 @@ public class UsernatTunnel extends VpnTunnel {
 				} finally {
 					mSocket = null;
 				}
+				*/
+				mSocket = null;
 			}
 		}
 	}

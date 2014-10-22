@@ -13,6 +13,7 @@ struct tun_ctx_private_t {
 	tun_ctx_t public;
 
 	refcount_t __ref_count;
+	refcount_t __ref_generation;
 
 	pthread_rwlock_t* rwlock;
 	int local_fd;  //router side
