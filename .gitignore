@@ -13,7 +13,5 @@
 /ConfProfile/assets/*.armeabi-v7a
 /ConfProfile/assets/*.mips
 /ConfProfile/assets/*.x86
-/ConfProfile/jni/lwip/apps
-/ConfProfile/jni/lwip/ports/old
-/ConfProfile/jni/lwip/ports/win32
-ConfProfile/ant.properties
+/ConfProfile/ant.properties
+/ConfProfile/local.properties

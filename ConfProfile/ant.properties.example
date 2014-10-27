@@ -1,0 +1,15 @@
+#rename this file to ant.properties and fill the following
+
+ndk.dir=c:\\path\\to\\android\\ndk
+ndk.build.rebuild=true
+ndk.build.verbose=true
+ndk.build.jobs.count=8
+
+
+key.store=c:\\path\\to\\release.keystore
+key.store.password=password_for_keystore
+key.alias=key_alias
+key.alias.password=password_for_key
+
+# To enable ProGuard to shrink and obfuscate your code, uncomment this (available properties: sdk.dir, user.home):
+#proguard.config=${sdk.dir}/tools/proguard/proguard-android.txt:proguard-project.txt
