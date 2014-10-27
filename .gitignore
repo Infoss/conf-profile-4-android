@@ -16,3 +16,4 @@
 /ConfProfile/jni/lwip/apps
 /ConfProfile/jni/lwip/ports/old
 /ConfProfile/jni/lwip/ports/win32
+ConfProfile/ant.properties

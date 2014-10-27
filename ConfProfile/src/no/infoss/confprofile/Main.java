@@ -862,7 +862,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
 			swModel.setChecked(true);
-			subList.remove(mStatusListItem);
+			if(!subList.contains(mStatusListItem)) {
+				subList.add(mStatusListItem);
+			}
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
@@ -870,7 +872,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
 			swModel.setChecked(true);
 			
-			subList.add(mStatusListItem);
+			if(!subList.contains(mStatusListItem)) {
+				subList.add(mStatusListItem);
+			}
 			
 			mStatusServerListItem.setSubText(serverName);
 			mStatusConnectTimeListItem.setSubText("");
