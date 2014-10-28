@@ -35,6 +35,7 @@ import no.infoss.confprofile.model.CompositeListItemModel;
 import no.infoss.confprofile.model.ImageViewModel;
 import no.infoss.confprofile.model.ListItemModel;
 import no.infoss.confprofile.model.Model;
+import no.infoss.confprofile.model.Model.OnClickListener;
 import no.infoss.confprofile.model.SimpleListItemModel;
 import no.infoss.confprofile.model.SwitchModel;
 import no.infoss.confprofile.model.SwitchModel.OnCheckedChangeListener;
@@ -570,11 +571,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		});
 		
 		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-		swModel.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+		swModel.setOnClickListener(new OnClickListener() {
 			
 			@Override
-			public void onCheckedChanged(SwitchModel model, Switch buttonView,
-					boolean isChecked) {
+			public void onClick(Model model, View v) {
+				boolean isChecked = ((Switch) v).isChecked();
+				
 				VpnManagerInterface vpnMgr = mBindKit.lock();
 				if(vpnMgr != null) {
 					if(isChecked) { 
