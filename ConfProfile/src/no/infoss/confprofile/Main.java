@@ -142,6 +142,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private boolean mRestartLoaderOnNextIntent;
 	private boolean mIsCurrentItemOnDemandEnabled;
 	private VpnData mCurrentVpnData;
+	private String mSelectedTunnelUuid;
 	
 	private volatile boolean mServiceStateReceived;
 	private volatile boolean mTunnelStateReceived;
@@ -825,25 +826,13 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mTunnelStateReceived = true;
 		
-		if(tunnelId != null) {
-			List<ListItem> items = new ArrayList<ListItem>(mVpnInfoList);
-			for(ListItem item : items) {
-				CompositeListItemModel model = (CompositeListItemModel) item.getModel();
-				ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon1);
-						
-				if(tunnelId.equals(((VpnData) item).getPayloadUuid()) && 
-						(state == VpnManagerInterface.TUNNEL_STATE_CONNECTING || 
-						state == VpnManagerInterface.TUNNEL_STATE_CONNECTED)) {
-					imgModel.setImageResourceId(R.drawable.check);
-				} else {
-					imgModel.setImageResourceId(0);
-				}
-				
-				imgModel.applyModel();
-			}
-			
-			items.clear();
-			//mVpnInfoList.notifyChanged();
+		 
+		if(state == VpnManagerInterface.TUNNEL_STATE_CONNECTING || 
+			state == VpnManagerInterface.TUNNEL_STATE_CONNECTED || 
+			state == VpnManagerInterface.TUNNEL_STATE_DISCONNECTING) {
+			setCheckedMark(tunnelId);
+		} else {
+			setCheckedMark(mSelectedTunnelUuid);
 		}
 		
 		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
@@ -949,7 +938,36 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		VPN_LIST_ITEM_MODEL.applyModel();
 		STATUS_LIST_ITEM_MODEL.applyModel();
 	}
+	
+	@Override
+	public void onReceivedSelectedTunnelUuid(String tunnelId, boolean isConnectionUnprotected) {
+		mSelectedTunnelUuid = tunnelId;
+		
+		if(isConnectionUnprotected) {
+			setCheckedMark(mSelectedTunnelUuid);
+		}
+	}
 
+	private void setCheckedMark(String tunnelId) {
+		if(tunnelId != null) {
+			List<ListItem> items = new ArrayList<ListItem>(mVpnInfoList);
+			for(ListItem item : items) {
+				CompositeListItemModel model = (CompositeListItemModel) item.getModel();
+				ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon1);
+						
+				if(tunnelId.equals(((VpnData) item).getPayloadUuid())) {
+					imgModel.setImageResourceId(R.drawable.check);
+				} else {
+					imgModel.setImageResourceId(0);
+				}
+				
+				imgModel.applyModel();
+			}
+			
+			items.clear();
+			//mVpnInfoList.notifyChanged();
+		}
+	}
 	
 	private void backupData() {
 		if(BuildConfig.DEBUG) {
