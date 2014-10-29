@@ -347,32 +347,25 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 		}
 	}
-
-	/*
-	@Override
-	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover) {
-		Log.d(TAG, "lost " + netConfig.toString() + (isFailover ? ", failover" : ""));
-		mSavedNetworkConfig = netConfig;
-		mSavedFailoverFlag = isFailover;
-		
-		updateCurrentConfiguration();
-	}
-	*/
 	
-	/*
 	@Override
-	public void notifyConnectivityChanged(NetworkConfig netConfig, boolean isFailover) {
-		Log.d(TAG, "changed to " + netConfig.toString() + (isFailover ? ", failover" : ""));
-		if(mIsRequestActive) {
-			mReevaluateOnRequest = true;
+	public void notifySelectedTunnelUuidChanged() {
+		String tunId = mCfgDelegate.getCurrentUuid();
+		
+		Intent intent = createBroadcastIntent();
+		intent.putExtra(KEY_EVENT_TYPE, TYPE_SELECTED_TUNNEL_ID_CHANGED);
+		intent.putExtra(KEY_TUNNEL_ID, tunId);
+		if(mCurrentTunnel != null) {
+			TunnelInfo info = mCurrentTunnel.getInfo();
+			if(info.state == TUNNEL_STATE_CONNECTING || 
+					info.state == TUNNEL_STATE_CONNECTED || 
+					info.state == TUNNEL_STATE_DISCONNECTING) {
+				intent.putExtra(KEY_IS_CONNECTION_UNPROTECTED, false);
+			}
 		}
-		
-		mSavedNetworkConfig = netConfig;
-		mSavedFailoverFlag = isFailover;
-		
-		updateCurrentConfiguration();
+				
+		sendBroadcast(intent);
 	}
-	*/
 	
 	@Override
 	public void notifyVpnLockedBySystem() {
@@ -463,6 +456,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 		
 		return tun.getInfo();
+	}
+	
+	@Override
+	public String getSelectedVpnTunnelUuid() {
+		return mCfgDelegate.getCurrentUuid();
 	}
 	
 	/**

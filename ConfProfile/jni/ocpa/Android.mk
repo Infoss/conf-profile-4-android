@@ -35,6 +35,7 @@ LOCAL_SRC_FILES := \
     backend/android_service.c \
     kernel/android_net.c \
     kernel/network_manager.c \
+    strongswan_debug.c \
     
 include jni/strongswan/Config.mk
 

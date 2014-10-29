@@ -120,8 +120,12 @@ public class ConfigurationDelegate extends VpnManagerDelegate {
 			}
 		}
 		
-		if(mOnDemandEnabled && configFound) {
-			getVpnManager().onCurrentConfigChanged(mCurrentUuid);
+		if(configFound) {
+			getVpnManager().notifySelectedTunnelUuidChanged();
+			
+			if(mOnDemandEnabled) {
+				getVpnManager().onCurrentConfigChanged(mCurrentUuid);
+			}
 		}
 	}
 	
@@ -212,5 +216,9 @@ public class ConfigurationDelegate extends VpnManagerDelegate {
 
 	public void setOnDemandEnabled(boolean onDemandEnabled) {
 		this.mOnDemandEnabled = onDemandEnabled;
+	}
+	
+	public String getCurrentUuid() {
+		return mCurrentUuid;
 	}
 }

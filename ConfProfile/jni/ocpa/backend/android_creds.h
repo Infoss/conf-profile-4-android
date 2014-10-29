@@ -68,6 +68,7 @@ struct android_creds_t {
 
 };
 
+
 /**
  * Create an android_creds instance.
  */
