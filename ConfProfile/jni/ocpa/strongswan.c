@@ -744,25 +744,16 @@ static void charonservice_deinit(JNIEnv *env)
 {
 	private_charonservice_t *this = (private_charonservice_t*)charonservice;
 
-	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "charonservice_deinit()");
-
-	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying network_manager (%p)", this->network_manager);
 	this->network_manager->destroy(this->network_manager);
-	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying sockets (%p)", this->sockets);
 	this->sockets->destroy(this->sockets);
 	//this->builder->destroy(this->builder);
-	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying creds (%p)", this->creds);
-	//TODO: here is memory leak, uncomment this to get SIGSEGV
 	this->creds->destroy(this->creds);
-	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying attr (%p)", this->attr);
 	this->attr->destroy(this->attr);
 	(*env)->DeleteGlobalRef(env, this->jtunnel);
-	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...decrement reference counter for tunnel_ctx (%p)", this->tunnel_ctx);
 	if(this->tunnel_ctx != NULL) {
 		this->tunnel_ctx->ref_put(this->tunnel_ctx);
 	}
 	this->tunnel_ctx = NULL;
-	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...free memory (%p)", this);
 	free(this);
 	charonservice = NULL;
 	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...charonservice_deinit() finished");
@@ -857,8 +848,8 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlo
 	}
 
 	lib->plugins->status(lib->plugins, LEVEL_CTRL);
-	//TODO: uncomment after debugging
-/*
+
+#if !defined(STRONGSWAN_DEBUG) || !STRONGSWAN_DEBUG
 	// add handler for SEGV and ILL etc.
 	action.sa_handler = segv_handler;
 	action.sa_flags = 0;
@@ -868,7 +859,8 @@ bool initialize_library(JNIEnv *env, jobject this, char *logfile, bool byod, jlo
 	sigaction(SIGBUS, &action, NULL);
 	action.sa_handler = SIG_IGN;
 	sigaction(SIGPIPE, &action, NULL);
-*/
+#endif
+
 	// start daemon (i.e. the threads in the thread-pool)
 	charon->start(charon);
 
