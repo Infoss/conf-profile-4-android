@@ -753,7 +753,7 @@ static void charonservice_deinit(JNIEnv *env)
 	//this->builder->destroy(this->builder);
 	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying creds (%p)", this->creds);
 	//TODO: here is memory leak, uncomment this to get SIGSEGV
-	//this->creds->destroy(this->creds);
+	this->creds->destroy(this->creds);
 	LOGDIF(STRONGSWAN_DEBUG, "strongswan.c", "...destroying attr (%p)", this->attr);
 	this->attr->destroy(this->attr);
 	(*env)->DeleteGlobalRef(env, this->jtunnel);
@@ -882,8 +882,6 @@ void deinitialize_library(JNIEnv *env)
 	libipsec_deinit();
 	libhydra_deinit();
 	library_deinit();
-
-	DBG1(DBG_DMN, "stopped charon daemon");
 }
 
 void initialize_tunnel(char *type, char *gateway, char *username, char *password)
