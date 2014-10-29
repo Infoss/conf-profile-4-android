@@ -20,6 +20,14 @@
 #define ROUTER_EPOLL_DEBUG 0
 #define TRACE_DEBUG 1
 
+#include "strongswan_debug.h"
+
+#undef _D_PRINTX
+#define _D_PRINTX(type, val, name, func) __print_##type((void*) val, name, func)
+
+#undef _D_PRINT
+#define _D_PRINT(type, val, name) _D_PRINT(type, val, name, NULL)
+
 #else
 
 //release mode
@@ -34,5 +42,14 @@
 #endif /* NDEBUG */
 
 #endif /* __ANDROID__ */
+
+#ifndef _D_PRINTX
+#define _D_PRINTX(type, val, name, func) while(0){}
+#endif
+
+
+#ifndef _D_PRINT
+#define _D_PRINT(type, val, name) while(0){}
+#endif
 
 #endif /* DEBUG_H_ */
