@@ -15,3 +15,5 @@
 /ConfProfile/assets/*.x86
 /ConfProfile/ant.properties
 /ConfProfile/local.properties
+jscep/
+ConfProfileTest/
