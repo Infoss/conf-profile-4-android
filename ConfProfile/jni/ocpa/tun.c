@@ -15,25 +15,27 @@
 #include "tun_private.h"
 #include "router.h"
 #include "iputils.h"
+#include "util.h"
 
 #define LOG_TAG "tun.c"
 
 REFS_DECLARE_METHODS_BODIES(tun_ctx_t, struct tun_ctx_private_t)
 
 static void destroy_tun_ctx(tun_ctx_t* ptr) {
-	LOGD(LOG_TAG, "Destroying tun_ctx_t at %p", ptr);
+	TRACEPRINT("(ptr=%p)", ptr);
+	LOGDIF(TUN_DEBUG, LOG_TAG, "Destroying tun_ctx_t at %p", ptr);
 	if(ptr == NULL) {
 		return;
 	}
 
 	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) ptr;
 
-	LOGD(LOG_TAG, "Shutdown local socket %d", instance->local_fd);
+	LOGDIF(TUN_DEBUG, LOG_TAG, "Shutdown local socket %d", instance->local_fd);
 	if(instance->local_fd != UNDEFINED_FD) {
 		shutdown(instance->local_fd, SHUT_RDWR);
 	}
 
-	LOGD(LOG_TAG, "Shutdown remote socket %d", instance->remote_fd);
+	LOGDIF(TUN_DEBUG, LOG_TAG, "Shutdown remote socket %d", instance->remote_fd);
 	if(instance->remote_fd != UNDEFINED_FD) {
 		shutdown(instance->remote_fd, SHUT_RDWR);
 	}
@@ -53,11 +55,11 @@ static void destroy_tun_ctx(tun_ctx_t* ptr) {
 	instance->bytes_in = 0;
 	instance->bytes_out = 0;
 
-	LOGD(LOG_TAG, "Prepare to destroy java_VpnTunnel at %p", instance->j_vpn_tun);
+	LOGDIF(TUN_DEBUG, LOG_TAG, "Prepare to destroy java_VpnTunnel at %p", instance->j_vpn_tun);
 	destroy_VpnTunnel(instance->j_vpn_tun);
 	instance->j_vpn_tun = NULL;
 
-	LOGD(LOG_TAG, "Prepare to destroy pcap_output_t at %p", instance->pcap_output);
+	LOGDIF(TUN_DEBUG, LOG_TAG, "Prepare to destroy pcap_output_t at %p", instance->pcap_output);
 	pcap_output_destroy(instance->pcap_output);
 	instance->pcap_output = NULL;
 
@@ -69,10 +71,17 @@ static void destroy_tun_ctx(tun_ctx_t* ptr) {
 
 	instance->rwlock = NULL;
 
+#if TUN_DEBUG
+	uint64_t pattern = (((uint64_t) ULOWER32(instance)) << 32) | ULOWER32(instance->__ref_generation);
+	LOGDIF(TUN_DEBUG, LOG_TAG, "Using pattern 0x%016llx for erasing memory (ptr=%p, gen=0x%x)", pattern, instance, instance->__ref_generation);
+	memset64(instance, pattern, sizeof(struct tun_ctx_private_t));
+#else
 	memset(instance, 0, sizeof(struct tun_ctx_private_t));
+#endif
+
 	free(instance);
 
-	LOGD(LOG_TAG, "End of destroying tun_ctx_t at %p", ptr);
+	LOGDIF(TUN_DEBUG, LOG_TAG, "End of destroying tun_ctx_t at %p", ptr);
 }
 
 static ssize_t tun_ctx_send(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
@@ -135,6 +144,7 @@ static ssize_t tun_ctx_recv(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
 }
 
 static void set_router_context(tun_ctx_t* instance, router_ctx_t* router_ctx) {
+	TRACEPRINT("(instance=%p, ctx=%p)", instance, router_ctx);
 	if(instance == NULL) {
 		return;
 	}
@@ -148,6 +158,7 @@ static void set_router_context(tun_ctx_t* instance, router_ctx_t* router_ctx) {
 }
 
 static void set_java_vpn_tunnel(tun_ctx_t* tun_ctx, jobject object) {
+	TRACEPRINT("(tun_ctx=%p, jobject=%p)", tun_ctx, object);
 	if(tun_ctx == NULL) {
 		return;
 	}
@@ -157,6 +168,7 @@ static void set_java_vpn_tunnel(tun_ctx_t* tun_ctx, jobject object) {
 }
 
 static int get_local_fd(tun_ctx_t* tun_ctx) {
+	TRACEPRINT("(tun_ctx=%p)", tun_ctx);
 	if(tun_ctx == NULL) {
 		return UNDEFINED_FD;
 	}
@@ -166,6 +178,7 @@ static int get_local_fd(tun_ctx_t* tun_ctx) {
 }
 
 static int get_remote_fd(tun_ctx_t* tun_ctx) {
+	TRACEPRINT("(tun_ctx=%p)", tun_ctx);
 	if(tun_ctx == NULL) {
 		return UNDEFINED_FD;
 	}
@@ -175,6 +188,7 @@ static int get_remote_fd(tun_ctx_t* tun_ctx) {
 }
 
 static void set_masquerade4_mode(tun_ctx_t* tun_ctx, bool mode) {
+	TRACEPRINT("(tun_ctx=%p, mode=%s)", tun_ctx, mode ? "on" : "off");
 	if(tun_ctx == NULL) {
 		return;
 	}
@@ -184,6 +198,7 @@ static void set_masquerade4_mode(tun_ctx_t* tun_ctx, bool mode) {
 }
 
 static void set_masquerade4_ip(tun_ctx_t* tun_ctx, uint32_t ip) {
+	TRACEPRINT("(tun_ctx=%p, ip=0x%08x)", tun_ctx, ip);
 	if(tun_ctx == NULL) {
 		return;
 	}
@@ -320,6 +335,7 @@ static void masquerade_dst(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
 }
 
 static void debug_restart_pcap(tun_ctx_t* tun_ctx, jobject object) {
+	TRACEPRINT("(tun_ctx=%p, jobject=%p)", tun_ctx, object);
 	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) tun_ctx;
 
 	if(instance->pcap_output != NULL) {
@@ -330,6 +346,7 @@ static void debug_restart_pcap(tun_ctx_t* tun_ctx, jobject object) {
 }
 
 static void debug_stop_pcap(tun_ctx_t* tun_ctx) {
+	TRACEPRINT("(tun_ctx=%p)", tun_ctx);
 	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) tun_ctx;
 
 	if(instance->pcap_output != NULL) {
@@ -341,6 +358,7 @@ static void debug_stop_pcap(tun_ctx_t* tun_ctx) {
 }
 
 tun_ctx_t* create_tun_ctx(tun_ctx_t* ptr, ssize_t len) {
+	TRACEPRINT("(ptr=%p, len=%d)", ptr, len);
 	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) ptr;
 	ssize_t instance_size = len;
 	if(ptr == NULL || len < sizeof(struct tun_ctx_private_t)) {

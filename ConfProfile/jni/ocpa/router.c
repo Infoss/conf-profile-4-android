@@ -675,9 +675,8 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 		return;
 	}
 
-	LOGD(LOG_TAG, "Start rebuilding epoll struct");
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "Start rebuilding epoll struct");
 	pthread_rwlock_wrlock(ctx->rwlock4);
-	struct epoll_event ev;
 	unsigned int poll_count = 0;
 	bool already_added = false;
 
@@ -731,7 +730,7 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 		}
 		free(ctx->epoll_links);
 		unsigned int new_poll_count = (poll_count + (poll_count >> 1));
-		LOGD(LOG_TAG, "Resizing epoll struct from %d to %d item(s)",
+		LOGDIF(ROUTER_DEBUG, LOG_TAG, "Resizing epoll struct from %d to %d item(s)",
 				ctx->epoll_links_capacity,
 				new_poll_count);
 		ctx->epoll_links = malloc(sizeof(epoll_link_t) * new_poll_count);
@@ -743,16 +742,20 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 
 	memset(ctx->epoll_links, 0, ctx->epoll_links_capacity * sizeof(epoll_link_t));
 
-	LOGD(LOG_TAG, "Rebuild epoll struct for %d item(s)", poll_count);
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "Rebuild epoll struct for %d item(s)", poll_count);
 
+	struct epoll_event* ev;
 	for(i = 0; i < poll_count; i++) {
 		ctx->epoll_links[i].fd = ctxs[i]->getLocalFd(ctxs[i]);
 		ctx->epoll_links[i].tun_ctx = ctxs[i];
 
-		ev.events = EPOLLIN | EPOLLOUT;
-		ev.data.fd = ctx->epoll_links[i].fd;
-		if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ev.data.fd, &ev) == -1) {
-			LOGE(LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_ADD) %d: %s", errno, strerror(errno));
+		ev = &(ctx->epoll_links[i].evt);
+		ev->events = EPOLLIN | EPOLLOUT;
+		ev->data.fd = ctx->epoll_links[i].fd;
+		LOGDIF(ROUTER_DEBUG, LOG_TAG, "epoll_links[%i]: fd=%d, event=%p", i, ctx->epoll_links[i].fd, ev);
+
+		if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ev->data.fd, &ev) == -1) {
+			LOGEIF(ROUTER_DEBUG, LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_ADD) %d: %s", errno, strerror(errno));
 			//continue
 		}
 	}
@@ -760,7 +763,7 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 	goto exit;
 error:
 	//report error
-	LOGD(LOG_TAG, "Error occurred while rebuilding poll struct");
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "Error occurred while rebuilding poll struct");
 exit:
 
 	ctx->routes_updated = false;
@@ -768,7 +771,7 @@ exit:
 	if(ctxs != NULL) {
 		free(ctxs);
 	}
-	LOGD(LOG_TAG, "Rebuilding poll struct finished");
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "Rebuilding poll struct finished");
 }
 /*
 void rebuild_poll_struct(router_ctx_t* ctx, poll_helper_struct_t* poll_struct) {

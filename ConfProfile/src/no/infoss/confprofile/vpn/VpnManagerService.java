@@ -1,14 +1,11 @@
 package no.infoss.confprofile.vpn;
 
 import java.net.Socket;
-import java.security.PrivateKey;
 import java.security.Security;
-import java.security.cert.Certificate;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 
 import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.profile.data.VpnDataEx;
@@ -82,6 +79,21 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	private ConfigurationDelegate mCfgDelegate;
 	
 	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		if(intent != null) { 
+			if(ACTION_NOTIFY_VPN_SERVICE_STARTED.equals(intent.getAction())) {
+				notifyVpnServiceStarted();
+				Log.d(TAG, "notifyVpnServiceStarted()");
+			} else if(ACTION_NOTIFY_VPN_SERVICE_REVOKED.equals(intent.getAction())) {
+				notifyVpnServiceRevoked();
+				Log.d(TAG, "notifyVpnServiceRevoked()");
+			}
+		}
+		
+		return START_NOT_STICKY;
+	}
+	
+	@Override
 	public void onCreate() {
 		super.onCreate();
 		
@@ -117,7 +129,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		mNtfDelegate = null;
 		
 		mNetworkListener = null;
-		mNtfDelegate.cancelNotification();
 		
 		if(mHelperThread != null) {
 			mHelperThread.interrupt();
@@ -158,6 +169,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	}
 	
 	@Override
+	public void cancelAllNotifications() {
+		mNtfDelegate.cancelAllNotifications();
+	}
+	
+	@Override
 	public void stopVpnService() {
 		if(mVpnServiceState == SERVICE_STATE_STARTED) {
 			if(mUsernatTunnel != null) {
@@ -175,15 +191,12 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			}
 			mRouterLoop = null;
 			
-			mNtfDelegate.cancelNotification();
-			/*
-			OcpaVpnInterface vpnService = mBindKit.lock();
-			if(vpnService != null) {
-				vpnService.stopVpnService();
-			}
-			mBindKit.unlock();
-			*/
+			Intent intent = new Intent(this,  VpnManagerService.class);
+			intent.setAction(OcpaVpnInterface.ACTION_TERMINATE_VPN_SERVICE);
+			startService(intent);
 		}
+		
+		mNtfDelegate.cancelNotification();
 	}
 	
 	@Override
@@ -218,7 +231,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			mRouterLoop = new RouterLoop(this, vpnService.createBuilderAdapter("OpenProfile"));
 			mRouterLoop.startLoop();
 			
-			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), mRouterLoop, this);
+			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), this);
 			mUsernatTunnel.establishConnection();
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);
@@ -334,32 +347,25 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 		}
 	}
-
-	/*
-	@Override
-	public void notifyConnectivityLost(NetworkConfig netConfig, boolean isFailover) {
-		Log.d(TAG, "lost " + netConfig.toString() + (isFailover ? ", failover" : ""));
-		mSavedNetworkConfig = netConfig;
-		mSavedFailoverFlag = isFailover;
-		
-		updateCurrentConfiguration();
-	}
-	*/
 	
-	/*
 	@Override
-	public void notifyConnectivityChanged(NetworkConfig netConfig, boolean isFailover) {
-		Log.d(TAG, "changed to " + netConfig.toString() + (isFailover ? ", failover" : ""));
-		if(mIsRequestActive) {
-			mReevaluateOnRequest = true;
+	public void notifySelectedTunnelUuidChanged() {
+		String tunId = mCfgDelegate.getCurrentUuid();
+		
+		Intent intent = createBroadcastIntent();
+		intent.putExtra(KEY_EVENT_TYPE, TYPE_SELECTED_TUNNEL_ID_CHANGED);
+		intent.putExtra(KEY_TUNNEL_ID, tunId);
+		if(mCurrentTunnel != null) {
+			TunnelInfo info = mCurrentTunnel.getInfo();
+			if(info.state == TUNNEL_STATE_CONNECTING || 
+					info.state == TUNNEL_STATE_CONNECTED || 
+					info.state == TUNNEL_STATE_DISCONNECTING) {
+				intent.putExtra(KEY_IS_CONNECTION_UNPROTECTED, false);
+			}
 		}
-		
-		mSavedNetworkConfig = netConfig;
-		mSavedFailoverFlag = isFailover;
-		
-		updateCurrentConfiguration();
+				
+		sendBroadcast(intent);
 	}
-	*/
 	
 	@Override
 	public void notifyVpnLockedBySystem() {
@@ -450,6 +456,11 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 		
 		return tun.getInfo();
+	}
+	
+	@Override
+	public String getSelectedVpnTunnelUuid() {
+		return mCfgDelegate.getCurrentUuid();
 	}
 	
 	/**
@@ -562,20 +573,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		}
 		
 		return retVal;
-	}
-	
-	@Deprecated
-	public static class VpnConfigInfo {
-		public static final String PARAMS_IPSEC = "IPSec";
-		public static final String PARAMS_PPP = "PPP";
-		public static final String PARAMS_CUSTOM = "Custom";
-		
-		public String configId;
-		public String vpnType;
-		public NetworkConfig networkConfig;
-		public Map<String, Object> params;
-		public Certificate[] certificates;
-		public PrivateKey privateKey;
 	}
 	
 	@Override

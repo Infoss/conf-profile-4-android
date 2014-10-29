@@ -86,11 +86,19 @@ import android.util.Log;
 		mRouterCtx = 0;
 	}
 	
-	public void defaultRoute4(VpnTunnel tunnel) {
-		if(tunnel.mVpnTunnelCtx == 0) {
-			Log.w(TAG, "Tunnel " + tunnel.getTunnelId() + " is unitialized and can't be used as default route");
+	public void route4(VpnTunnel tunnel, String address, int mask) {
+		if(!checkTunnel(tunnel, "IPv4 route")) {
 			return;
 		}
+		
+		addRoute4(mRouterCtx, NetUtils.ip4StrToInt(address), mask, tunnel.mVpnTunnelCtx);
+	}
+	
+	public void defaultRoute4(VpnTunnel tunnel) {
+		if(!checkTunnel(tunnel, "default IPv4 route")) {
+			return;
+		}
+		
 		defaultRoute4(mRouterCtx, tunnel.mVpnTunnelCtx);
 	}
 	
@@ -184,6 +192,28 @@ import android.util.Log;
 		protected Route(long vpnTunnelCtx) {
 			mVpnTunnelCtx = vpnTunnelCtx;
 		}
+	}
+	
+	private boolean checkTunnel(VpnTunnel tunnel) {
+		return checkTunnel(tunnel, null);
+	}
+	
+	private boolean checkTunnel(VpnTunnel tunnel, String purpose) {
+		if(tunnel.mVpnTunnelCtx == 0) {
+			Log.w(TAG, "Tunnel is null and can't be used".
+					concat(purpose == null ? "" : "as ".concat(purpose)));
+			return false;
+		}
+		
+		if(tunnel.mVpnTunnelCtx == 0) {
+			Log.w(TAG, "Tunnel ".
+					concat(tunnel.getTunnelId()).
+					concat(" is unitialized and can't be used").
+					concat(purpose == null ? "" : "as ".concat(purpose)));
+			return false;
+		}
+		
+		return true;
 	}
 	
 	public static class Route4 extends Route {

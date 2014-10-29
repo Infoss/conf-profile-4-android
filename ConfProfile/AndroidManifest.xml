@@ -1,7 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     package="no.infoss.confprofile"
     android:versionCode="1"
-    android:versionName="0.2.0 (beta)" 
+    android:versionName="0.2.2 (beta)" 
     android:installLocation="internalOnly">
 
     <uses-sdk
@@ -31,7 +31,7 @@
             </intent-filter>
         </activity>
         
-        <activity android:name=".InstallProfile">
+        <activity android:name=".InstallProfile" android:noHistory="true">
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />

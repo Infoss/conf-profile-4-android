@@ -35,6 +35,7 @@ import no.infoss.confprofile.model.CompositeListItemModel;
 import no.infoss.confprofile.model.ImageViewModel;
 import no.infoss.confprofile.model.ListItemModel;
 import no.infoss.confprofile.model.Model;
+import no.infoss.confprofile.model.Model.OnClickListener;
 import no.infoss.confprofile.model.SimpleListItemModel;
 import no.infoss.confprofile.model.SwitchModel;
 import no.infoss.confprofile.model.SwitchModel.OnCheckedChangeListener;
@@ -48,6 +49,7 @@ import no.infoss.confprofile.task.BackupTask;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.util.SqliteRequestThread;
 import no.infoss.confprofile.util.VpnEventReceiver;
+import no.infoss.confprofile.util.SqliteRequestThread.SqliteRequestStatusListener;
 import no.infoss.confprofile.util.VpnEventReceiver.VpnEventListener;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
@@ -84,6 +86,10 @@ import com.litecoding.classkit.view.LazyCursorList;
 public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection, VpnEventListener {
 	public static final String TAG = Main.class.getSimpleName();
 	
+	/**
+	 * If present, loaders will be restarted. If supplied as integer value, 
+	 * it will restart loader after performing db request with corresponding id. 
+	 */
 	public static final String EXTRA_RESTART_LOADERS = Main.class.getCanonicalName().concat(".RESTART_LOADERS");
 	
 	private static final String ACTION_SERVICE_INFO = Main.class.getCanonicalName().concat(".SERVICE_INFO");
@@ -137,6 +143,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private boolean mRestartLoaderOnNextIntent;
 	private boolean mIsCurrentItemOnDemandEnabled;
 	private VpnData mCurrentVpnData;
+	private String mSelectedTunnelUuid;
 	
 	private volatile boolean mServiceStateReceived;
 	private volatile boolean mTunnelStateReceived;
@@ -255,11 +262,23 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			}
 			
 			mGrid.setAdapter(null);
-			Bundle params = new Bundle();
+			final Bundle params = new Bundle();
 			params.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
 			if(intent.hasExtra(EXTRA_RESTART_LOADERS)) {
+				int requestId = intent.getIntExtra(EXTRA_RESTART_LOADERS, -1);
+				if(requestId == -1) {
+					getLoaderManager().restartLoader(0, params, this);
+				} else {
+					SqliteRequestThread.getInstance().subscribe(new SqliteRequestStatusListener() {
+						
+						@Override
+						public void onSqliteRequestExecuted(SqliteRequestStatusListener listener,
+								int requestId) {
+							getLoaderManager().restartLoader(0, params, Main.this);
+						}
+					}, requestId);
+				}
 				intent.removeExtra(EXTRA_RESTART_LOADERS);
-				getLoaderManager().restartLoader(0, params, this);
 			} else {
 				getLoaderManager().initLoader(0, params, this);
 			}
@@ -552,11 +571,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		});
 		
 		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-		swModel.setOnCheckedChangeListener(new OnCheckedChangeListener() {
+		swModel.setOnClickListener(new OnClickListener() {
 			
 			@Override
-			public void onCheckedChanged(SwitchModel model, Switch buttonView,
-					boolean isChecked) {
+			public void onClick(Model model, View v) {
+				boolean isChecked = ((Switch) v).isChecked();
+				
 				VpnManagerInterface vpnMgr = mBindKit.lock();
 				if(vpnMgr != null) {
 					if(isChecked) { 
@@ -671,9 +691,23 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	
 	private void setActionBarDisplayHomeAsUp(Intent intent) {
+		if(intent == null) {
+			return;
+		}
+		
+		if(Intent.ACTION_MAIN.equals(intent.getAction())) {
+			//clear intent stack on new main intent
+			//this is critical when navigating Main -> other 1 -> other 2 -> Main
+			mIntentStack.clear();
+		}
+		
 		if(mIntentStack.size() == 0){
+			Bundle oldIntentExtras = intent.getExtras();
 			intent = new Intent(this, Main.class);
 			intent.setAction(Intent.ACTION_MAIN);
+			if(oldIntentExtras != null) {
+				intent.putExtras(oldIntentExtras);
+			}
 			getActionBar().setDisplayHomeAsUpEnabled(false);
 		} else {
 			getActionBar().setDisplayHomeAsUpEnabled(true);
@@ -794,25 +828,13 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mTunnelStateReceived = true;
 		
-		if(tunnelId != null) {
-			List<ListItem> items = new ArrayList<ListItem>(mVpnInfoList);
-			for(ListItem item : items) {
-				CompositeListItemModel model = (CompositeListItemModel) item.getModel();
-				ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon1);
-						
-				if(tunnelId.equals(((VpnData) item).getPayloadUuid()) && 
-						(state == VpnManagerInterface.TUNNEL_STATE_CONNECTING || 
-						state == VpnManagerInterface.TUNNEL_STATE_CONNECTED)) {
-					imgModel.setImageResourceId(R.drawable.check);
-				} else {
-					imgModel.setImageResourceId(0);
-				}
-				
-				imgModel.applyModel();
-			}
-			
-			items.clear();
-			//mVpnInfoList.notifyChanged();
+		 
+		if(state == VpnManagerInterface.TUNNEL_STATE_CONNECTING || 
+			state == VpnManagerInterface.TUNNEL_STATE_CONNECTED || 
+			state == VpnManagerInterface.TUNNEL_STATE_DISCONNECTING) {
+			setCheckedMark(tunnelId);
+		} else {
+			setCheckedMark(mSelectedTunnelUuid);
 		}
 		
 		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
@@ -831,7 +853,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
 			swModel.setChecked(true);
-			subList.remove(mStatusListItem);
+			if(!subList.contains(mStatusListItem)) {
+				subList.add(mStatusListItem);
+			}
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
@@ -839,7 +863,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
 			swModel.setChecked(true);
 			
-			subList.add(mStatusListItem);
+			if(!subList.contains(mStatusListItem)) {
+				subList.add(mStatusListItem);
+			}
 			
 			mStatusServerListItem.setSubText(serverName);
 			mStatusConnectTimeListItem.setSubText("");
@@ -914,7 +940,36 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		VPN_LIST_ITEM_MODEL.applyModel();
 		STATUS_LIST_ITEM_MODEL.applyModel();
 	}
+	
+	@Override
+	public void onReceivedSelectedTunnelUuid(String tunnelId, boolean isConnectionUnprotected) {
+		mSelectedTunnelUuid = tunnelId;
+		
+		if(isConnectionUnprotected) {
+			setCheckedMark(mSelectedTunnelUuid);
+		}
+	}
 
+	private void setCheckedMark(String tunnelId) {
+		if(tunnelId != null) {
+			List<ListItem> items = new ArrayList<ListItem>(mVpnInfoList);
+			for(ListItem item : items) {
+				CompositeListItemModel model = (CompositeListItemModel) item.getModel();
+				ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon1);
+						
+				if(tunnelId.equals(((VpnData) item).getPayloadUuid())) {
+					imgModel.setImageResourceId(R.drawable.check);
+				} else {
+					imgModel.setImageResourceId(0);
+				}
+				
+				imgModel.applyModel();
+			}
+			
+			items.clear();
+			//mVpnInfoList.notifyChanged();
+		}
+	}
 	
 	private void backupData() {
 		if(BuildConfig.DEBUG) {

@@ -23,6 +23,7 @@ LOCAL_SRC_FILES := \
 	jni_RouterLoop.c \
 	jni_UsernatTunnel.c \
 	jni_VpnTunnel.c \
+	util.c \
 	queues.c \
 	pcap_output.c \
 	android_log_utils.c \
@@ -34,6 +35,7 @@ LOCAL_SRC_FILES := \
     backend/android_service.c \
     kernel/android_net.c \
     kernel/network_manager.c \
+    strongswan_debug.c \
     
 include jni/strongswan/Config.mk
 

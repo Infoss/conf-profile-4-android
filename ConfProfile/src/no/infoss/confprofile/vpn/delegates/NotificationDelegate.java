@@ -31,12 +31,16 @@ public class NotificationDelegate extends VpnManagerDelegate {
 	protected void doReleaseResources() {
 		super.doReleaseResources();
 		
-		cancelNotification();
+		cancelAllNotifications();
 		mNtfMgr = null;
 	}
 	
 	public void cancelNotification() {
 		mNtfMgr.cancel(R.string.app_name);
+	}
+	
+	public void cancelAllNotifications() {
+		mNtfMgr.cancelAll();
 	}
 	
 	public void notifyPreparing() {

@@ -15,7 +15,6 @@ import java.util.concurrent.Callable;
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.util.NetUtils;
-import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import no.infoss.confprofile.vpn.ipsec.imc.ImcState;
 import no.infoss.confprofile.vpn.ipsec.imc.RemediationInstruction;
 import android.content.Context;
@@ -51,15 +50,6 @@ public class IpSecTunnel extends VpnTunnel {
 	private ErrorState mError = ErrorState.NO_ERROR;
 	private ImcState mImcState = ImcState.UNKNOWN;
 	private final LinkedList<RemediationInstruction> mRemediationInstructions = new LinkedList<RemediationInstruction>();
-	
-	/*
-	public enum State {
-		DISABLED, //map to ConnectionStatus.DISCONNECTED
-		CONNECTING, //map to ConnectionStatus.CONNECTING
-		CONNECTED, //map to ConnectionStatus.CONNECTED
-		DISCONNECTING, //map to ConnectionStatus.DISCONNECTING
-	}
-	*/
 
 	public enum ErrorState {
 		NO_ERROR,
@@ -75,16 +65,8 @@ public class IpSecTunnel extends VpnTunnel {
 	 * this Service.
 	 */
 	
-	
-	@Deprecated
-	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
-	}
-	
-	public IpSecTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+	public IpSecTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 	}
 
 	@SuppressWarnings("unchecked")
@@ -102,6 +84,7 @@ public class IpSecTunnel extends VpnTunnel {
 		
 		mOptions.put("identifier", new String("ikev1-cert-xauth"));
 		
+		/*
 		while(true) {
 			synchronized(this) {
 				try {
@@ -117,7 +100,6 @@ public class IpSecTunnel extends VpnTunnel {
 							terminateConnection();
 						}
 					} else {
-						deinitializeCharon();
 						Log.i(TAG, "ipsec stopped");
 						break;
 					}
@@ -128,7 +110,31 @@ public class IpSecTunnel extends VpnTunnel {
 					terminateConnection();
 				}
 			}
-		}		
+		}*/		
+		
+		synchronized(this) {
+			startConnection();
+			if(!initializeCharon(mLogFile, getEnableBYOD(), mVpnTunnelCtx)) {
+				Log.e(TAG, "failed to start charon, exiting");
+				terminateConnection();
+				return;
+			} else {
+				Log.i(TAG, "charon started");
+				initiate(getIdentifier(), getRemoteAddress(), getUsername(), getPassword());
+				
+				while(!isTerminated()) {
+					try {
+						wait();
+					} catch(InterruptedException e) {
+						//nothing to do here
+					}
+				}
+			}
+		}
+		
+		terminateConnection();
+		deinitializeCharon();
+		Log.i(TAG, "Connection " + getTunnelId() + " terminated");
 	}
 
 	@Override
@@ -195,6 +201,9 @@ public class IpSecTunnel extends VpnTunnel {
 			result = (String)mOptions.get("password");
 		}
 		Log.d(TAG, "password=" + String.valueOf(result));
+		if(result == null) {
+			result = "<null>";
+		}
 		return result;
 	}
 
@@ -204,6 +213,9 @@ public class IpSecTunnel extends VpnTunnel {
 			result = (String)mOptions.get("user");
 		}
 		Log.d(TAG, "user=" + String.valueOf(result));
+		if(result == null) {
+			result = "<null>";
+		}
 		return result;
 	}
 
