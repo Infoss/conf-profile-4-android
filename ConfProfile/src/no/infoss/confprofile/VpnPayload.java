@@ -13,7 +13,7 @@ public class VpnPayload extends Activity {
 	@Override
 	public void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
-		setContentView(R.layout.profile_payloads);
+		setContentView(R.layout.vpn_payload);
 		
 		Intent intent = getIntent();
 		if(intent != null) {
@@ -24,7 +24,7 @@ public class VpnPayload extends Activity {
 				return;
 			}
 			
-			f.setProfileId(intent.getStringExtra(VpnDataCursorLoader.P_PAYLOAD_UUID));
+			f.setPayloadUuid(intent.getStringExtra(VpnDataCursorLoader.P_PAYLOAD_UUID));
 		}		
 	}
 }

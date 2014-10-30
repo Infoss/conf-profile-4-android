@@ -39,7 +39,7 @@ public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List
 	private HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>> mAdapter;
 	
 	private DbOpenHelper mDbHelper;
-	private String mProfileId;
+	private String mPayloadUuid;
 	
 	public VpnPayloadFragment() {
 		super();
@@ -54,8 +54,8 @@ public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List
 	private void resetFields() {
 	}
 
-	public void setProfileId(String profileId) {
-		mProfileId = profileId;
+	public void setPayloadUuid(String payloadUuid) {
+		mPayloadUuid = payloadUuid;
 	}
 	
 	@Override
@@ -180,8 +180,8 @@ public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List
 		request = new Bundle();
 		request.putInt(BaseQueryCursorLoader.STMT_TYPE, BaseQueryCursorLoader.STMT_SELECT);
 		request.putString(BaseQueryCursorLoader.P_SELECT_BY, PayloadsCursorLoader.COL_PROFILE_ID);
-		request.putString(BaseQueryCursorLoader.P_SELECT_VALUE, mProfileId);
-		getLoaderManager().initLoader(mProfileId.hashCode(), request, this);
+		request.putString(BaseQueryCursorLoader.P_SELECT_VALUE, mPayloadUuid);
+		getLoaderManager().initLoader(mPayloadUuid.hashCode(), request, this);
 	}
 	
 	@Override
