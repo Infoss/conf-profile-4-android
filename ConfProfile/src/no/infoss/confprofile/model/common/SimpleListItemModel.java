@@ -40,6 +40,7 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	@Override
 	public void setMainText(String mainText) {
 		this.mMainText = mainText;
+		this.mMainTextId = 0;
 	}
 	
 	@Override
@@ -56,6 +57,7 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	@Override
 	public void setSubText(String subText) {
 		this.mSubText = subText;
+		this.mSubTextId = 0;
 	}
 	
 	@Override
@@ -130,13 +132,13 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	protected void doApplyModel(View view) {
 		super.doApplyModel(view);
 		
-		if(mMainText == null) {
+		if(mMainText == null && mMainTextId != 0) {
 			setTextToView(view, mMainTextViewId, mMainTextId);
 		} else {
 			setTextToView(view, mMainTextViewId, mMainText);
 		}
 		
-		if(mSubText == null) {
+		if(mSubText == null && mMainTextId != 0) {
 			setTextToView(view, mSubTextViewId, mSubTextId);
 		} else {
 			setTextToView(view, mSubTextViewId, mSubText);
