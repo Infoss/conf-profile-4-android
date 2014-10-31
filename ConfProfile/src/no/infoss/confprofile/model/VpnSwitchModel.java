@@ -1,14 +1,11 @@
 package no.infoss.confprofile.model;
 
-import java.util.Date;
-
-import android.os.Handler;
-import android.util.Log;
-import android.view.View;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.model.common.CompositeListItemModel;
 import no.infoss.confprofile.model.common.SwitchModel;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
+import android.util.Log;
+import android.view.View;
 
 public class VpnSwitchModel extends CompositeListItemModel{
 	private static final String TAG = VpnSwitchModel.class.getSimpleName();
