@@ -51,6 +51,7 @@
 	<string name="fragment_vpn_payload_l2tp_tab">L2TP</string>
 	<string name="fragment_vpn_payload_pptp_tab">PPTP</string>
 	<string name="fragment_vpn_payload_ipsec_tab">IPSec</string>
+	<string name="fragment_vpn_payload_openvpn_tab">OpenVPN</string>
 	
 	<string name="dialog_confirm_profile_removal_label">Profile removal</string>
 	<string name="dialog_confirm_profile_removal_text">A you sure want to remove this profile?</string>
