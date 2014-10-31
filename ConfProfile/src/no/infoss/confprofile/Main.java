@@ -31,6 +31,7 @@ import no.infoss.confprofile.db.RequestWithAffectedRows;
 import no.infoss.confprofile.db.Transaction;
 import no.infoss.confprofile.db.Update;
 import no.infoss.confprofile.db.Expressions.Expression;
+import no.infoss.confprofile.model.VpnStatusModel;
 import no.infoss.confprofile.model.VpnSwitchModel;
 import no.infoss.confprofile.model.common.CompositeListItemModel;
 import no.infoss.confprofile.model.common.ImageViewModel;
@@ -103,20 +104,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
 	private static final VpnSwitchModel VPN_SWITCH_MODEL = new VpnSwitchModel();
-	private static final CompositeListItemModel STATUS_LIST_ITEM_MODEL = new CompositeListItemModel();
+	private static final VpnStatusModel VPN_STATUS_MODEL = new VpnStatusModel();
 	
 	private static final List<String> SINGLE_EMPTY_HEADER_LIST = new ArrayList<String>(1);
 	private static final List<String> DOUBLE_EMPTY_HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> VPN_DATA_LIST = new LinkedList<List<ListItem>>();
 	private static final List<List<ListItem>> STATUS_LIST = new LinkedList<List<ListItem>>();
-	
-	static {
-		ImageViewModel imageViewModel = new ImageViewModel(android.R.id.icon);
-		imageViewModel.setImageResourceId(R.drawable.arrow);
-		STATUS_LIST_ITEM_MODEL.addMapping(imageViewModel);
-		STATUS_LIST_ITEM_MODEL.setLayoutId(R.layout.simple_list_item_2_image);
-		STATUS_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_image);
-	}
 	
 	private final Stack<Intent> mIntentStack = new Stack<Intent>();
 	private VpnEventReceiver mVpnEvtReceiver;
@@ -585,7 +578,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		});
 		
 		//adding VPN list item
-		STATUS_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+		VPN_STATUS_MODEL.setOnClickListener(new Model.OnClickListener() {
 			
 			@Override
 			public void onClick(Model model, View v) {
@@ -612,7 +605,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		cmdList.add(mVpnListItem);
 		
 		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
-		mStatusListItem.setModel(STATUS_LIST_ITEM_MODEL);
+		mStatusListItem.setModel(VPN_STATUS_MODEL);
 		//cmdList.add(mStatusListItem);
 		
 		DATA_LIST.add(cmdList);
@@ -794,27 +787,22 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		List<ListItem> subList = DATA_LIST.get(0);
 		
 		VPN_SWITCH_MODEL.setTunnelState(state);
+		VPN_STATUS_MODEL.setTunnelState(state);
 		
 		switch(state) {
+		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING:
 		case VpnManagerInterface.TUNNEL_STATE_TERMINATED:
 		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTED: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(false);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnected_label));
 			subList.remove(mStatusListItem);
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTING: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(false);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
 			if(!subList.contains(mStatusListItem)) {
 				subList.add(mStatusListItem);
 			}
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(true);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
-			
 			if(!subList.contains(mStatusListItem)) {
 				subList.add(mStatusListItem);
 			}
@@ -873,12 +861,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			
 			break;
 		}
-		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(false);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnecting_label));
-			subList.remove(mStatusListItem);
-			break;
-		}
 		default: {
 			Log.e(TAG, "Received unexpected tunnel state (" + 
 					state + 
@@ -890,7 +872,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		mPayloadAdapter.notifyDataSetChanged();
 		
 		VPN_SWITCH_MODEL.applyModel();
-		STATUS_LIST_ITEM_MODEL.applyModel();
+		VPN_STATUS_MODEL.applyModel();
 	}
 	
 	@Override
