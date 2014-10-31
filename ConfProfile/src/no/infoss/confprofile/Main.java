@@ -31,6 +31,7 @@ import no.infoss.confprofile.db.RequestWithAffectedRows;
 import no.infoss.confprofile.db.Transaction;
 import no.infoss.confprofile.db.Update;
 import no.infoss.confprofile.db.Expressions.Expression;
+import no.infoss.confprofile.model.VpnSwitchModel;
 import no.infoss.confprofile.model.common.CompositeListItemModel;
 import no.infoss.confprofile.model.common.ImageViewModel;
 import no.infoss.confprofile.model.common.ListItemModel;
@@ -101,7 +102,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
 	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
-	private static final CompositeListItemModel VPN_LIST_ITEM_MODEL = new CompositeListItemModel();
+	private static final VpnSwitchModel VPN_SWITCH_MODEL = new VpnSwitchModel();
 	private static final CompositeListItemModel STATUS_LIST_ITEM_MODEL = new CompositeListItemModel();
 	
 	private static final List<String> SINGLE_EMPTY_HEADER_LIST = new ArrayList<String>(1);
@@ -110,11 +111,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private static final List<List<ListItem>> STATUS_LIST = new LinkedList<List<ListItem>>();
 	
 	static {
-		SwitchModel switchModel = new SwitchModel(R.id.switchWidget);
-		VPN_LIST_ITEM_MODEL.addMapping(switchModel);
-		VPN_LIST_ITEM_MODEL.setLayoutId(R.layout.simple_list_item_2_switch);
-		VPN_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_switch);
-		
 		ImageViewModel imageViewModel = new ImageViewModel(android.R.id.icon);
 		imageViewModel.setImageResourceId(R.drawable.arrow);
 		STATUS_LIST_ITEM_MODEL.addMapping(imageViewModel);
@@ -558,7 +554,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	private void initModels() {
 		//adding VPN list item
-		VPN_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+		VPN_SWITCH_MODEL.setOnClickListener(new Model.OnClickListener() {
 			
 			@Override
 			public void onClick(Model model, View v) {
@@ -570,8 +566,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			}
 		});
 		
-		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-		swModel.setOnClickListener(new OnClickListener() {
+		VPN_SWITCH_MODEL.setSwitchOnClickListener(new OnClickListener() {
 			
 			@Override
 			public void onClick(Model model, View v) {
@@ -613,7 +608,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		List<ListItem> cmdList = new ArrayList<ListItem>(2);
 		
 		mVpnListItem = new ListItem(getString(R.string.main_item_vpn_label), null);
-		mVpnListItem.setModel(VPN_LIST_ITEM_MODEL);
+		mVpnListItem.setModel(VPN_SWITCH_MODEL);
 		cmdList.add(mVpnListItem);
 		
 		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
@@ -769,49 +764,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mServiceStateReceived = true;
 		
-		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-		
-		switch(state) {
-		case VpnManagerInterface.SERVICE_STATE_STARTED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(true);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_enabled_label));
-			swModel.setEnabled(true);
-			swModel.setVisible(View.VISIBLE);
-			break;
-		}
-		case VpnManagerInterface.SERVICE_STATE_REVOKED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(true);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_disabled_label));
-			swModel.setChecked(false);
-			swModel.setEnabled(true);
-			swModel.setVisible(View.GONE);
-			break;
-		}
-		case VpnManagerInterface.SERVICE_STATE_LOCKED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(false);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_locked_label));
-			swModel.setChecked(false);
-			swModel.setEnabled(false);
-			swModel.setVisible(View.GONE);
-			break;
-		}
-		case VpnManagerInterface.SERVICE_STATE_UNSUPPORTED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(false);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_unsupported_label));
-			swModel.setChecked(false);
-			swModel.setEnabled(false);
-			swModel.setVisible(View.GONE);
-			break;
-		}
-		default: {
-			Log.e(TAG, "Received unexpected service state (" + 
-					state + 
-					(isBroadcast ? ") by broadcast" : ") from binder"));
-			break;
-		}
-		}
-		
-		VPN_LIST_ITEM_MODEL.applyModel();
+		VPN_SWITCH_MODEL.setVpnState(state);	
+		VPN_SWITCH_MODEL.applyModel();
 	}
 	
 	@Override
@@ -837,22 +791,21 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			setCheckedMark(mSelectedTunnelUuid);
 		}
 		
-		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
 		List<ListItem> subList = DATA_LIST.get(0);
+		
+		VPN_SWITCH_MODEL.setTunnelState(state);
 		
 		switch(state) {
 		case VpnManagerInterface.TUNNEL_STATE_TERMINATED:
 		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTED: {
 			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnected_label));
-			swModel.setChecked(false);
 			subList.remove(mStatusListItem);
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTING: {
 			STATUS_LIST_ITEM_MODEL.setEnabled(false);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
-			swModel.setChecked(true);
 			if(!subList.contains(mStatusListItem)) {
 				subList.add(mStatusListItem);
 			}
@@ -861,7 +814,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
 			STATUS_LIST_ITEM_MODEL.setEnabled(true);
 			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
-			swModel.setChecked(true);
 			
 			if(!subList.contains(mStatusListItem)) {
 				subList.add(mStatusListItem);
@@ -937,7 +889,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mPayloadAdapter.notifyDataSetChanged();
 		
-		VPN_LIST_ITEM_MODEL.applyModel();
+		VPN_SWITCH_MODEL.applyModel();
 		STATUS_LIST_ITEM_MODEL.applyModel();
 	}
 	
