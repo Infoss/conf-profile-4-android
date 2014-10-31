@@ -121,6 +121,18 @@ public class SimpleModel implements Model, View.OnClickListener {
 		return result;
 	}
 	
+	protected final TextView setTextToView(View rootView, int id, int textId) {
+		TextView result = null;
+		
+		View testView = rootView.findViewById(id);
+		if(testView != null && testView instanceof TextView) {
+			result = (TextView) testView;
+			result.setText(textId);
+		}
+		
+		return result;
+	}
+	
 	protected final ImageView setImageToView(View rootView, int id, int resourceId) {
 		ImageView result = null;
 		
