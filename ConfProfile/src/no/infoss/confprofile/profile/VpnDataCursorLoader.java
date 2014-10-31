@@ -1,6 +1,5 @@
 package no.infoss.confprofile.profile;
 
-import no.infoss.confprofile.R;
 import no.infoss.confprofile.db.Expressions;
 import no.infoss.confprofile.db.Expressions.Expression;
 import no.infoss.confprofile.db.Insert;
@@ -8,8 +7,7 @@ import no.infoss.confprofile.db.QueryBuilder;
 import no.infoss.confprofile.db.Select;
 import no.infoss.confprofile.db.Transaction;
 import no.infoss.confprofile.db.Update;
-import no.infoss.confprofile.model.common.CompositeListItemModel;
-import no.infoss.confprofile.model.common.ImageViewModel;
+import no.infoss.confprofile.model.VpnDataModel;
 import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.util.SqliteRequestThread;
 import android.content.ContentValues;
@@ -49,16 +47,6 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 
 		@Override
 		public VpnData mapRowToObject(Cursor cursor) {
-			ImageViewModel iconModel;
-			CompositeListItemModel model = new CompositeListItemModel();
-			iconModel = new ImageViewModel(android.R.id.icon1);
-			iconModel.setImageResourceId(0);
-			model.addMapping(iconModel);
-			
-			iconModel = new ImageViewModel(android.R.id.icon2);
-			iconModel.setImageResourceId(R.drawable.arrow);
-			model.addMapping(iconModel);
-			
 			VpnData data = new VpnData();
 			data.setProfileId(cursor.getString(0));
 			data.setPayloadUuid(cursor.getString(1));
@@ -68,9 +56,18 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 			data.setOnDemandEnabledByUser(cursor.getInt(5) != 0);
 			data.setOnDemandRules(cursor.getString(6));
 			data.setOnDemandCredentials(cursor.getString(7));
-			data.setVpnType(cursor.getString(8));
-			data.setModel(model);
+			data.setVpnType(cursor.getString(8));;
 			return data;
+		}
+	};
+	
+	public static final CursorMapper<VpnDataModel> VPN_DATA_MODEL_CURSOR_MAPPER = new CursorMapper<VpnDataModel>() {
+
+		@Override
+		public VpnDataModel mapRowToObject(Cursor cursor) {
+			VpnDataModel model = new VpnDataModel();
+			model.setData(VPN_DATA_CURSOR_MAPPER.mapRowToObject(cursor));
+			return model;
 		}
 	};
 	
