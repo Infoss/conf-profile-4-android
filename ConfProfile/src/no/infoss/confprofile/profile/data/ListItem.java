@@ -2,6 +2,7 @@ package no.infoss.confprofile.profile.data;
 
 import no.infoss.confprofile.model.common.ListItemModel;
 
+@Deprecated
 public class ListItem {
 	private final String mMainText;
 	private final String mSubText;
