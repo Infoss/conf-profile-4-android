@@ -3,7 +3,7 @@ package no.infoss.confprofile.model.common;
 import android.view.View;
 import android.widget.AdapterView;
 
-public class SimpleListItemModel extends SimpleModel implements ListItemModel, AdapterView.OnItemClickListener {
+public class SimpleListItemModel<T> extends SimpleModel<T> implements ListItemModel<T>, AdapterView.OnItemClickListener {
 	private String mMainText;
 	private int mMainTextId;
 	private String mSubText;
@@ -129,19 +129,21 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	}
 
 	@Override
-	protected void doApplyModel(View view) {
-		super.doApplyModel(view);
+	protected void doApplyModel(T data, View view) {
+		super.doApplyModel(data, view);
 		
-		if(mMainText == null && mMainTextId != 0) {
-			setTextToView(view, mMainTextViewId, mMainTextId);
-		} else {
-			setTextToView(view, mMainTextViewId, mMainText);
-		}
-		
-		if(mSubText == null && mMainTextId != 0) {
-			setTextToView(view, mSubTextViewId, mSubTextId);
-		} else {
-			setTextToView(view, mSubTextViewId, mSubText);
+		if(data == null) {
+			if(mMainText == null && mMainTextId != 0) {
+				setTextToView(view, mMainTextViewId, mMainTextId);
+			} else {
+				setTextToView(view, mMainTextViewId, mMainText);
+			}
+			
+			if(mSubText == null && mMainTextId != 0) {
+				setTextToView(view, mSubTextViewId, mSubTextId);
+			} else {
+				setTextToView(view, mSubTextViewId, mSubText);
+			}
 		}
 	}
 

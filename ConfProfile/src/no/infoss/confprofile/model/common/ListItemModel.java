@@ -3,7 +3,7 @@ package no.infoss.confprofile.model.common;
 import android.view.View;
 import android.widget.AdapterView;
 
-public interface ListItemModel extends Model {
+public interface ListItemModel<T> extends Model<T> {
 	
 	public String getMainText();
 	public void setMainText(String mainText);
@@ -18,7 +18,7 @@ public interface ListItemModel extends Model {
 	public void setOnItemClickListener(OnItemClickListener listener);
 	
 	public interface OnItemClickListener {
-		void onItemClick(Model model, AdapterView<?> parent, View view, int position, long id);
+		void onItemClick(Model<?> model, AdapterView<?> parent, View view, int position, long id);
 	}
 	
 }

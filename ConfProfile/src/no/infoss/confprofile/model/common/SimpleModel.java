@@ -5,7 +5,8 @@ import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-public class SimpleModel implements Model, View.OnClickListener {
+public class SimpleModel<T> implements Model<T>, View.OnClickListener {
+	private T mData;
 	private View mBoundView;
 	private boolean mEnabled;
 	private int mVisible;
@@ -20,6 +21,16 @@ public class SimpleModel implements Model, View.OnClickListener {
 		mLayoutId = 0;
 		mRootViewId = 0;
 		mOnClickListener = null;
+	}
+	
+	@Override
+	public T getData() {
+		return mData;
+	}
+	
+	@Override
+	public void setData(T data) {
+		mData = data;
 	}
 	
 	@Override
@@ -53,7 +64,7 @@ public class SimpleModel implements Model, View.OnClickListener {
 	@Override
 	public final void applyModel() {
 		if(mBoundView != null) {
-			doApplyModel(mBoundView);
+			doApplyModel(mData, mBoundView);
 		}
 	}
 	
@@ -166,7 +177,7 @@ public class SimpleModel implements Model, View.OnClickListener {
 		view.setClickable(false);
 	}
 	
-	protected void doApplyModel(View view) {
+	protected void doApplyModel(T data, View view) {
 		view.setEnabled(mEnabled);
 		view.setVisibility(mVisible);
 	}
