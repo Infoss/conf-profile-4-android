@@ -1,6 +1,6 @@
 package no.infoss.confprofile.util;
 
-import no.infoss.confprofile.profile.data.ListItem;
+import no.infoss.confprofile.model.common.ListItemModel;
 import android.content.Context;
 import android.view.LayoutInflater;
 import android.view.View;
@@ -8,7 +8,7 @@ import android.widget.TextView;
 
 import com.litecoding.classkit.view.HeaderObjectAdapter.HeaderObjectMapper;
 
-public class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
+public class ListItemMapper implements HeaderObjectMapper<ListItemModel<?>, String> {
 	private Context mCtx;
 	
 	public ListItemMapper(Context ctx) {
@@ -16,7 +16,7 @@ public class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
 	}
 
 	@Override
-	public View prepareView(int position, View convertView, ListItem data) {
+	public View prepareView(int position, View convertView, ListItemModel<?> data) {
 		int viewId = 0;
 		
 		LayoutInflater inflater = (LayoutInflater) mCtx.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
@@ -24,22 +24,22 @@ public class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
 		
 		if(convertView == null) {
 			//We don't have a view to convert, but...
-			if(data == null || data.getModel() == null || data.getModel().getLayoutId() == 0) {
+			if(data == null || data.getLayoutId() == 0) {
 				//We don't know what kind of view should be created,
 				//adapter will create default view
 				return null;
 			} else {
-				convertView = inflater.inflate(data.getModel().getLayoutId(), null);
+				convertView = inflater.inflate(data.getLayoutId(), null);
 				viewAlreadyCreated = true;
 			}
 		}
 		
 		viewId = convertView.getId();
 		if(!viewAlreadyCreated) {
-			if((data == null || data.getModel() == null || data.getModel().getLayoutId() == 0)) {
+			if((data == null || data.getLayoutId() == 0)) {
 				return null;
-			} else if(data.getModel().getLayoutId() != viewId) {
-				convertView = inflater.inflate(data.getModel().getLayoutId(), null);
+			} else if(data.getLayoutId() != viewId) {
+				convertView = inflater.inflate(data.getLayoutId(), null);
 			}
 		}
 		
@@ -47,8 +47,8 @@ public class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
 	}
 	
 	@Override
-	public void mapData(int position, View view, ListItem data) {
-		data.getModel().bind(view);			
+	public void mapData(int position, View view, ListItemModel<?> data) {
+		data.bind(view);			
 	}
 	
 	@Override
