@@ -26,21 +26,20 @@ import java.util.List;
 import java.util.Stack;
 
 import no.infoss.confprofile.db.Expressions;
+import no.infoss.confprofile.db.Expressions.Expression;
 import no.infoss.confprofile.db.Request;
 import no.infoss.confprofile.db.RequestWithAffectedRows;
 import no.infoss.confprofile.db.Transaction;
 import no.infoss.confprofile.db.Update;
-import no.infoss.confprofile.db.Expressions.Expression;
+import no.infoss.confprofile.model.OnDemandSwitchModel;
 import no.infoss.confprofile.model.VpnStatusModel;
 import no.infoss.confprofile.model.VpnSwitchModel;
 import no.infoss.confprofile.model.common.CompositeListItemModel;
 import no.infoss.confprofile.model.common.ImageViewModel;
 import no.infoss.confprofile.model.common.ListItemModel;
 import no.infoss.confprofile.model.common.Model;
-import no.infoss.confprofile.model.common.SimpleListItemModel;
-import no.infoss.confprofile.model.common.SwitchModel;
 import no.infoss.confprofile.model.common.Model.OnClickListener;
-import no.infoss.confprofile.model.common.SwitchModel.OnCheckedChangeListener;
+import no.infoss.confprofile.model.common.SimpleListItemModel;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.VpnDataCursorLoader;
@@ -48,10 +47,11 @@ import no.infoss.confprofile.profile.data.ListItem;
 import no.infoss.confprofile.profile.data.MutableListItem;
 import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.task.BackupTask;
+import no.infoss.confprofile.util.ListItemMapper;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.util.SqliteRequestThread;
-import no.infoss.confprofile.util.VpnEventReceiver;
 import no.infoss.confprofile.util.SqliteRequestThread.SqliteRequestStatusListener;
+import no.infoss.confprofile.util.VpnEventReceiver;
 import no.infoss.confprofile.util.VpnEventReceiver.VpnEventListener;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
@@ -69,7 +69,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -78,11 +77,9 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.Switch;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.litecoding.classkit.view.HeaderObjectAdapter;
-import com.litecoding.classkit.view.HeaderObjectAdapter.HeaderObjectMapper;
 import com.litecoding.classkit.view.LazyCursorList;
 
 public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection, VpnEventListener {
@@ -171,7 +168,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				@SuppressWarnings("unchecked")
 				HeaderObjectAdapter<ListItem, String> adapter = (HeaderObjectAdapter<ListItem, String>) parent.getAdapter();
 				ListItem item = (ListItem) adapter.getItem(position);
-				ListItemModel model = item.getModel();
+				ListItemModel<?> model = item.getModel();
 				if(model instanceof OnItemClickListener) {
 					((OnItemClickListener) model).onItemClick(parent, view, position, id);
 				}
@@ -203,18 +200,12 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			
 			mIsCurrentItemOnDemandEnabled = intent.getBooleanExtra(EXTRA_VPN_IS_ON_DEMAND, false);
 			
-			CompositeListItemModel model = new CompositeListItemModel();
-			SwitchModel swModel = new SwitchModel(R.id.switchWidget);
-			swModel.setChecked(mIsCurrentItemOnDemandEnabled);
-			model.addMapping(swModel);
-			model.setLayoutId(R.layout.simple_list_item_2_switch);
-			model.setRootViewId(R.id.simple_list_item_2_switch);
-			
-			swModel.setOnCheckedChangeListener(new OnCheckedChangeListener() {
-				
+			OnDemandSwitchModel model = new OnDemandSwitchModel();
+			model.setSwitchChecked(mIsCurrentItemOnDemandEnabled);
+			model.setSwitchOnClickListener(new Model.OnClickListener() {
 				@Override
-				public void onCheckedChanged(SwitchModel model, Switch buttonView,
-						boolean isChecked) {
+				public void onClick(Model<?> model, View v) {
+					boolean isChecked = ((Switch) v).isChecked();
 					mIsCurrentItemOnDemandEnabled = isChecked;
 				}
 			});
@@ -459,7 +450,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				imgModel.setOnClickListener(new Model.OnClickListener() {
 					
 					@Override
-					public void onClick(Model model, View v) {
+					public void onClick(Model<?> model, View v) {
 						mCurrentVpnData = vpnData;
 						
 						Intent intent = new Intent(Main.this, Main.class);
@@ -550,7 +541,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		VPN_SWITCH_MODEL.setOnClickListener(new Model.OnClickListener() {
 			
 			@Override
-			public void onClick(Model model, View v) {
+			public void onClick(Model<?> model, View v) {
 				VpnManagerInterface vpnMgr = mBindKit.lock();
 				if(vpnMgr != null) {
 					vpnMgr.startVpnService();
@@ -562,7 +553,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		VPN_SWITCH_MODEL.setSwitchOnClickListener(new OnClickListener() {
 			
 			@Override
-			public void onClick(Model model, View v) {
+			public void onClick(Model<?> model, View v) {
 				boolean isChecked = ((Switch) v).isChecked();
 				
 				VpnManagerInterface vpnMgr = mBindKit.lock();
@@ -581,7 +572,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		VPN_STATUS_MODEL.setOnClickListener(new Model.OnClickListener() {
 			
 			@Override
-			public void onClick(Model model, View v) {
+			public void onClick(Model<?> model, View v) {
 				Intent intent = new Intent(Main.this, Main.class);
 				intent.setAction(ACTION_SERVICE_INFO);
 				startActivity(intent);
@@ -888,7 +879,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		if(tunnelId != null) {
 			List<ListItem> items = new ArrayList<ListItem>(mVpnInfoList);
 			for(ListItem item : items) {
-				CompositeListItemModel model = (CompositeListItemModel) item.getModel();
+				CompositeListItemModel<?> model = (CompositeListItemModel<?>) item.getModel();
 				ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon1);
 						
 				if(tunnelId.equals(((VpnData) item).getPayloadUuid())) {
@@ -940,74 +931,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		intent.setAction(ACTION_EXIT);
 		
 		return intent;
-	}
-	
-	private static class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
-		private Context mCtx;
-		
-		public ListItemMapper(Context ctx) {
-			mCtx = ctx;
-		}
-
-		@Override
-		public View prepareView(int position, View convertView, ListItem data) {
-			int viewId = 0;
-			
-			LayoutInflater inflater = (LayoutInflater) mCtx.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-			boolean viewAlreadyCreated = false;
-			
-			if(convertView == null) {
-				//We don't have a view to convert, but...
-				if(data == null || data.getModel() == null || data.getModel().getLayoutId() == 0) {
-					//We don't know what kind of view should be created,
-					//adapter will create default view
-					return null;
-				} else {
-					convertView = inflater.inflate(data.getModel().getLayoutId(), null);
-					viewAlreadyCreated = true;
-				}
-			}
-			
-			viewId = convertView.getId();
-			if(!viewAlreadyCreated) {
-				if((data == null || data.getModel() == null || data.getModel().getLayoutId() == 0)) {
-					return null;
-				} else if(data.getModel().getLayoutId() != viewId) {
-					convertView = inflater.inflate(data.getModel().getLayoutId(), null);
-				}
-			}
-			
-			return convertView;
-		}
-		
-		@Override
-		public void mapData(int position, View view, ListItem data) {
-			data.getModel().bind(view);			
-		}
-		
-		@Override
-		public View prepareHeaderView(int position, View convertView, String data) {
-			// always create a new view
-			return null;
-		}
-
-		@Override
-		public void mapHeader(int position, View view, String data) {
-			setText(view, android.R.id.text1, data);
-		}
-		
-		private TextView setText(View rootView, int id, String text) {
-			TextView result = null;
-			
-			View testView = rootView.findViewById(id);
-			if(testView != null && testView instanceof TextView) {
-				result = (TextView) testView;
-				result.setText(text);
-			}
-			
-			return result;
-		}
-		
 	}
 
 }
