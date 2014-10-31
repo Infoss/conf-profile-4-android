@@ -7,9 +7,11 @@ public interface ListItemModel extends Model {
 	
 	public String getMainText();
 	public void setMainText(String mainText);
+	public void setMainText(int mainText);
 	
 	public String getSubText();
 	public void setSubText(String subText);
+	public void setSubText(int subText);
 	
 	public void preferOnClickListener(boolean preferOnClick);
 	public void deliverItemClickAsClick(boolean deliverAsClick);

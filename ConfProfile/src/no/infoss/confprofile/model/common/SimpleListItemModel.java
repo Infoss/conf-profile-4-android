@@ -5,7 +5,9 @@ import android.widget.AdapterView;
 
 public class SimpleListItemModel extends SimpleModel implements ListItemModel, AdapterView.OnItemClickListener {
 	private String mMainText;
+	private int mMainTextId;
 	private String mSubText;
+	private int mSubTextId;
 	private int mMainTextViewId;
 	private int mSubTextViewId;
 	private boolean mPreferOnClickListener;
@@ -41,6 +43,12 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	}
 	
 	@Override
+	public void setMainText(int mainText) {
+		this.mMainText = null;
+		this.mMainTextId = mainText;
+	}
+	
+	@Override
 	public String getSubText() {
 		return mSubText;
 	}
@@ -48,6 +56,12 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	@Override
 	public void setSubText(String subText) {
 		this.mSubText = subText;
+	}
+	
+	@Override
+	public void setSubText(int subText) {
+		this.mSubText = null;
+		this.mSubTextId = subText;
 	}
 
 	public int getMainTextViewId() {
@@ -116,8 +130,17 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	protected void doApplyModel(View view) {
 		super.doApplyModel(view);
 		
-		setTextToView(view, mMainTextViewId, mMainText);
-		setTextToView(view, mSubTextViewId, mSubText);
+		if(mMainText == null) {
+			setTextToView(view, mMainTextViewId, mMainTextId);
+		} else {
+			setTextToView(view, mMainTextViewId, mMainText);
+		}
+		
+		if(mSubText == null) {
+			setTextToView(view, mSubTextViewId, mSubTextId);
+		} else {
+			setTextToView(view, mSubTextViewId, mSubText);
+		}
 	}
 
 }
