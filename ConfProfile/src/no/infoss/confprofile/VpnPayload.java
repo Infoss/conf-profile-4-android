@@ -15,17 +15,21 @@ public class VpnPayload extends Activity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.vpn_payload);
 		
+		VpnPayloadFragment f = null;
+		
 		Intent intent = getIntent();
 		if(intent != null) {
 			FragmentManager fman = getFragmentManager();
-			VpnPayloadFragment f = (VpnPayloadFragment) fman.findFragmentById(R.id.fragmentVpnPayload);
+			f = (VpnPayloadFragment) fman.findFragmentById(R.id.fragmentVpnPayload);
 			if(f == null || !f.isAdded()) {
 				finish();
 				return;
 			}
 			
 			f.setPayloadUuid(intent.getStringExtra(VpnDataCursorLoader.P_PAYLOAD_UUID));
-		}		
+		}
+		
+		f.createTabs(getActionBar());
 	}
 }
 

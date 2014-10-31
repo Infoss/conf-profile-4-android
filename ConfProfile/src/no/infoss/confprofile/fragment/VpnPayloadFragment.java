@@ -11,8 +11,11 @@ import no.infoss.confprofile.profile.PayloadInfoExLoader;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.data.PayloadInfoEx;
 import no.infoss.confprofile.util.ConfigUtils;
+import android.app.ActionBar;
 import android.app.Activity;
 import android.app.Fragment;
+import android.app.FragmentTransaction;
+import android.app.ActionBar.Tab;
 import android.app.LoaderManager.LoaderCallbacks;
 import android.content.Loader;
 import android.os.Bundle;
@@ -21,19 +24,18 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.widget.ImageView;
 import android.widget.ListView;
-import android.widget.TabHost;
-import android.widget.TabHost.OnTabChangeListener;
 import android.widget.TextView;
 
 import com.litecoding.classkit.view.HeaderObjectAdapter;
 import com.litecoding.classkit.view.HeaderObjectAdapter.HeaderObjectMapper;
 
 public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List<List<PayloadInfoEx>>>  {
-	public static final String TAG = VpnPayloadFragment.class.getSimpleName(); 
+	public static final String TAG = VpnPayloadFragment.class.getSimpleName();
 	
-	private static final String TAB_L2TP = "l2tp";
-	private static final String TAB_PPTP = "pptp";
-	private static final String TAB_IPSEC = "ipsec";
+	public static final String TAB_L2TP = "l2tp";
+	public static final String TAB_PPTP = "pptp";
+	public static final String TAB_IPSEC = "ipsec";
+	public static final String TAB_OPENVPN = "openvpn";
 	
 	private final List<List<PayloadInfoEx>> mPayloads = new ArrayList<List<PayloadInfoEx>>();
 	private HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>> mAdapter;
@@ -56,6 +58,52 @@ public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List
 
 	public void setPayloadUuid(String payloadUuid) {
 		mPayloadUuid = payloadUuid;
+	}
+	
+	public void createTabs(ActionBar actionBar) {
+		actionBar.setNavigationMode(ActionBar.NAVIGATION_MODE_TABS);
+		ActionBar.Tab tab = null;
+		
+		ActionBar.TabListener listener = new ActionBar.TabListener() {
+			
+			@Override
+			public void onTabUnselected(Tab tab, FragmentTransaction ft) {
+				// TODO Auto-generated method stub
+				
+			}
+			
+			@Override
+			public void onTabSelected(Tab tab, FragmentTransaction ft) {
+				// TODO Auto-generated method stub
+				VpnPayloadFragment.this.onTabSelected(tab.getTag());
+			}
+			
+			@Override
+			public void onTabReselected(Tab tab, FragmentTransaction ft) {
+				// TODO Auto-generated method stub
+				
+			}
+		};
+		
+		tab = actionBar.newTab();
+		tab.setText(R.string.fragment_vpn_payload_l2tp_tab).setTabListener(listener);
+		tab.setTag(VpnPayloadFragment.TAB_L2TP);
+		actionBar.addTab(tab);
+		
+		tab = actionBar.newTab();
+		tab.setText(R.string.fragment_vpn_payload_pptp_tab).setTabListener(listener);
+		tab.setTag(VpnPayloadFragment.TAB_PPTP);
+		actionBar.addTab(tab);
+		
+		tab = actionBar.newTab();
+		tab.setText(R.string.fragment_vpn_payload_ipsec_tab).setTabListener(listener);
+		tab.setTag(VpnPayloadFragment.TAB_IPSEC);
+		actionBar.addTab(tab);
+		
+		tab = actionBar.newTab();
+		tab.setText(R.string.fragment_vpn_payload_openvpn_tab).setTabListener(listener);
+		tab.setTag(VpnPayloadFragment.TAB_OPENVPN);
+		actionBar.addTab(tab);
 	}
 	
 	@Override
@@ -137,37 +185,6 @@ public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List
 			list.setAdapter(mAdapter);
 		}
 		
-		Activity activity = getActivity();
-		
-		TabHost tabHost = (TabHost) view.findViewById(android.R.id.tabhost);
-
-		tabHost.setup();
-
-		TabHost.TabSpec tabSpec = null;
-		
-		tabSpec = tabHost.newTabSpec(TAB_L2TP);
-		tabSpec.setIndicator(activity.getString(R.string.fragment_vpn_payload_l2tp_tab));
-		tabHost.addTab(tabSpec);
-
-		tabSpec = tabHost.newTabSpec(TAB_PPTP);
-		tabSpec.setIndicator(activity.getString(R.string.fragment_vpn_payload_pptp_tab));
-		tabHost.addTab(tabSpec);
-
-		tabSpec = tabHost.newTabSpec(TAB_IPSEC);
-		tabSpec.setIndicator(activity.getString(R.string.fragment_vpn_payload_ipsec_tab));
-		tabHost.addTab(tabSpec);
-
-		tabHost.setOnTabChangedListener(new OnTabChangeListener() {
-			
-			@Override
-			public void onTabChanged(String tabId) {
-				// TODO Auto-generated method stub
-				
-			}
-		});
-		
-		tabHost.setCurrentTab(0);
-		
 		return view;
 	}
 	
@@ -207,6 +224,10 @@ public class VpnPayloadFragment extends Fragment implements LoaderCallbacks<List
 	@Override
 	public void onLoaderReset(Loader<List<List<PayloadInfoEx>>> loader) {
 		// nothing to do here
+	}
+	
+	private void onTabSelected(Object tabTag) {
+		
 	}
 	
 	private void showPayloadsDetails(List<List<PayloadInfoEx>> data) {

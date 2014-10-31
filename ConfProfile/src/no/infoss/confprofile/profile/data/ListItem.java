@@ -1,6 +1,6 @@
 package no.infoss.confprofile.profile.data;
 
-import no.infoss.confprofile.model.ListItemModel;
+import no.infoss.confprofile.model.common.ListItemModel;
 
 public class ListItem {
 	private final String mMainText;

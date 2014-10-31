@@ -1,4 +1,4 @@
-package no.infoss.confprofile.model;
+package no.infoss.confprofile.model.common;
 
 import android.view.View;
 import android.widget.AdapterView;

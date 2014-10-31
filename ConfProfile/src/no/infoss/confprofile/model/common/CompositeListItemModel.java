@@ -1,4 +1,4 @@
-package no.infoss.confprofile.model;
+package no.infoss.confprofile.model.common;
 
 import android.util.SparseArray;
 import android.view.View;
