@@ -4,6 +4,7 @@ import android.view.View;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.model.common.CompositeListItemModel;
 import no.infoss.confprofile.model.common.ImageViewModel;
+import no.infoss.confprofile.model.common.Model.OnClickListener;
 import no.infoss.confprofile.profile.data.VpnData;
 
 public class VpnDataModel extends CompositeListItemModel<VpnData> {
@@ -46,6 +47,10 @@ public class VpnDataModel extends CompositeListItemModel<VpnData> {
 	public void setEditable(boolean editable) {
 		mEditable = editable;
 		applyModel();
+	}
+	
+	public void setArrowOnClickListener(OnClickListener listener) {
+		mArrowModel.setOnClickListener(listener);
 	}
 	
 	@Override
