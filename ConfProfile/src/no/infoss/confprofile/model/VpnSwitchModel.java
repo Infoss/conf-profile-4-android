@@ -17,6 +17,9 @@ public class VpnSwitchModel extends CompositeListItemModel<Void> {
 		addMapping(mSwitchModel);
 		setLayoutId(R.layout.simple_list_item_2_switch);
 		setRootViewId(R.id.simple_list_item_2_switch);
+		
+		setMainText(R.string.main_item_vpn_label);
+		setSubText(R.string.main_item_vpn_disabled_label);
 	}
 	
 	public void setVpnState(int state) {

@@ -18,6 +18,8 @@ public class VpnStatusModel extends CompositeListItemModel<Void> {
 		addMapping(mImageModel);
 		setLayoutId(R.layout.simple_list_item_2_image);
 		setRootViewId(R.id.simple_list_item_2_image);
+		
+		setMainText(R.string.main_item_status_label);
 	}
 	
 	public void setTunnelState(int state) {
