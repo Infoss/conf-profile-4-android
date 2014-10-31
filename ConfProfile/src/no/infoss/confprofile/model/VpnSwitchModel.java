@@ -7,7 +7,7 @@ import no.infoss.confprofile.vpn.VpnManagerInterface;
 import android.util.Log;
 import android.view.View;
 
-public class VpnSwitchModel extends CompositeListItemModel{
+public class VpnSwitchModel extends CompositeListItemModel<Void> {
 	private static final String TAG = VpnSwitchModel.class.getSimpleName();
 	
 	private SwitchModel mSwitchModel;

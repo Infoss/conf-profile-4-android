@@ -7,7 +7,7 @@ import no.infoss.confprofile.vpn.VpnManagerInterface;
 import android.util.Log;
 import android.view.View;
 
-public class VpnStatusModel extends CompositeListItemModel {
+public class VpnStatusModel extends CompositeListItemModel<Void> {
 	public static final String TAG = VpnStatusModel.class.getSimpleName();
 	
 	private ImageViewModel mImageModel;
