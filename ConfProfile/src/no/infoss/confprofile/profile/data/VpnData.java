@@ -1,8 +1,6 @@
 package no.infoss.confprofile.profile.data;
 
-import no.infoss.confprofile.model.common.ListItemModel;
-
-public class VpnData extends ListItem {
+public class VpnData {
 	private String mProfileId;
 	private String mPayloadUuid;
 	private String mUserDefinedName;
@@ -53,7 +51,6 @@ public class VpnData extends ListItem {
 	
 	public void setUserDefinedName(String userDefinedName) {
 		this.mUserDefinedName = userDefinedName;
-		applyData();
 	}
 	
 	public boolean isOverridePrimary() {
@@ -104,12 +101,4 @@ public class VpnData extends ListItem {
 		this.mVpnType = vpnType;
 	}
 
-	@Override
-	public void applyData() {
-		ListItemModel model = getModel();
-		if(model != null) {
-			model.setMainText(mUserDefinedName);
-			model.applyModel();
-		}
-	}
 }
