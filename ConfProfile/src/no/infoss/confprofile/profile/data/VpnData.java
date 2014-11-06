@@ -9,6 +9,14 @@ public class VpnData {
 	private boolean mOnDemandEnabledByUser;
 	private String mOnDemandRules;
 	private String mOnDemandCredentials;
+	private String mRemoteServer;
+	private String mLogin;
+	private String mPassword;
+	private boolean mRsaSecurid;
+	private String mCertificate;
+	private String mSharedSecret;
+	private String mPptpEncryption;
+	private String mIpsecGroupName;
 	private String mVpnType;
 	
 	public VpnData() {
@@ -26,6 +34,14 @@ public class VpnData {
 		this.mOnDemandEnabledByUser = data.mOnDemandEnabledByUser;
 		this.mOnDemandRules = data.mOnDemandRules;
 		this.mOnDemandCredentials = data.mOnDemandCredentials;
+		this.mRemoteServer = data.mRemoteServer;
+		this.mLogin = data.mLogin;
+		this.mPassword = data.mPassword;
+		this.mRsaSecurid = data.mRsaSecurid;
+		this.mCertificate = data.mCertificate;
+		this.mSharedSecret = data.mSharedSecret;
+		this.mPptpEncryption = data.mPptpEncryption;
+		this.mIpsecGroupName = data.mIpsecGroupName;
 		this.mVpnType = data.mVpnType;
 	}
 	
@@ -91,6 +107,70 @@ public class VpnData {
 
 	public void setOnDemandCredentials(String onDemandCredentials) {
 		this.mOnDemandCredentials = onDemandCredentials;
+	}
+
+	public String getRemoteServer() {
+		return mRemoteServer;
+	}
+
+	public void setRemoteServer(String remoteServer) {
+		this.mRemoteServer = remoteServer;
+	}
+
+	public String getLogin() {
+		return mLogin;
+	}
+
+	public void setLogin(String login) {
+		this.mLogin = login;
+	}
+
+	public String getPassword() {
+		return mPassword;
+	}
+
+	public void setPassword(String password) {
+		this.mPassword = password;
+	}
+
+	public boolean isRsaSecurid() {
+		return mRsaSecurid;
+	}
+
+	public void setRsaSecurid(boolean rsaSecurid) {
+		this.mRsaSecurid = rsaSecurid;
+	}
+
+	public String getCertificate() {
+		return mCertificate;
+	}
+
+	public void setCertificate(String certificate) {
+		this.mCertificate = certificate;
+	}
+
+	public String getSharedSecret() {
+		return mSharedSecret;
+	}
+
+	public void setSharedSecret(String sharedSecret) {
+		this.mSharedSecret = sharedSecret;
+	}
+
+	public String getPptpEncryption() {
+		return mPptpEncryption;
+	}
+
+	public void setPptpEncryption(String pptpEncryption) {
+		this.mPptpEncryption = pptpEncryption;
+	}
+
+	public String getIpsecGroupName() {
+		return mIpsecGroupName;
+	}
+
+	public void setIpsecGroupName(String ipsecGroupName) {
+		this.mIpsecGroupName = ipsecGroupName;
 	}
 
 	public String getVpnType() {
