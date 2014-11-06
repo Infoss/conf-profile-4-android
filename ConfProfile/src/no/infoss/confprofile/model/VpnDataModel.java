@@ -1,11 +1,10 @@
 package no.infoss.confprofile.model;
 
-import android.view.View;
 import no.infoss.confprofile.R;
 import no.infoss.confprofile.model.common.CompositeListItemModel;
 import no.infoss.confprofile.model.common.ImageViewModel;
-import no.infoss.confprofile.model.common.Model.OnClickListener;
 import no.infoss.confprofile.profile.data.VpnData;
+import android.view.View;
 
 public class VpnDataModel extends CompositeListItemModel<VpnData> {
 	
