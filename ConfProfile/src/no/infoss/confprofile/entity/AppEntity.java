@@ -6,6 +6,6 @@ import android.database.Cursor;
 
 public abstract class AppEntity {
 	public abstract void mapCursor(Cursor cursor);
-	public abstract void mapPayload(Payload payload);
+	public abstract void mapPayload(String profileId, Payload payload);
 	public abstract ContentValues asContentValues();
 }
