@@ -21,12 +21,11 @@ import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
 import no.infoss.confprofile.profile.ProfilesCursorLoader;
 import no.infoss.confprofile.profile.VpnDataCursorLoader;
-import no.infoss.confprofile.util.ConfigUtils;
+import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.ScepUtils;
 import no.infoss.confprofile.util.ScepUtils.ScepStruct;
 import no.infoss.confprofile.util.SqliteRequestThread;
-import android.content.ContentValues;
 import android.content.Context;
 import android.os.AsyncTask;
 import android.os.Bundle;
@@ -91,13 +90,6 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 							action.certificateMgrId = CertificateManager.MANAGER_INTERNAL;
 							mActions.add(action);
 						}
-					} else if(payload instanceof VpnPayload) {
-						//TODO: check this part and remove
-						/*
-						InstallPayload action = new InstallPayload();
-						action.payload = (VpnPayload) payload;
-						mActions.add(action);
-						*/
 					} else if(payload instanceof RootCertPayload) {
 						InstallCertificate action = new InstallCertificate();
 						action.certificate = ((RootCertPayload) payload).getPayloadContent();
@@ -181,37 +173,12 @@ public class InstallConfigurationTask extends AsyncTask<ConfigurationProfile, Vo
 							PayloadsCursorLoader.create(mCtx, 0, instAction.asBundle(), mDbHelper));
 					
 					if(instAction.payload instanceof VpnPayload) {
-						VpnPayload vpnPayload = (VpnPayload) instAction.payload;
+						VpnData data = new VpnData();
+						data.mapPayload(profileId, instAction.payload);
 						
-						String vpnType = vpnPayload.getVpnType();
-						if(VpnPayload.VPN_TYPE_CUSTOM.equals(vpnType)) {
-							vpnType = vpnPayload.getVpnSubType();
-						}
-						
-						//TODO: do something with these strange stray keys
-						int overridePrimary = 0;
-						if(vpnPayload.getIpv4() != null) {
-							overridePrimary = vpnPayload.getIpv4().getInteger(VpnPayload.KEY_OVERRIDE_PRIMARY, 0);
-						}
-						int onDemandEnabled = 0; 
-						if(vpnPayload.getVpn() != null) {
-							onDemandEnabled = vpnPayload.getVpn().getInteger(VpnPayload.KEY_ON_DEMAND_ENABLED, 0);
-						}
-						
-						ContentValues values = new ContentValues();
-						values.put(VpnDataCursorLoader.COL_PROFILE_ID, instAction.profileId);
-						values.put(VpnDataCursorLoader.COL_PAYLOAD_UUID, vpnPayload.getPayloadUUID());
-						values.put(VpnDataCursorLoader.COL_USER_DEFINED_NAME, vpnPayload.getUserDefinedName());
-						values.put(VpnDataCursorLoader.COL_OVERRIDE_PRIMARY, overridePrimary);
-						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED, onDemandEnabled);
-						values.put(VpnDataCursorLoader.COL_ON_DEMAND_ENABLED_BY_USER, onDemandEnabled);
-						values.put(VpnDataCursorLoader.COL_ON_DEMAND_RULES, 
-								ConfigUtils.extractOnDemandRules(vpnPayload));
-						values.put(VpnDataCursorLoader.COL_ON_DEMAND_CREDENTIALS, 
-								ConfigUtils.extractOnDemandCredentials(vpnPayload));
-						values.put(VpnDataCursorLoader.COL_VPN_TYPE, vpnType);
-						
-						Insert request = Insert.insert().into(VpnDataCursorLoader.TABLE).values(values);
+						Insert request = Insert.insert().
+								into(VpnDataCursorLoader.TABLE).
+								values(data.asContentValues());
 						
 						mLastRequestId = SqliteRequestThread.getInstance().request(request, null);
 					}
