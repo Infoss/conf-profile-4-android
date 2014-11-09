@@ -64,23 +64,7 @@ public class VpnDataCursorLoader extends BaseQueryCursorLoader {
 		@Override
 		public VpnData mapRowToObject(Cursor cursor) {
 			VpnData data = new VpnData();
-			data.setProfileId(cursor.getString(0));
-			data.setPayloadUuid(cursor.getString(1));
-			data.setUserDefinedName(cursor.getString(2));
-			data.setOverridePrimary(cursor.getInt(3) != 0);
-			data.setOnDemandEnabled(cursor.getInt(4) != 0);
-			data.setOnDemandEnabledByUser(cursor.getInt(5) != 0);
-			data.setOnDemandRules(cursor.getString(6));
-			data.setOnDemandCredentials(cursor.getString(7));
-			data.setRemoteServer(cursor.getString(8));
-			data.setLogin(cursor.getString(9));
-			data.setPassword(cursor.getString(10));
-			data.setRsaSecurid(cursor.getInt(11) != 0);
-			data.setCertificate(cursor.getString(12));
-			data.setSharedSecret(cursor.getString(13));
-			data.setPptpEncryption(cursor.getString(14));
-			data.setIpsecGroupName(cursor.getString(15));
-			data.setVpnType(cursor.getString(16));;
+			data.mapCursor(cursor);
 			return data;
 		}
 	};

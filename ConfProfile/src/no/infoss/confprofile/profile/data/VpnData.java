@@ -252,6 +252,7 @@ public class VpnData extends AppEntity {
 		mOnDemandCredentials = ConfigUtils.extractOnDemandCredentials(vpnPayload);
 		
 		mRemoteServer= vpnDict.getString("CommRemoteAddress", vpnDict.getString("RemoteAddress"));
+		//TODO: fill OpenVPN login/password
 		mLogin = vpnDict.getString("AuthName");
 		mPassword = vpnDict.getString("AuthPassword");
 		
