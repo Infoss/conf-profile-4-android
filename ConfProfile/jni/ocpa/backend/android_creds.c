@@ -235,8 +235,8 @@ METHOD(credential_set_t, load_xauth, identification_t*,
 	this->creds->add_shared(this->creds, shared_key, id, NULL);
 
 	DBG1(DBG_CFG, "load xauth config");
-
-	return id;
+	_D_PRINTX(mem_cred_t, this->creds, "this->creds", NULL);
+	return id->clone(id);
 }
 
 METHOD(credential_set_t, create_private_enumerator, enumerator_t*,
@@ -259,7 +259,10 @@ METHOD(android_creds_t, destroy, void,
 	private_android_creds_t *this)
 {
 	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "destroy()");
+	_D_PRINTX(mem_cred_t, this->creds, "this->creds", NULL);
+
 	clear(this);
+
 	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "...destroying creds (%p)", this->creds);
 	this->creds->destroy(this->creds);
 	LOGDIF(STRONGSWAN_DEBUG, "android_creds.c", "...destroying lock (%p)", this->lock);

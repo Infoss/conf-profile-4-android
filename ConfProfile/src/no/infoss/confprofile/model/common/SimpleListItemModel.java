@@ -1,16 +1,21 @@
-package no.infoss.confprofile.model;
+package no.infoss.confprofile.model.common;
 
 import android.view.View;
 import android.widget.AdapterView;
 
-public class SimpleListItemModel extends SimpleModel implements ListItemModel, AdapterView.OnItemClickListener {
+public class SimpleListItemModel<T> extends SimpleModel<T> implements ListItemModel<T>, AdapterView.OnItemClickListener {
 	private String mMainText;
+	private int mMainTextId;
 	private String mSubText;
+	private int mSubTextId;
 	private int mMainTextViewId;
 	private int mSubTextViewId;
 	private boolean mPreferOnClickListener;
 	private boolean mDeliverItemClickAsClick;
 	private OnItemClickListener mOnItemClickListener;
+	
+	private boolean mStaticMainTextMode;
+	private boolean mStaticSubTextMode;
 	
 	public SimpleListItemModel() {
 		mMainText = "";
@@ -38,6 +43,13 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	@Override
 	public void setMainText(String mainText) {
 		this.mMainText = mainText;
+		this.mMainTextId = 0;
+	}
+	
+	@Override
+	public void setMainText(int mainText) {
+		this.mMainText = null;
+		this.mMainTextId = mainText;
 	}
 	
 	@Override
@@ -48,6 +60,13 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	@Override
 	public void setSubText(String subText) {
 		this.mSubText = subText;
+		this.mSubTextId = 0;
+	}
+	
+	@Override
+	public void setSubText(int subText) {
+		this.mSubText = null;
+		this.mSubTextId = subText;
 	}
 
 	public int getMainTextViewId() {
@@ -98,6 +117,22 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 		
 	}
 	
+	protected boolean isStaticMainTextMode() {
+		return mStaticMainTextMode;
+	}
+	
+	protected void setStaticMainTextMode(boolean mode) {
+		mStaticMainTextMode = true;
+	}
+	
+	protected boolean isStaticSubTextMode() {
+		return mStaticSubTextMode;
+	}
+	
+	protected void setStaticSubTextMode(boolean mode) {
+		mStaticSubTextMode = mode;
+	}
+	
 	@Override
 	protected void doBind(View view) {
 		super.doBind(view);
@@ -113,11 +148,24 @@ public class SimpleListItemModel extends SimpleModel implements ListItemModel, A
 	}
 
 	@Override
-	protected void doApplyModel(View view) {
-		super.doApplyModel(view);
+	protected void doApplyModel(T data, View view) {
+		super.doApplyModel(data, view);
 		
-		setTextToView(view, mMainTextViewId, mMainText);
-		setTextToView(view, mSubTextViewId, mSubText);
+		if(mStaticMainTextMode || data == null) {
+			if(mMainText == null && mMainTextId != 0) {
+				setTextToView(view, mMainTextViewId, mMainTextId);
+			} else {
+				setTextToView(view, mMainTextViewId, mMainText);
+			}
+		}
+		
+		if(mStaticSubTextMode || data == null) {
+			if(mSubText == null && mSubTextId != 0) {
+				setTextToView(view, mSubTextViewId, mSubTextId);
+			} else {
+				setTextToView(view, mSubTextViewId, mSubText);
+			}
+		}
 	}
 
 }

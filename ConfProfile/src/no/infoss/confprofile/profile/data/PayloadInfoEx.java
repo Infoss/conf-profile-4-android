@@ -9,6 +9,7 @@ public class PayloadInfoEx extends PayloadInfo {
 		this.profileId = info.profileId;
 		this.payloadUuid = info.payloadUuid;
 		this.payloadType = info.payloadType;
+		this.payloadDisplayName = info.payloadDisplayName;
 		this.data = info.data;
 	}
 }

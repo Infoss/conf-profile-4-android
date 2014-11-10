@@ -227,15 +227,6 @@ public class UsernatTunnel extends VpnTunnel {
 					//suppress this
 				}
 				
-				/*
-				try {
-					mSocket.close();
-				} catch(Exception e) { 
-					//suppress this
-				} finally {
-					mSocket = null;
-				}
-				*/
 				mSocket = null;
 			}
 		}

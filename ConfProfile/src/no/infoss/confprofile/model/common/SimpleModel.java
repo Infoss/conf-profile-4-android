@@ -1,11 +1,12 @@
-package no.infoss.confprofile.model;
+package no.infoss.confprofile.model.common;
 
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.ImageView;
 import android.widget.TextView;
 
-public class SimpleModel implements Model, View.OnClickListener {
+public class SimpleModel<T> implements Model<T>, View.OnClickListener {
+	private T mData;
 	private View mBoundView;
 	private boolean mEnabled;
 	private int mVisible;
@@ -20,6 +21,16 @@ public class SimpleModel implements Model, View.OnClickListener {
 		mLayoutId = 0;
 		mRootViewId = 0;
 		mOnClickListener = null;
+	}
+	
+	@Override
+	public T getData() {
+		return mData;
+	}
+	
+	@Override
+	public void setData(T data) {
+		mData = data;
 	}
 	
 	@Override
@@ -53,7 +64,7 @@ public class SimpleModel implements Model, View.OnClickListener {
 	@Override
 	public final void applyModel() {
 		if(mBoundView != null) {
-			doApplyModel(mBoundView);
+			doApplyModel(mData, mBoundView);
 		}
 	}
 	
@@ -121,6 +132,18 @@ public class SimpleModel implements Model, View.OnClickListener {
 		return result;
 	}
 	
+	protected final TextView setTextToView(View rootView, int id, int textId) {
+		TextView result = null;
+		
+		View testView = rootView.findViewById(id);
+		if(testView != null && testView instanceof TextView) {
+			result = (TextView) testView;
+			result.setText(textId);
+		}
+		
+		return result;
+	}
+	
 	protected final ImageView setImageToView(View rootView, int id, int resourceId) {
 		ImageView result = null;
 		
@@ -154,7 +177,7 @@ public class SimpleModel implements Model, View.OnClickListener {
 		view.setClickable(false);
 	}
 	
-	protected void doApplyModel(View view) {
+	protected void doApplyModel(T data, View view) {
 		view.setEnabled(mEnabled);
 		view.setVisibility(mVisible);
 	}
