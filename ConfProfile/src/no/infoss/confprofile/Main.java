@@ -210,6 +210,9 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		} else {
 			mGrid.setAdapter(mPayloadAdapter);
 			mPayloadAdapter.notifyDataSetChanged();
+			
+			mServiceStateReceived = false;
+			mTunnelStateReceived = false;
 		}
 		
 		invalidateOptionsMenu();
@@ -257,6 +260,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mVpnEvtReceiver.register();
 		receiveServiceState();
+		receiveTunnelState();
 	}
 	
 	@Override
@@ -422,14 +426,13 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		mVpnInfoList.populateFrom(data, true);
 		
 		for(ListItemModel<?> model : mVpnInfoList) {
-			VpnDataModel vpnDataModel = (VpnDataModel) model;
+			final VpnDataModel vpnDataModel = (VpnDataModel) model;
 			vpnDataModel.setOnClickListener(new Model.OnClickListener() {
 				
 				@Override
 				public void onClick(Model<?> model, View v) {
 					VpnManagerInterface vpnMgr = mBindKit.lock();
 					if(vpnMgr != null) {
-						VpnDataModel vpnDataModel = (VpnDataModel) model;
 						VpnData vpnData = vpnDataModel.getData();
 						if(vpnData != null) {
 							vpnMgr.activateVpnTunnel(vpnData.getPayloadUuid());
@@ -443,7 +446,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				
 				@Override
 				public void onClick(Model<?> model, View v) {
-					VpnDataModel vpnDataModel = (VpnDataModel) model;
 					VpnData vpnData = vpnDataModel.getData();
 					
 					mCurrentVpnData = vpnData;
@@ -475,6 +477,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			v.setVisibility(View.GONE);
 		}
 		
+		mTunnelStateReceived = false;
+		mServiceStateReceived = false;
+		receiveServiceState();
+		receiveTunnelState();
 	}
 
 	@Override
@@ -763,8 +769,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			state == VpnManagerInterface.TUNNEL_STATE_CONNECTED || 
 			state == VpnManagerInterface.TUNNEL_STATE_DISCONNECTING) {
 			setCheckedMark(tunnelId);
+			setEditableMark(false);
 		} else {
 			setCheckedMark(mSelectedTunnelUuid);
+			setEditableMark(true);
 		}
 		
 		List<ListItemModel<?>> subList = DATA_LIST.get(0);
@@ -881,6 +889,17 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			items.clear();
 			mPayloadAdapter.notifyDataSetChanged();
 		}
+	}
+	
+	private void setEditableMark(boolean isEditable) {
+		List<ListItemModel<?>> items = new ArrayList<ListItemModel<?>>(mVpnInfoList);
+		for(ListItemModel<?> item : items) {
+			VpnDataModel model = (VpnDataModel) item;
+			model.setEditable(isEditable);
+		}
+		
+		items.clear();
+		mPayloadAdapter.notifyDataSetChanged();
 	}
 	
 	private void backupData() {
