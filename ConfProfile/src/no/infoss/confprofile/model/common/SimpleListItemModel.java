@@ -14,6 +14,9 @@ public class SimpleListItemModel<T> extends SimpleModel<T> implements ListItemMo
 	private boolean mDeliverItemClickAsClick;
 	private OnItemClickListener mOnItemClickListener;
 	
+	private boolean mStaticMainTextMode;
+	private boolean mStaticSubTextMode;
+	
 	public SimpleListItemModel() {
 		mMainText = "";
 		mSubText = "";
@@ -114,6 +117,22 @@ public class SimpleListItemModel<T> extends SimpleModel<T> implements ListItemMo
 		
 	}
 	
+	protected boolean isStaticMainTextMode() {
+		return mStaticMainTextMode;
+	}
+	
+	protected void setStaticMainTextMode(boolean mode) {
+		mStaticMainTextMode = true;
+	}
+	
+	protected boolean isStaticSubTextMode() {
+		return mStaticSubTextMode;
+	}
+	
+	protected void setStaticSubTextMode(boolean mode) {
+		mStaticSubTextMode = mode;
+	}
+	
 	@Override
 	protected void doBind(View view) {
 		super.doBind(view);
@@ -132,14 +151,16 @@ public class SimpleListItemModel<T> extends SimpleModel<T> implements ListItemMo
 	protected void doApplyModel(T data, View view) {
 		super.doApplyModel(data, view);
 		
-		if(data == null) {
+		if(mStaticMainTextMode || data == null) {
 			if(mMainText == null && mMainTextId != 0) {
 				setTextToView(view, mMainTextViewId, mMainTextId);
 			} else {
 				setTextToView(view, mMainTextViewId, mMainText);
 			}
-			
-			if(mSubText == null && mMainTextId != 0) {
+		}
+		
+		if(mStaticSubTextMode || data == null) {
+			if(mSubText == null && mSubTextId != 0) {
 				setTextToView(view, mSubTextViewId, mSubTextId);
 			} else {
 				setTextToView(view, mSubTextViewId, mSubText);
