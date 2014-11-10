@@ -142,14 +142,16 @@ public class AddProfileFragment extends Fragment
 			inflater = getActivity().getLayoutInflater();
 		}
 		
+		ViewGroup rootView = (ViewGroup) getView();
+		
 		switch (mState) {
 		case STATE_PARSED: {
-			view = inflater.inflate(R.layout.fragment_add_profile_info, null);
+			view = inflater.inflate(R.layout.fragment_add_profile_info, rootView, false);
 			fillProfileInfo(view);
 			break;
 		}
 		case STATE_ERROR: {
-			view = inflater.inflate(R.layout.fragment_add_profile_error, null);
+			view = inflater.inflate(R.layout.fragment_add_profile_error, rootView, false);
 			
 			TextView errorLabel = (TextView) view.findViewById(R.id.errorLabel);
 			if(errorLabel != null) {
@@ -159,7 +161,7 @@ public class AddProfileFragment extends Fragment
 		}
 		case STATE_LOADING:
 		default: {
-			view = inflater.inflate(R.layout.fragment_add_profile_wait, null);
+			view = inflater.inflate(R.layout.fragment_add_profile_wait, rootView, false);
 			break;
 		}
 		}
@@ -427,10 +429,14 @@ public class AddProfileFragment extends Fragment
 
 	@Override
 	public void onInstallConfigurationComplete(InstallConfigurationTask task,
-			List<Action> actions) {
+			List<Action> actions,
+			int lastRequestId) {
 		Activity activity = getActivity();
 		if(activity != null) {
 			Intent intent = new Intent(activity, Main.class);
+			intent.setAction(Intent.ACTION_MAIN);
+			intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+			intent.putExtra(Main.EXTRA_RESTART_LOADERS, lastRequestId);
 			activity.startActivity(intent);
 			activity.finish();
 		}

@@ -154,7 +154,7 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 				public void onClick(DialogInterface dialog, int which) {
 					Expression expr = Expressions.column(ProfilesCursorLoader.COL_ID).eq(Expressions.literal(mProfileId));
 					Delete request = Delete.delete().from(ProfilesCursorLoader.TABLE).where(expr, (Object[]) null);
-					SqliteRequestThread.getInstance().request(request, new SqliteUpdateDeleteCallback() {
+					int reqId = SqliteRequestThread.getInstance().request(request, new SqliteUpdateDeleteCallback() {
 						@Override
 						protected void onSqliteUpdateDeleteSuccess(RequestWithAffectedRows request) {
 							Toast.makeText(getActivity(), 
@@ -176,7 +176,9 @@ public class ProfileDetailsFragment extends Fragment implements LoaderCallbacks<
 					});
 					
 					Intent intent = new Intent(getActivity(), Main.class);
-					intent.putExtra(Main.EXTRA_RESTART_LOADERS, true);
+					intent.setAction(Intent.ACTION_MAIN);
+					intent.setFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP);
+					intent.putExtra(Main.EXTRA_RESTART_LOADERS, reqId);
 					getActivity().startActivity(intent);
 				}
 			});

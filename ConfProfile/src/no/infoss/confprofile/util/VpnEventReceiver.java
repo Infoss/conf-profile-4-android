@@ -45,6 +45,10 @@ public class VpnEventReceiver extends BroadcastReceiverEx<VpnEventReceiver.VpnEv
 					remoteAddress, 
 					localAddress, 
 					true);
+		} else if(VpnManagerInterface.TYPE_SELECTED_TUNNEL_ID_CHANGED.equals(evtType)) {
+			String tunnelId = intent.getStringExtra(VpnManagerInterface.KEY_TUNNEL_ID);
+			boolean isUnprotected = intent.getBooleanExtra(VpnManagerInterface.KEY_IS_CONNECTION_UNPROTECTED, true);
+			getListener().onReceivedSelectedTunnelUuid(tunnelId, isUnprotected);
 		}
 	}
 
@@ -57,5 +61,6 @@ public class VpnEventReceiver extends BroadcastReceiverEx<VpnEventReceiver.VpnEv
 				String remoteAddress,
 				String localAddress,
 				boolean isBroadcast);
+		public void onReceivedSelectedTunnelUuid(String tunnelId, boolean isConnectionUnprotected);
 	}
 }

@@ -9,16 +9,20 @@ import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.PayloadInfoExLoader;
 import no.infoss.confprofile.profile.PayloadsCursorLoader;
+import no.infoss.confprofile.profile.VpnDataCursorLoader;
 import no.infoss.confprofile.profile.data.PayloadInfoEx;
 import no.infoss.confprofile.util.ConfigUtils;
 import android.app.Activity;
 import android.app.Fragment;
 import android.app.LoaderManager.LoaderCallbacks;
+import android.content.Intent;
 import android.content.Loader;
 import android.os.Bundle;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.AdapterView.OnItemClickListener;
 import android.widget.ImageView;
 import android.widget.ListView;
 import android.widget.TextView;
@@ -68,7 +72,6 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 
 					@Override
 					public View prepareView(int position, View convertView, PayloadInfoEx data) {
-						// TODO Auto-generated method stub
 						return null;
 					}
 					
@@ -103,7 +106,6 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 
 					@Override
 					public View prepareHeaderView(int position, View convertView, List<PayloadInfoEx> header) {
-						// TODO Auto-generated method stub
 						return null;
 					}
 
@@ -132,6 +134,26 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 		if(list != null) {
 			list.setAdapter(mAdapter);
 		}
+		
+		list.setOnItemClickListener(new OnItemClickListener() {
+
+			@Override
+			public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+				HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>> adapter = 
+						(HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>>) parent.getAdapter();
+				
+				PayloadInfoEx info = (PayloadInfoEx) adapter.getItem(position);
+				if(VpnPayload.VALUE_PAYLOAD_TYPE.equals(info.payloadType)) {
+					Activity activity = getActivity();
+					if(activity != null) {
+						Intent intent = new Intent(activity, no.infoss.confprofile.VpnPayload.class);
+						intent.putExtra(VpnDataCursorLoader.P_PAYLOAD_UUID, info.payloadUuid);
+						startActivity(intent);
+					}
+				}
+			}
+		});
+		
 		return view;
 	}
 	
@@ -178,6 +200,7 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 			mPayloads.clear();
 			mPayloads.addAll(data);
 			mAdapter.notifyDataSetChanged();
+			//TODO: add onItemClickListener to a list
 		}
 	}
 }

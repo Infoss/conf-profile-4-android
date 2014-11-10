@@ -28,7 +28,6 @@ import no.infoss.confprofile.format.VpnPayload;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.StringUtils;
-import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 
 import org.bouncycastle.openssl.PEMWriter;
 
@@ -70,20 +69,8 @@ public class OpenVpnTunnel extends VpnTunnel {
     
     private PauseReason mLastPauseReason = PauseReason.noNetwork;
 	
-	@Deprecated
-	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
-		
-		boolean managemeNetworkState = true;
-		if(managemeNetworkState) {
-			mReleaseHold = false;
-		}
-	}
-	
-	/*package*/ OpenVpnTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+	/*package*/ OpenVpnTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 		
 		boolean managemeNetworkState = true;
 		if(managemeNetworkState) {
@@ -138,8 +125,10 @@ public class OpenVpnTunnel extends VpnTunnel {
         args.add(cacheDir.getAbsolutePath() + "/" + OpenVpnWorker.MINIVPN);
         args.add("--config");
         args.add(confFile.getAbsolutePath());
+        
+        String sockname = String.format("ovpnmgmt-%d", System.currentTimeMillis());
 
-        if(!MiscUtils.writeStringToFile(confFile, buildConfig())) {
+        if(!MiscUtils.writeStringToFile(confFile, buildConfig(sockname))) {
         	Log.e(TAG, "Terminating connection");
         	terminateConnection();
 			return;
@@ -148,7 +137,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 		// Could take a while to open connection
         int tries=8;
 
-        String socketName = (new File(mCtx.getCacheDir(), "mgmtsocket")).getAbsolutePath();
+        String socketName = (new File(mCtx.getCacheDir(), sockname)).getAbsolutePath();
         // The mServerSocketLocal is transferred to the LocalServerSocket, ignore warning
 
         mServerSocketLocal = new LocalSocket();
@@ -696,10 +685,10 @@ public class OpenVpnTunnel extends VpnTunnel {
 		setMasqueradeIp6Mode(true);
 	}
 	
-	private String buildConfig() {
+	private String buildConfig(String sockname) {
 		StringBuilder builder = new StringBuilder();
 		builder.append("management ");
-		builder.append(mCtx.getCacheDir().getAbsolutePath() + "/" +  "mgmtsocket unix");
+		builder.append(mCtx.getCacheDir().getAbsolutePath() + "/" + sockname + " unix");
 		builder.append("\n");
 		
 		builder.append("management-client\n");
@@ -713,6 +702,8 @@ public class OpenVpnTunnel extends VpnTunnel {
 		
 		if(BuildConfig.DEBUG) {
 			builder.append("verb 5\n");
+		} else {
+			builder.append("verb 4\n");
 		}
 		
 		for(Entry<String, Object> entry : mOptions.entrySet()) {

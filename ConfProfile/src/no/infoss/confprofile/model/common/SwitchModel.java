@@ -1,10 +1,10 @@
-package no.infoss.confprofile.model;
+package no.infoss.confprofile.model.common;
 
 import android.view.View;
 import android.widget.CompoundButton;
 import android.widget.Switch;
 
-public class SwitchModel extends SimpleModel implements CompoundButton.OnCheckedChangeListener {
+public class SwitchModel extends SimpleModel<Void> implements CompoundButton.OnCheckedChangeListener {
 	private OnCheckedChangeListener mOnCheckedChangeListener;
 	private boolean mChecked;
 	
@@ -44,8 +44,8 @@ public class SwitchModel extends SimpleModel implements CompoundButton.OnChecked
 	}
 	
 	@Override
-	protected void doApplyModel(View view) {
-		super.doApplyModel(view);
+	protected void doApplyModel(Void data, View view) {
+		super.doApplyModel(data, view);
 		setCheckedToView(view, getRootViewId(), mChecked);
 	}
 

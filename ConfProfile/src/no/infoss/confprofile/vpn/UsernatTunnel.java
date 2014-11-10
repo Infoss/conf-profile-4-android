@@ -30,9 +30,8 @@ public class UsernatTunnel extends VpnTunnel {
 	private final ConcurrentLinkedQueue<SocatTunnelContext> mQueue;
 	private final byte[] mOutBuff = new byte[65537];
 
-	public UsernatTunnel(Context ctx, RouterLoop routerLoop, VpnManagerInterface vpnMgr) {
+	public UsernatTunnel(Context ctx, VpnManagerInterface vpnMgr) {
 		super(ctx, "0000", null, vpnMgr);
-		mVpnServiceCtx = routerLoop.getRouterCtx();
 		mQueue = new ConcurrentLinkedQueue<SocatTunnelContext>();
 	}
 	
@@ -217,24 +216,18 @@ public class UsernatTunnel extends VpnTunnel {
 			
 			if(mSocket != null) {
 				try {
-					mSocket.getInputStream().close();
+					mSocket.shutdownInput();
 				} catch(Exception e) { 
 					//suppress this
 				}
 				
 				try {
-					mSocket.getOutputStream().close();
+					mSocket.shutdownOutput();
 				} catch(Exception e) { 
 					//suppress this
 				}
 				
-				try {
-					mSocket.close();
-				} catch(Exception e) { 
-					//suppress this
-				} finally {
-					mSocket = null;
-				}
+				mSocket = null;
 			}
 		}
 	}

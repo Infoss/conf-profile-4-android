@@ -12,10 +12,12 @@
 
 #include "android_log_utils.h"
 #include "android_jni.h"
+#include "util.h"
 
 #define LOG_TAG "jni_NetUtils.c"
 
 JNI_METHOD_P(JNI_UTIL_PACKAGE, NetUtils, bindUnixSocket, jint, jstring path) {
+	TRACEPRINT("(TODO: improve this)");
 	struct sockaddr_un sa;
 	memset(&sa, 0, sizeof(sa));
 	sa.sun_family = AF_UNIX;

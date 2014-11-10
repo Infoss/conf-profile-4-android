@@ -1,8 +1,8 @@
-package no.infoss.confprofile.model;
+package no.infoss.confprofile.model.common;
 
 import android.view.View;
 
-public class ImageViewModel extends SimpleModel {
+public class ImageViewModel extends SimpleModel<Void> {
 	private int mImageResourceId;
 	
 	public ImageViewModel() {
@@ -24,8 +24,8 @@ public class ImageViewModel extends SimpleModel {
 	}
 	
 	@Override
-	protected void doApplyModel(View view) {
-		super.doApplyModel(view);
+	protected void doApplyModel(Void data, View view) {
+		super.doApplyModel(data, view);
 		
 		setImageToView(getBoundView(), getRootViewId(), mImageResourceId);
 	}

@@ -12,7 +12,6 @@ import java.util.List;
 import java.util.Map;
 
 import no.infoss.confprofile.util.MiscUtils;
-import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import android.content.Context;
 import android.net.LocalServerSocket;
 import android.net.LocalSocket;
@@ -32,17 +31,9 @@ public class L2tpTunnel extends VpnTunnel {
 	
 	private LocalSocket mSocket;
 	private LinkedList<FileDescriptor> mFds = new LinkedList<FileDescriptor>();
-
-	@Deprecated
-	/*package*/ L2tpTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, VpnConfigInfo cfg) {
-		super(ctx, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
-		mIsTerminating = false;
-	}
 	
-	/*package*/ L2tpTunnel(Context ctx, long vpnServiceCtx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
+	/*package*/ L2tpTunnel(Context ctx, VpnManagerInterface vpnMgr, String uuid, String cfg) {
 		super(ctx, uuid, cfg, vpnMgr);
-		mVpnServiceCtx = vpnServiceCtx;
 		mIsTerminating = false;
 	}
 
@@ -194,7 +185,7 @@ public class L2tpTunnel extends VpnTunnel {
 		result.add("l2tp"); //protocol
 		
 		@SuppressWarnings("unchecked")
-		Map<String, Object> ppp = (Map<String, Object>) options.get(VpnConfigInfo.PARAMS_PPP);
+		Map<String, Object> ppp = (Map<String, Object>) options.get("___FIXME___");
 
 		if(ppp != null) {
 			result.add("AuthName ".concat(String.valueOf(ppp.get("AuthName"))));

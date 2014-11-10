@@ -1,8 +1,11 @@
-package no.infoss.confprofile.model;
+package no.infoss.confprofile.model.common;
 
 import android.view.View;
 
-public interface Model {
+public interface Model<T> {
+	
+	public T getData();
+	public void setData(T data);
 	
 	/**
 	 * Bind model to a provided view (useful when views are reusable)
@@ -42,6 +45,6 @@ public interface Model {
 	public void setOnClickListener(OnClickListener listener);
 	
 	public interface OnClickListener {
-		void onClick(Model model, View v);
+		void onClick(Model<?> model, View v);
 	}
 }

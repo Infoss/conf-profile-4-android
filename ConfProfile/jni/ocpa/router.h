@@ -5,7 +5,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <pthread.h>
-#include <poll.h>
 #include <sys/epoll.h>
 #include <jni.h>
 
@@ -17,7 +16,6 @@
 typedef struct route4_link_t route4_link_t;
 typedef struct route6_link_t route6_link_t;
 typedef struct router_ctx_t router_ctx_t;
-typedef struct poll_helper_struct_t poll_helper_struct_t;
 typedef struct epoll_link_t epoll_link_t;
 
 struct route4_link_t {
@@ -67,16 +65,8 @@ struct router_ctx_t {
 
 struct epoll_link_t {
 	int fd;
+	struct epoll_event evt;
 	tun_ctx_t* tun_ctx;
-};
-
-struct poll_helper_struct_t {
-	pthread_rwlock_t* rwlock;
-
-	//helper fields
-	struct pollfd* poll_fds;
-	tun_ctx_t** poll_ctxs;
-	int poll_fds_count;
 };
 
 router_ctx_t* router_init();

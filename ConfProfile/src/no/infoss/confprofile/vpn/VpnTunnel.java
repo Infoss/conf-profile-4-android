@@ -19,7 +19,6 @@ import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.format.json.BuiltinTypeAdapterFactory;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
-import no.infoss.confprofile.vpn.VpnManagerService.VpnConfigInfo;
 import no.infoss.confprofile.vpn.interfaces.Debuggable;
 import android.content.Context;
 import android.os.Handler;
@@ -53,7 +52,6 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 	private String mLocalAddress;
 	private String mRemoteAddress;
 	
-	protected long mVpnServiceCtx; //native
 	protected long mVpnTunnelCtx; //native
 	
 	enum ConnectionStatus {
@@ -69,11 +67,6 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 		GENERIC_ERROR,
 		GENERIC_NETWORK_ERROR,
 		AUTH_FAILED
-	}
-	
-	@Deprecated
-	public VpnTunnel(Context ctx, VpnConfigInfo cfg, VpnManagerInterface vpnMgr) {
-		this(ctx, cfg.configId, null, vpnMgr);
 	}
 	
 	public VpnTunnel(Context ctx, String uuid, String cfg, VpnManagerInterface vpnMgr) {
@@ -101,11 +94,6 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 	
 	
 	protected abstract String getThreadName();
-	
-	@Deprecated
-	public final void establishConnection(Map<String, Object> options) {
-		establishConnection();
-	}
 	
 	public final void establishConnection() {
 		if(isTerminated()) {

@@ -8,6 +8,9 @@ import android.os.IInterface;
 public interface VpnManagerInterface extends IInterface {
 	public static final String TAG = VpnManagerInterface.class.getSimpleName();
 	
+	public static final String ACTION_NOTIFY_VPN_SERVICE_STARTED = "VPN_SERVICE_STARTED";
+	public static final String ACTION_NOTIFY_VPN_SERVICE_REVOKED = "VPN_SERVICE_REVOKED";
+	
 	public static final String BROADCAST_VPN_EVENT = 
 			VpnManagerInterface.class.getCanonicalName().concat(".VPN_EVENT");
 	
@@ -15,6 +18,7 @@ public interface VpnManagerInterface extends IInterface {
 	public static final String KEY_EVENT_TYPE = "EVENT_TYPE";
 	public static final String TYPE_SERVICE_STATE_CHANGED = "SERVICE_STATE_CHANGED";
 	public static final String TYPE_TUNNEL_STATE_CHANGED = "TUNNEL_STATE_CHANGED";
+	public static final String TYPE_SELECTED_TUNNEL_ID_CHANGED = "SELECTED_TUNNEL_ID_CHANGED";
 	
 	public static final String KEY_SERVICE_STATE = "SERVICE_STATE";
 	public static final int SERVICE_STATE_REVOKED = 0;
@@ -34,6 +38,9 @@ public interface VpnManagerInterface extends IInterface {
 	public static final String KEY_SERVER_NAME = "SERVER_NAME";
 	public static final String KEY_REMOTE_ADDRESS = "REMOTE_ADDRESS";
 	public static final String KEY_LOCAL_ADDRESS = "LOCAL_ADDRESS";
+	public static final String KEY_IS_CONNECTION_UNPROTECTED = "IS_CONNECTION_UNPROTECTED";
+	
+	public void cancelAllNotifications();
 	
 	public void startVpnService();
 	public void stopVpnService();
@@ -41,6 +48,7 @@ public interface VpnManagerInterface extends IInterface {
 	public void notifyVpnServiceStarted();
 	public void notifyVpnServiceRevoked();
 	public void notifyTunnelStateChanged();
+	public void notifySelectedTunnelUuidChanged();
 	
 	/**
 	 * Called by StartVpn activity when system can't prepare VPN tunnel due to "VPN Always on" feature 
@@ -58,6 +66,7 @@ public interface VpnManagerInterface extends IInterface {
 	public void activateVpnTunnel(String uuid);
 	public void deactivateVpnTunnel();
 	public TunnelInfo getVpnTunnelInfo();
+	public String getSelectedVpnTunnelUuid();
 	
 	public int getLocalAddress4();
 	public int getRemoteAddress4();
