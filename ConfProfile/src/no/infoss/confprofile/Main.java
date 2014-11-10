@@ -26,30 +26,29 @@ import java.util.List;
 import java.util.Stack;
 
 import no.infoss.confprofile.db.Expressions;
+import no.infoss.confprofile.db.Expressions.Expression;
 import no.infoss.confprofile.db.Request;
 import no.infoss.confprofile.db.RequestWithAffectedRows;
 import no.infoss.confprofile.db.Transaction;
 import no.infoss.confprofile.db.Update;
-import no.infoss.confprofile.db.Expressions.Expression;
-import no.infoss.confprofile.model.CompositeListItemModel;
-import no.infoss.confprofile.model.ImageViewModel;
-import no.infoss.confprofile.model.ListItemModel;
-import no.infoss.confprofile.model.Model;
-import no.infoss.confprofile.model.Model.OnClickListener;
-import no.infoss.confprofile.model.SimpleListItemModel;
-import no.infoss.confprofile.model.SwitchModel;
-import no.infoss.confprofile.model.SwitchModel.OnCheckedChangeListener;
+import no.infoss.confprofile.model.OnDemandSwitchModel;
+import no.infoss.confprofile.model.VpnDataModel;
+import no.infoss.confprofile.model.VpnStatusModel;
+import no.infoss.confprofile.model.VpnSwitchModel;
+import no.infoss.confprofile.model.common.ListItemModel;
+import no.infoss.confprofile.model.common.Model;
+import no.infoss.confprofile.model.common.Model.OnClickListener;
+import no.infoss.confprofile.model.common.SimpleListItemModel;
 import no.infoss.confprofile.profile.BaseQueryCursorLoader;
 import no.infoss.confprofile.profile.DbOpenHelper;
 import no.infoss.confprofile.profile.VpnDataCursorLoader;
-import no.infoss.confprofile.profile.data.ListItem;
-import no.infoss.confprofile.profile.data.MutableListItem;
 import no.infoss.confprofile.profile.data.VpnData;
 import no.infoss.confprofile.task.BackupTask;
+import no.infoss.confprofile.util.ListItemMapper;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.util.SqliteRequestThread;
-import no.infoss.confprofile.util.VpnEventReceiver;
 import no.infoss.confprofile.util.SqliteRequestThread.SqliteRequestStatusListener;
+import no.infoss.confprofile.util.VpnEventReceiver;
 import no.infoss.confprofile.util.VpnEventReceiver.VpnEventListener;
 import no.infoss.confprofile.vpn.VpnManagerInterface;
 import no.infoss.confprofile.vpn.VpnManagerService;
@@ -67,7 +66,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.util.Log;
-import android.view.LayoutInflater;
 import android.view.Menu;
 import android.view.MenuInflater;
 import android.view.MenuItem;
@@ -76,11 +74,9 @@ import android.widget.AdapterView;
 import android.widget.AdapterView.OnItemClickListener;
 import android.widget.GridView;
 import android.widget.Switch;
-import android.widget.TextView;
 import android.widget.Toast;
 
 import com.litecoding.classkit.view.HeaderObjectAdapter;
-import com.litecoding.classkit.view.HeaderObjectAdapter.HeaderObjectMapper;
 import com.litecoding.classkit.view.LazyCursorList;
 
 public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceConnection, VpnEventListener {
@@ -100,41 +96,26 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private static final String EXTRA_VPN_IS_ON_DEMAND = Main.class.getCanonicalName().concat(".VPN_IS_ON_DEMAND");
 	
 	private static final List<String> HEADER_LIST = new ArrayList<String>(2);
-	private static final List<List<ListItem>> DATA_LIST = new LinkedList<List<ListItem>>();
-	private static final CompositeListItemModel VPN_LIST_ITEM_MODEL = new CompositeListItemModel();
-	private static final CompositeListItemModel STATUS_LIST_ITEM_MODEL = new CompositeListItemModel();
+	private static final List<List<ListItemModel<?>>> DATA_LIST = new LinkedList<List<ListItemModel<?>>>();
+	private static final VpnSwitchModel VPN_SWITCH_MODEL = new VpnSwitchModel();
+	private static final VpnStatusModel VPN_STATUS_MODEL = new VpnStatusModel();
 	
 	private static final List<String> SINGLE_EMPTY_HEADER_LIST = new ArrayList<String>(1);
 	private static final List<String> DOUBLE_EMPTY_HEADER_LIST = new ArrayList<String>(2);
-	private static final List<List<ListItem>> VPN_DATA_LIST = new LinkedList<List<ListItem>>();
-	private static final List<List<ListItem>> STATUS_LIST = new LinkedList<List<ListItem>>();
-	
-	static {
-		SwitchModel switchModel = new SwitchModel(R.id.switchWidget);
-		VPN_LIST_ITEM_MODEL.addMapping(switchModel);
-		VPN_LIST_ITEM_MODEL.setLayoutId(R.layout.simple_list_item_2_switch);
-		VPN_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_switch);
-		
-		ImageViewModel imageViewModel = new ImageViewModel(android.R.id.icon);
-		imageViewModel.setImageResourceId(R.drawable.arrow);
-		STATUS_LIST_ITEM_MODEL.addMapping(imageViewModel);
-		STATUS_LIST_ITEM_MODEL.setLayoutId(R.layout.simple_list_item_2_image);
-		STATUS_LIST_ITEM_MODEL.setRootViewId(R.id.simple_list_item_2_image);
-	}
+	private static final List<List<ListItemModel<?>>> VPN_DATA_LIST = new LinkedList<List<ListItemModel<?>>>();
+	private static final List<List<ListItemModel<?>>> STATUS_LIST = new LinkedList<List<ListItemModel<?>>>();
 	
 	private final Stack<Intent> mIntentStack = new Stack<Intent>();
 	private VpnEventReceiver mVpnEvtReceiver;
 	private GridView mGrid;
-	private HeaderObjectAdapter<ListItem, String> mPayloadAdapter;
-	private HeaderObjectAdapter<ListItem, String> mPayloadInfoAdapter;
-	private HeaderObjectAdapter<ListItem, String> mStatusAdapter;
-	private ListItem mVpnListItem;
-	private ListItem mStatusListItem;
-	private MutableListItem mStatusServerListItem;
-	private MutableListItem mStatusConnectTimeListItem;
-	private MutableListItem mStatusConnectedToListItem;
-	private MutableListItem mStatusIpAddressListItem;
-	private LazyCursorList<? extends ListItem> mVpnInfoList;
+	private HeaderObjectAdapter<ListItemModel<?>, String> mPayloadAdapter;
+	private HeaderObjectAdapter<ListItemModel<?>, String> mPayloadInfoAdapter;
+	private HeaderObjectAdapter<ListItemModel<?>, String> mStatusAdapter;
+	private SimpleListItemModel<Void> mStatusServerModel;
+	private SimpleListItemModel<Void> mStatusConnectTimeModel;
+	private SimpleListItemModel<Void> mStatusConnectedToModel;
+	private SimpleListItemModel<Void> mStatusIpAddressModel;
+	private LazyCursorList<? extends ListItemModel<?>> mVpnInfoList;
 	private DbOpenHelper mDbHelper;
 	private SimpleServiceBindKit<VpnManagerInterface> mBindKit;
 	private boolean mDebugPcapEnabled = false;
@@ -180,9 +161,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			public void onItemClick(AdapterView<?> parent, View view,
 					int position, long id) {
 				@SuppressWarnings("unchecked")
-				HeaderObjectAdapter<ListItem, String> adapter = (HeaderObjectAdapter<ListItem, String>) parent.getAdapter();
-				ListItem item = (ListItem) adapter.getItem(position);
-				ListItemModel model = item.getModel();
+				HeaderObjectAdapter<ListItemModel<?>, String> adapter = (HeaderObjectAdapter<ListItemModel<?>, String>) parent.getAdapter(); 
+				ListItemModel<?> model = (ListItemModel<?>) adapter.getItem(position);
 				if(model instanceof OnItemClickListener) {
 					((OnItemClickListener) model).onItemClick(parent, view, position, id);
 				}
@@ -209,31 +189,22 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			mGrid.setAdapter(mStatusAdapter);
 			mStatusAdapter.notifyDataSetChanged();
 		} else if(ACTION_VPN_INFO.equals(intent.getAction())) {
-			List<ListItem> cmdList = VPN_DATA_LIST.get(0);
-			ListItem item = new ListItem(getString(R.string.main_vpn_item_on_demand_label), null);
+			List<ListItemModel<?>> cmdList = VPN_DATA_LIST.get(0);
 			
 			mIsCurrentItemOnDemandEnabled = intent.getBooleanExtra(EXTRA_VPN_IS_ON_DEMAND, false);
 			
-			CompositeListItemModel model = new CompositeListItemModel();
-			SwitchModel swModel = new SwitchModel(R.id.switchWidget);
-			swModel.setChecked(mIsCurrentItemOnDemandEnabled);
-			model.addMapping(swModel);
-			model.setLayoutId(R.layout.simple_list_item_2_switch);
-			model.setRootViewId(R.id.simple_list_item_2_switch);
-			
-			swModel.setOnCheckedChangeListener(new OnCheckedChangeListener() {
-				
+			OnDemandSwitchModel model = new OnDemandSwitchModel();
+			model.setSwitchChecked(mIsCurrentItemOnDemandEnabled);
+			model.setSwitchOnClickListener(new Model.OnClickListener() {
 				@Override
-				public void onCheckedChanged(SwitchModel model, Switch buttonView,
-						boolean isChecked) {
+				public void onClick(Model<?> model, View v) {
+					boolean isChecked = ((Switch) v).isChecked();
 					mIsCurrentItemOnDemandEnabled = isChecked;
 				}
 			});
 			
-			item.setModel(model);
-			
 			cmdList.clear();
-			cmdList.add(item);
+			cmdList.add(model);
 			mGrid.setAdapter(mPayloadInfoAdapter);
 			mPayloadInfoAdapter.notifyDataSetChanged();
 		} else {
@@ -450,37 +421,42 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	public void onLoadFinished(Loader<Cursor> loader, Cursor data) {
 		mVpnInfoList.populateFrom(data, true);
 		
-		for(ListItem item : mVpnInfoList) {
-			final VpnData vpnData = (VpnData) item;
-			CompositeListItemModel model = (CompositeListItemModel) vpnData.getModel();
-			model.setOnClickListener(new Model.OnClickListener() {
+		for(ListItemModel<?> model : mVpnInfoList) {
+			VpnDataModel vpnDataModel = (VpnDataModel) model;
+			vpnDataModel.setOnClickListener(new Model.OnClickListener() {
 				
 				@Override
-				public void onClick(Model model, View v) {
+				public void onClick(Model<?> model, View v) {
 					VpnManagerInterface vpnMgr = mBindKit.lock();
 					if(vpnMgr != null) {
-						vpnMgr.activateVpnTunnel(vpnData.getPayloadUuid());
+						VpnDataModel vpnDataModel = (VpnDataModel) model;
+						VpnData vpnData = vpnDataModel.getData();
+						if(vpnData != null) {
+							vpnMgr.activateVpnTunnel(vpnData.getPayloadUuid());
+						}
 					}
 					mBindKit.unlock();
 				}
 			});
 
-			ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon2);
-			if(vpnData.isOnDemandEnabled()) {
-				imgModel.setOnClickListener(new Model.OnClickListener() {
+			vpnDataModel.setArrowOnClickListener(new Model.OnClickListener() {
+				
+				@Override
+				public void onClick(Model<?> model, View v) {
+					VpnDataModel vpnDataModel = (VpnDataModel) model;
+					VpnData vpnData = vpnDataModel.getData();
 					
-					@Override
-					public void onClick(Model model, View v) {
-						mCurrentVpnData = vpnData;
-						
+					mCurrentVpnData = vpnData;
+					
+					if(vpnData != null && vpnData.isOnDemandEnabled()) {
 						Intent intent = new Intent(Main.this, Main.class);
 						intent.setAction(ACTION_VPN_INFO);
 						intent.putExtra(EXTRA_VPN_PAYLOAD_UUID, vpnData.getPayloadUuid());
 						intent.putExtra(EXTRA_VPN_IS_ON_DEMAND, vpnData.isOnDemandEnabledByUser());
 						startActivity(intent);
 					}
-				});
-			}
+				}
+			});
 		}
 		
 		mPayloadAdapter.notifyDataSetChanged();
@@ -558,10 +534,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	
 	private void initModels() {
 		//adding VPN list item
-		VPN_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+		VPN_SWITCH_MODEL.setOnClickListener(new Model.OnClickListener() {
 			
 			@Override
-			public void onClick(Model model, View v) {
+			public void onClick(Model<?> model, View v) {
 				VpnManagerInterface vpnMgr = mBindKit.lock();
 				if(vpnMgr != null) {
 					vpnMgr.startVpnService();
@@ -570,11 +546,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			}
 		});
 		
-		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-		swModel.setOnClickListener(new OnClickListener() {
+		VPN_SWITCH_MODEL.setSwitchOnClickListener(new OnClickListener() {
 			
 			@Override
-			public void onClick(Model model, View v) {
+			public void onClick(Model<?> model, View v) {
 				boolean isChecked = ((Switch) v).isChecked();
 				
 				VpnManagerInterface vpnMgr = mBindKit.lock();
@@ -590,10 +565,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		});
 		
 		//adding VPN list item
-		STATUS_LIST_ITEM_MODEL.setOnClickListener(new Model.OnClickListener() {
+		VPN_STATUS_MODEL.setOnClickListener(new Model.OnClickListener() {
 			
 			@Override
-			public void onClick(Model model, View v) {
+			public void onClick(Model<?> model, View v) {
 				Intent intent = new Intent(Main.this, Main.class);
 				intent.setAction(ACTION_SERVICE_INFO);
 				startActivity(intent);
@@ -610,26 +585,26 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private void initVpnData() {
 		DATA_LIST.clear();
 		
-		List<ListItem> cmdList = new ArrayList<ListItem>(2);
+		List<ListItemModel<?>> cmdList = new ArrayList<ListItemModel<?>>(2);
+		cmdList.add(VPN_SWITCH_MODEL);
 		
-		mVpnListItem = new ListItem(getString(R.string.main_item_vpn_label), null);
-		mVpnListItem.setModel(VPN_LIST_ITEM_MODEL);
-		cmdList.add(mVpnListItem);
+		//mVpnListItem = new ListItem(getString(R.string.main_item_vpn_label), null);
+		//mVpnListItem.setModel(VPN_SWITCH_MODEL);
+		//cmdList.add(mVpnListItem);
 		
-		mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
-		mStatusListItem.setModel(STATUS_LIST_ITEM_MODEL);
-		//cmdList.add(mStatusListItem);
+		//mStatusListItem = new ListItem(getString(R.string.main_item_status_label), null);
+		//mStatusListItem.setModel(VPN_STATUS_MODEL);
 		
 		DATA_LIST.add(cmdList);
 		
-		mVpnInfoList = new LazyCursorList<VpnData>(VpnDataCursorLoader.VPN_DATA_CURSOR_MAPPER);
-		DATA_LIST.add((LazyCursorList<ListItem>) mVpnInfoList);
+		mVpnInfoList = new LazyCursorList<VpnDataModel>(VpnDataCursorLoader.VPN_DATA_MODEL_CURSOR_MAPPER);
+		DATA_LIST.add((LazyCursorList<ListItemModel<?>>) mVpnInfoList);
 	}
 	
 	private void initVpnInfoData() {
 		VPN_DATA_LIST.clear();
 		
-		List<ListItem> cmdList = new ArrayList<ListItem>(1);
+		List<ListItemModel<?>> cmdList = new ArrayList<ListItemModel<?>>(1);
 		
 		VPN_DATA_LIST.add(cmdList);
 	}
@@ -637,33 +612,29 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 	private void initStatusData() {
 		STATUS_LIST.clear();
 		
-		List<ListItem> cmdList = null; 
-		cmdList = new ArrayList<ListItem>(1);
-		mStatusServerListItem = new MutableListItem(getString(R.string.main_status_item_server_label), "");
-		mStatusServerListItem.setModel(new SimpleListItemModel());
-		cmdList.add(mStatusServerListItem);
+		List<ListItemModel<?>> cmdList = null; 
+		cmdList = new ArrayList<ListItemModel<?>>(1);
+		mStatusServerModel = new SimpleListItemModel<Void>(getString(R.string.main_status_item_server_label), ""); 
+		cmdList.add(mStatusServerModel);
 		
 		STATUS_LIST.add(cmdList);
 		
-		cmdList = new ArrayList<ListItem>(3);
-		mStatusConnectTimeListItem = new MutableListItem(getString(R.string.main_status_item_connect_time_label), "");
-		mStatusConnectTimeListItem.setModel(new SimpleListItemModel());
-		cmdList.add(mStatusConnectTimeListItem);
+		cmdList = new ArrayList<ListItemModel<?>>(3);
+		mStatusConnectTimeModel = new SimpleListItemModel<Void>(getString(R.string.main_status_item_connect_time_label), "");
+		cmdList.add(mStatusConnectTimeModel);
 		
-		mStatusConnectedToListItem = new MutableListItem(getString(R.string.main_status_item_connected_to_label), "");
-		mStatusConnectedToListItem.setModel(new SimpleListItemModel());
-		cmdList.add(mStatusConnectedToListItem);
+		mStatusConnectedToModel = new SimpleListItemModel<Void>(getString(R.string.main_status_item_connected_to_label), "");
+		cmdList.add(mStatusConnectedToModel);
 		
-		mStatusIpAddressListItem = new MutableListItem(getString(R.string.main_status_item_ip_address_label), "");
-		mStatusIpAddressListItem.setModel(new SimpleListItemModel());
-		cmdList.add(mStatusIpAddressListItem);
+		mStatusIpAddressModel = new SimpleListItemModel<Void>(getString(R.string.main_status_item_ip_address_label), "");
+		cmdList.add(mStatusIpAddressModel);
 		
 		STATUS_LIST.add(cmdList);
 	}
 	
 	private void initAdapters() {
 		ListItemMapper mapper = new ListItemMapper(this);
-		mPayloadAdapter = new HeaderObjectAdapter<ListItem, String>(
+		mPayloadAdapter = new HeaderObjectAdapter<ListItemModel<?>, String>(
 				getLayoutInflater(), 
 				HEADER_LIST,
 				R.layout.simple_list_item_1_header,
@@ -671,7 +642,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				R.layout.list_item_1_images,
 				mapper);
 		
-		mPayloadInfoAdapter = new HeaderObjectAdapter<ListItem, String>(
+		mPayloadInfoAdapter = new HeaderObjectAdapter<ListItemModel<?>, String>(
 				getLayoutInflater(), 
 				SINGLE_EMPTY_HEADER_LIST,
 				R.layout.simple_list_item_1_header,
@@ -679,7 +650,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				R.layout.list_item_1_images,
 				mapper);
 		
-		mStatusAdapter = new HeaderObjectAdapter<ListItem, String>(
+		mStatusAdapter = new HeaderObjectAdapter<ListItemModel<?>, String>(
 				getLayoutInflater(), 
 				DOUBLE_EMPTY_HEADER_LIST,
 				R.layout.simple_list_item_1_header,
@@ -769,49 +740,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mServiceStateReceived = true;
 		
-		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-		
-		switch(state) {
-		case VpnManagerInterface.SERVICE_STATE_STARTED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(true);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_enabled_label));
-			swModel.setEnabled(true);
-			swModel.setVisible(View.VISIBLE);
-			break;
-		}
-		case VpnManagerInterface.SERVICE_STATE_REVOKED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(true);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_disabled_label));
-			swModel.setChecked(false);
-			swModel.setEnabled(true);
-			swModel.setVisible(View.GONE);
-			break;
-		}
-		case VpnManagerInterface.SERVICE_STATE_LOCKED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(false);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_locked_label));
-			swModel.setChecked(false);
-			swModel.setEnabled(false);
-			swModel.setVisible(View.GONE);
-			break;
-		}
-		case VpnManagerInterface.SERVICE_STATE_UNSUPPORTED: {
-			VPN_LIST_ITEM_MODEL.setEnabled(false);
-			VPN_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_vpn_unsupported_label));
-			swModel.setChecked(false);
-			swModel.setEnabled(false);
-			swModel.setVisible(View.GONE);
-			break;
-		}
-		default: {
-			Log.e(TAG, "Received unexpected service state (" + 
-					state + 
-					(isBroadcast ? ") by broadcast" : ") from binder"));
-			break;
-		}
-		}
-		
-		VPN_LIST_ITEM_MODEL.applyModel();
+		VPN_SWITCH_MODEL.setVpnState(state);	
+		VPN_SWITCH_MODEL.applyModel();
 	}
 	
 	@Override
@@ -837,40 +767,33 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			setCheckedMark(mSelectedTunnelUuid);
 		}
 		
-		SwitchModel swModel = (SwitchModel) VPN_LIST_ITEM_MODEL.getMapping(R.id.switchWidget);
-		List<ListItem> subList = DATA_LIST.get(0);
+		List<ListItemModel<?>> subList = DATA_LIST.get(0);
+		
+		VPN_SWITCH_MODEL.setTunnelState(state);
+		VPN_STATUS_MODEL.setTunnelState(state);
 		
 		switch(state) {
+		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING:
 		case VpnManagerInterface.TUNNEL_STATE_TERMINATED:
 		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTED: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(false);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnected_label));
-			swModel.setChecked(false);
-			subList.remove(mStatusListItem);
+			subList.remove(VPN_STATUS_MODEL);
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTING: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(false);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connecting_label));
-			swModel.setChecked(true);
-			if(!subList.contains(mStatusListItem)) {
-				subList.add(mStatusListItem);
+			if(!subList.contains(VPN_STATUS_MODEL)) {
+				subList.add(VPN_STATUS_MODEL);
 			}
 			break;
 		}
 		case VpnManagerInterface.TUNNEL_STATE_CONNECTED: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(true);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_connected_label));
-			swModel.setChecked(true);
-			
-			if(!subList.contains(mStatusListItem)) {
-				subList.add(mStatusListItem);
+			if(!subList.contains(VPN_STATUS_MODEL)) {
+				subList.add(VPN_STATUS_MODEL);
 			}
 			
-			mStatusServerListItem.setSubText(serverName);
-			mStatusConnectTimeListItem.setSubText("");
-			mStatusConnectedToListItem.setSubText(remoteAddress);
-			mStatusIpAddressListItem.setSubText(localAddress);
+			mStatusServerModel.setSubText(serverName);
+			mStatusConnectTimeModel.setSubText("");
+			mStatusConnectedToModel.setSubText(remoteAddress);
+			mStatusIpAddressModel.setSubText(localAddress);
 			
 			
 			if(mUpdateTimerThread != null) {
@@ -904,8 +827,7 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 								
 								@Override
 								public void run() {
-									mStatusConnectTimeListItem.setSubText(time);
-									mStatusConnectTimeListItem.applyData();
+									mStatusConnectTimeModel.setSubText(time);
 									mStatusAdapter.notifyDataSetChanged();
 								}
 							});
@@ -921,12 +843,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 			
 			break;
 		}
-		case VpnManagerInterface.TUNNEL_STATE_DISCONNECTING: {
-			STATUS_LIST_ITEM_MODEL.setEnabled(false);
-			STATUS_LIST_ITEM_MODEL.setSubText(getString(R.string.main_item_status_disconnecting_label));
-			subList.remove(mStatusListItem);
-			break;
-		}
 		default: {
 			Log.e(TAG, "Received unexpected tunnel state (" + 
 					state + 
@@ -937,8 +853,8 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		
 		mPayloadAdapter.notifyDataSetChanged();
 		
-		VPN_LIST_ITEM_MODEL.applyModel();
-		STATUS_LIST_ITEM_MODEL.applyModel();
+		VPN_SWITCH_MODEL.applyModel();
+		VPN_STATUS_MODEL.applyModel();
 	}
 	
 	@Override
@@ -952,22 +868,19 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 
 	private void setCheckedMark(String tunnelId) {
 		if(tunnelId != null) {
-			List<ListItem> items = new ArrayList<ListItem>(mVpnInfoList);
-			for(ListItem item : items) {
-				CompositeListItemModel model = (CompositeListItemModel) item.getModel();
-				ImageViewModel imgModel = (ImageViewModel) model.getMapping(android.R.id.icon1);
-						
-				if(tunnelId.equals(((VpnData) item).getPayloadUuid())) {
-					imgModel.setImageResourceId(R.drawable.check);
+			List<ListItemModel<?>> items = new ArrayList<ListItemModel<?>>(mVpnInfoList);
+			for(ListItemModel<?> item : items) {
+				VpnDataModel model = (VpnDataModel) item;
+				if(model.getData() != null && tunnelId.equals(model.getData().getPayloadUuid())) {
+					model.setChecked(true);
 				} else {
-					imgModel.setImageResourceId(0);
+					model.setChecked(false);
 				}
 				
-				imgModel.applyModel();
+				model.applyModel();
 			}
 			
 			items.clear();
-			//mVpnInfoList.notifyChanged();
 		}
 	}
 	
@@ -1006,74 +919,6 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 		intent.setAction(ACTION_EXIT);
 		
 		return intent;
-	}
-	
-	private static class ListItemMapper implements HeaderObjectMapper<ListItem, String> {
-		private Context mCtx;
-		
-		public ListItemMapper(Context ctx) {
-			mCtx = ctx;
-		}
-
-		@Override
-		public View prepareView(int position, View convertView, ListItem data) {
-			int viewId = 0;
-			
-			LayoutInflater inflater = (LayoutInflater) mCtx.getSystemService(Context.LAYOUT_INFLATER_SERVICE);
-			boolean viewAlreadyCreated = false;
-			
-			if(convertView == null) {
-				//We don't have a view to convert, but...
-				if(data == null || data.getModel() == null || data.getModel().getLayoutId() == 0) {
-					//We don't know what kind of view should be created,
-					//adapter will create default view
-					return null;
-				} else {
-					convertView = inflater.inflate(data.getModel().getLayoutId(), null);
-					viewAlreadyCreated = true;
-				}
-			}
-			
-			viewId = convertView.getId();
-			if(!viewAlreadyCreated) {
-				if((data == null || data.getModel() == null || data.getModel().getLayoutId() == 0)) {
-					return null;
-				} else if(data.getModel().getLayoutId() != viewId) {
-					convertView = inflater.inflate(data.getModel().getLayoutId(), null);
-				}
-			}
-			
-			return convertView;
-		}
-		
-		@Override
-		public void mapData(int position, View view, ListItem data) {
-			data.getModel().bind(view);			
-		}
-		
-		@Override
-		public View prepareHeaderView(int position, View convertView, String data) {
-			// always create a new view
-			return null;
-		}
-
-		@Override
-		public void mapHeader(int position, View view, String data) {
-			setText(view, android.R.id.text1, data);
-		}
-		
-		private TextView setText(View rootView, int id, String text) {
-			TextView result = null;
-			
-			View testView = rootView.findViewById(id);
-			if(testView != null && testView instanceof TextView) {
-				result = (TextView) testView;
-				result.setText(text);
-			}
-			
-			return result;
-		}
-		
 	}
 
 }

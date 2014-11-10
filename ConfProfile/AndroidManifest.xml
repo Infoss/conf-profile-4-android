@@ -61,6 +61,7 @@
         <activity android:name=".Profiles" />
         <activity android:name=".ProfileDetails" />
         <activity android:name=".ProfilePayloads" />
+        <activity android:name=".VpnPayload" />
         <activity android:name=".About" />
 
         <service

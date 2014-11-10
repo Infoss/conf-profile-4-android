@@ -1,7 +1,8 @@
 package no.infoss.confprofile.profile.data;
 
-import no.infoss.confprofile.model.ListItemModel;
+import no.infoss.confprofile.model.common.ListItemModel;
 
+@Deprecated
 public class MutableListItem extends ListItem {
 	private String mMainText;
 	private String mSubText;

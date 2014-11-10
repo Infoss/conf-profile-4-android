@@ -21,12 +21,14 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 	public static final String COL_PROFILE_ID = "profile_id";
 	public static final String COL_PAYLOAD_UUID = "payload_uuid";
 	public static final String COL_PAYLOAD_TYPE = "payload_type";
+	public static final String COL_PAYLOAD_DISPLAY_NAME = "payload_display_name";
 	public static final String COL_DATA = "data";
 	
 	public static final String P_PREFIX = PREFIX.concat(TABLE).concat(".");
 	public static final String P_PROFILE_ID = P_PREFIX.concat("P_PROFILE_ID");
 	public static final String P_PAYLOAD_UUID = P_PREFIX.concat("P_PAYLOAD_UUID");
 	public static final String P_PAYLOAD_TYPE = P_PREFIX.concat("P_PAYLOAD_TYPE");
+	public static final String P_PAYLOAD_DISPLAY_NAME = P_PREFIX.concat("P_PAYLOAD_DISPLAY_NAME");
 	public static final String P_DATA = P_PREFIX.concat("P_DATA");
 	
 	public static final CursorMapper<PayloadInfo> PAYLOAD_CURSOR_MAPPER = new CursorMapper<PayloadInfo>() {
@@ -37,7 +39,8 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 			profile.profileId = cursor.getString(0);
 			profile.payloadUuid = cursor.getString(1);
 			profile.payloadType = cursor.getString(2);
-			profile.data = cursor.getString(3);
+			profile.payloadDisplayName = cursor.getString(3);
+			profile.data = cursor.getString(4);
 			return profile;
 		}
 	};
@@ -54,6 +57,7 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 		private String mNewProfileId[] = null;
 		private String mNewPayloadUuid[] = null;
 		private String mNewPayloadType[] = null;
+		private String mNewPayloadDisplayName[] = null;
 		private String mNewData[] = null;
 		private String mSelectBy = null; 
 		private String mSelectValue = null;
@@ -66,11 +70,13 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 					mNewProfileId = params.getStringArray(P_PROFILE_ID);
 					mNewPayloadUuid = params.getStringArray(P_PAYLOAD_UUID);
 					mNewPayloadType = params.getStringArray(P_PAYLOAD_TYPE);
+					mNewPayloadDisplayName = params.getStringArray(P_PAYLOAD_DISPLAY_NAME);
 					mNewData = params.getStringArray(P_DATA);
 				} else {
 					mNewProfileId = new String[] { params.getString(P_PROFILE_ID) };
 					mNewPayloadUuid = new String[] { params.getString(P_PAYLOAD_UUID) };
 					mNewPayloadType = new String[] { params.getString(P_PAYLOAD_TYPE) };
+					mNewPayloadDisplayName = new String[] { params.getString(P_PAYLOAD_DISPLAY_NAME) };
 					mNewData = new String[] { params.getString(P_DATA) };
 				}
 				
@@ -92,7 +98,8 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 			if(mQueryType == STMT_INSERT && 
 					mNewProfileId != null && 
 					mNewPayloadUuid != null &&
-					mNewPayloadType != null && 
+					mNewPayloadType != null &&
+					mNewPayloadDisplayName != null && 
 					mNewData != null) {	
 				db.beginTransaction();
 				try {
@@ -101,6 +108,7 @@ public class PayloadsCursorLoader extends BaseQueryCursorLoader {
 						values.put(COL_PROFILE_ID, mNewProfileId[i]);
 						values.put(COL_PAYLOAD_UUID, mNewPayloadUuid[i]);
 						values.put(COL_PAYLOAD_TYPE, mNewPayloadType[i]);
+						values.put(COL_PAYLOAD_DISPLAY_NAME, mNewPayloadDisplayName[i]);
 						values.put(COL_DATA, mNewData[i]);
 						Insert.insert().into(TABLE).values(values).perform(db);
 					}
