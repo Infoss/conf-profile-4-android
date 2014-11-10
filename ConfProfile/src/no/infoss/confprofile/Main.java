@@ -876,11 +876,10 @@ public class Main extends Activity implements LoaderCallbacks<Cursor>, ServiceCo
 				} else {
 					model.setChecked(false);
 				}
-				
-				model.applyModel();
 			}
 			
 			items.clear();
+			mPayloadAdapter.notifyDataSetChanged();
 		}
 	}
 	
