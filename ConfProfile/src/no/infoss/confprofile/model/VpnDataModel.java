@@ -22,6 +22,7 @@ public class VpnDataModel extends CompositeListItemModel<VpnData> {
 		mArrowModel = new ImageViewModel(android.R.id.icon2);
 		mArrowModel.setImageResourceId(R.drawable.arrow);
 		addMapping(mArrowModel);
+		
 		mEditable = false;
 	}
 	
@@ -54,23 +55,23 @@ public class VpnDataModel extends CompositeListItemModel<VpnData> {
 	
 	@Override
 	protected void doApplyModel(VpnData data, View view) {
+		if(mChecked) {
+			mCheckModel.setVisible(View.VISIBLE);
+		} else {
+			mCheckModel.setVisible(View.INVISIBLE);
+		}
+		
+		if(mEditable) {
+			mArrowModel.setVisible(View.VISIBLE);
+		} else {
+			mArrowModel.setVisible(View.INVISIBLE);
+		}
+		
 		super.doApplyModel(data, view);
 		
 		if(data != null) {
 			setTextToView(view, getMainTextViewId(), data.getUserDefinedName());
-			setTextToView(view, getSubTextViewId(), "");
-			
-			if(mChecked) {
-				mCheckModel.setVisible(View.VISIBLE);
-			} else {
-				mCheckModel.setVisible(View.INVISIBLE);
-			}
-			
-			if(mEditable) {
-				mCheckModel.setVisible(View.VISIBLE);
-			} else {
-				mCheckModel.setVisible(View.INVISIBLE);
-			}
+			setTextToView(view, getSubTextViewId(), "");	
 		}
 	}
 }
