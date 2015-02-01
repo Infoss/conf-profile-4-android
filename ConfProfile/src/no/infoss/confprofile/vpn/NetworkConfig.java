@@ -29,6 +29,7 @@ public class NetworkConfig {
 	private String mSsid; //null == any
 	private List<DomainName> mDnsDomains;
 	private List<DomainAddress> mDnsAddresses;
+	private Boolean mIsRoaming; //null == any
 	
 	public NetworkConfig() {
 		setDnsDomains((List<String>) null);
@@ -122,6 +123,14 @@ public class NetworkConfig {
 		}
 	}
 	
+	public Boolean getIsRoaming() {
+		return mIsRoaming;
+	}
+	
+	public void setIsRoaming(Boolean isRoaming) {
+		mIsRoaming = isRoaming;
+	}
+	
 	public boolean isActive() {
 		return mIsActive;
 	}
@@ -182,6 +191,11 @@ public class NetworkConfig {
 		
 		//Returning false if SSID is defined against non-WiFi interface type
 		if(resultSsid != null && !IF_WIFI.equals(mInterfaceType)) {
+			return false;
+		}
+		
+		//Check roaming
+		if(IF_CELL.equals(mInterfaceType) && cfg.getIsRoaming() != null && !cfg.getIsRoaming().equals(mIsRoaming)) {
 			return false;
 		}
 		
@@ -271,6 +285,7 @@ public class NetworkConfig {
 		
 		result.setInterfaceType((String) map.get("InterfaceTypeMatch"));
 		result.setSsid((String) map.get("SSIDMatch"));
+		result.setIsRoaming((Boolean) map.get("IsRoaming")); 
 		
 		return result;
 	}

@@ -79,7 +79,34 @@ public class NetworkStateListener extends BroadcastReceiverEx<ConfigurationDeleg
 		}
 		}
 		
+		mNetworkConfig.setIsRoaming(info.isRoaming());
+		
+		/*
+		 * DNS settings provided as system properties (see build.prop on the rooted device)
+		 * 
+		 * WiFi default DNS:
+		 * net.wlan0.dns1=8.8.8.8
+		 * net.wlan0.dns2=8.8.4.4
+		 * 
+		 * Mobile internet default DNS:
+		 * net.pdp0.dns1=8.8.8.8
+		 * net.pdp0.dns2=8.8.4.4
+		 * 
+		 * VPN (?) default DNS:
+		 * net.ppp0.dns1=8.8.8.8
+		 * net.ppp0.dns2=8.8.4.4
+		 * 
+		 * Ethernet default  DNS:
+		 * net.eth0.dns1=8.8.8.8
+		 * net.eth0.dns2=8.8.4.4
+		 * 
+		 * 
+		 * net.gprs.dns1=8.8.8.8
+		 * net.gprs.dns2=8.8.4.4
+		 * 
+		 */
 		//TODO: add DNS addresses && domains
+		
 		if(getListener() != null) {
 			getListener().notifyConnectivityChanged(mNetworkConfig, isFailover);
 		}
