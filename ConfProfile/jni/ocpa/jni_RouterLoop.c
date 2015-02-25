@@ -63,6 +63,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 	LOGD(LOG_TAG, "Starting router loop");
 	int i, j;
 	int res = 0;
+	int event_count = 0;
 	bool do_rebuild_epoll_struct = false;
 	int epoll_fd = ctx->epoll_fd;
 	LOGDIF(ROUTER_DEBUG, LOG_TAG, "epoll_fd=%d", epoll_fd);
@@ -88,16 +89,16 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 		}
 		pthread_rwlock_unlock(ctx->rwlock4);
 
-		res = epoll_wait(epoll_fd, epoll_events, MAX_EPOLL_EVENTS, timeout_msecs);
-		if(res == -1) {
+		event_count = epoll_wait(epoll_fd, epoll_events, MAX_EPOLL_EVENTS, timeout_msecs);
+		if(event_count == -1) {
 			//TODO: error handling
 			LOGE(LOG_TAG, "Error while epoll_wait() %d: %s", errno, strerror(errno));
 			goto failed;
 		}
 
-		if(ROUTER_DEBUG && (res > 0)) {
-			LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Received %d epoll event(s)", res);
-			for(i = 0; i < res; i++) {
+		if(ROUTER_DEBUG && (event_count > 0)) {
+			LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Received %d epoll event(s)", event_count);
+			for(i = 0; i < event_count; i++) {
 				LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "%d. events=0x%x (%d), fd=%d",
 						i,
 						epoll_events[i].events,
@@ -106,7 +107,12 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 			}
 		}
 
-		for(i = 0; i < res; i++) {
+		for(i = 0; i < event_count; i++) {
+			LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Event %d of %d (events=0x%08x, fd=%d)",
+					i,
+					event_count,
+					epoll_events[i].events,
+					epoll_events[i].data.fd);
 			if((epoll_events[i].events & EPOLLIN) != 0) {
 				LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Read from fd=%d (events=%08x)", epoll_events[i].data.fd, epoll_events[i].events);
 
@@ -114,7 +120,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 				tun_ctx_t* tmp_tun_ctx = NULL;
 
 				pthread_rwlock_rdlock(ctx->rwlock4);
-				for(j = 0; j < ctx->epoll_links_capacity; j++) {
+				for(j = 0; j < ctx->epoll_links_count; j++) {
 					if(ctx->epoll_links[j].fd == epoll_events[i].data.fd) {
 						tmp_tun_ctx = ctx->epoll_links[j].tun_ctx;
 						break;

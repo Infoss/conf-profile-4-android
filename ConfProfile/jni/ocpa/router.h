@@ -57,6 +57,7 @@ struct router_ctx_t {
     struct epoll_event epoll_events[MAX_EPOLL_EVENTS];
     epoll_link_t* epoll_links;
     unsigned int epoll_links_capacity;
+    unsigned int epoll_links_count;
 
     bool routes_updated;
     bool paused;

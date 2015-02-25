@@ -74,6 +74,7 @@ router_ctx_t* router_init() {
 		}
 
 		ctx->epoll_links_capacity = 4;
+		ctx->epoll_links_count = 0;
 		ctx->epoll_links = malloc(ctx->epoll_links_capacity * sizeof(epoll_link_t));
 		if(ctx->epoll_links == NULL) {
 			close(ctx->epoll_fd);
@@ -336,7 +337,7 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 	}
 
 	int i;
-	for(i = 0; i < ctx->epoll_links_capacity; i++) {
+	for(i = 0; i < ctx->epoll_links_count; i++) {
 		LOGDIF(ROUTER_DEBUG, LOG_TAG, "Checking epoll_links[%d]: tun_ctx=%p, fd=%d",
 				i,
 				ctx->epoll_links[i].tun_ctx,
@@ -738,6 +739,7 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 			goto error;
 		}
 		ctx->epoll_links_capacity = new_poll_count;
+		ctx->epoll_links_count = poll_count;
 	}
 
 	memset(ctx->epoll_links, 0, ctx->epoll_links_capacity * sizeof(epoll_link_t));
@@ -750,11 +752,12 @@ void rebuild_epoll_struct(router_ctx_t* ctx) {
 		ctx->epoll_links[i].tun_ctx = ctxs[i];
 
 		ev = &(ctx->epoll_links[i].evt);
-		ev->events = EPOLLIN | EPOLLOUT;
+		//ev->events = EPOLLIN | EPOLLOUT;
+		ev->events = EPOLLIN;
 		ev->data.fd = ctx->epoll_links[i].fd;
 		LOGDIF(ROUTER_DEBUG, LOG_TAG, "epoll_links[%i]: fd=%d, event=%p", i, ctx->epoll_links[i].fd, ev);
 
-		if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ev->data.fd, &ev) == -1) {
+		if(epoll_ctl(ctx->epoll_fd, EPOLL_CTL_ADD, ev->data.fd, ev) == -1) {
 			LOGEIF(ROUTER_DEBUG, LOG_TAG, "Error while epoll_ctl(EPOLL_CTL_ADD) %d: %s", errno, strerror(errno));
 			//continue
 		}
