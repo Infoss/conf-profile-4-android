@@ -53,7 +53,9 @@ public class PayloadInfoExLoader extends AsyncTaskLoader<List<List<PayloadInfoEx
 			super.deliverResult(data);
 		}
 		
-		recycle(oldData);
+		if(oldData != data) {
+			recycle(oldData);
+		}
 	}
 	
 	@Override

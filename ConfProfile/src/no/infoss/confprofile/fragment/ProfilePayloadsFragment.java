@@ -39,6 +39,25 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 	private DbOpenHelper mDbHelper;
 	private String mProfileId;
 	
+	private OnItemClickListener mItemClickListener = new OnItemClickListener() {
+
+		@Override
+		public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+			HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>> adapter = 
+					(HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>>) parent.getAdapter();
+			
+			PayloadInfoEx info = (PayloadInfoEx) adapter.getItem(position);
+			if(VpnPayload.VALUE_PAYLOAD_TYPE.equals(info.payloadType)) {
+				Activity activity = getActivity();
+				if(activity != null) {
+					Intent intent = new Intent(activity, no.infoss.confprofile.VpnPayload.class);
+					intent.putExtra(VpnDataCursorLoader.P_PAYLOAD_UUID, info.payloadUuid);
+					startActivity(intent);
+				}
+			}
+		}
+	};
+	
 	public ProfilePayloadsFragment() {
 		super();
 		resetFields();
@@ -135,24 +154,7 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 			list.setAdapter(mAdapter);
 		}
 		
-		list.setOnItemClickListener(new OnItemClickListener() {
-
-			@Override
-			public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-				HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>> adapter = 
-						(HeaderObjectAdapter<PayloadInfoEx, List<PayloadInfoEx>>) parent.getAdapter();
-				
-				PayloadInfoEx info = (PayloadInfoEx) adapter.getItem(position);
-				if(VpnPayload.VALUE_PAYLOAD_TYPE.equals(info.payloadType)) {
-					Activity activity = getActivity();
-					if(activity != null) {
-						Intent intent = new Intent(activity, no.infoss.confprofile.VpnPayload.class);
-						intent.putExtra(VpnDataCursorLoader.P_PAYLOAD_UUID, info.payloadUuid);
-						startActivity(intent);
-					}
-				}
-			}
-		});
+		list.setOnItemClickListener(mItemClickListener);
 		
 		return view;
 	}
@@ -160,6 +162,11 @@ public class ProfilePayloadsFragment extends Fragment implements LoaderCallbacks
 	@Override
 	public void onActivityCreated(Bundle savedInstanceState) {
 		super.onActivityCreated(savedInstanceState);
+	}
+	
+	@Override
+	public void onResume() {
+		super.onResume();
 		
 		Bundle request = null;
 		
