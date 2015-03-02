@@ -674,6 +674,11 @@ static void set_options(char *logfile)
 	lib->settings->set_str(lib->settings,
 					"libtnccs.tnc_config", "");
 #endif
+
+	//infoss-specific settings
+	/* force Cisco Unity usage */
+	lib->settings->set_bool(lib->settings,
+					"charon.cisco_unity", TRUE);
 }
 
 /**
