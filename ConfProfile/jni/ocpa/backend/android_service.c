@@ -545,7 +545,12 @@ static job_requeue_t initiate(private_android_service_t *this)
 		remote_port = IKEV2_NATT_PORT;
 	}
 
-	ike_cfg = ike_cfg_create(IKEV1, TRUE, FALSE, "0.0.0.0/0,::/0", //"0.0.0.0",
+	/*
+	 * ike_cfg = ike_cfg_create(IKEV1, TRUE, FALSE, "0.0.0.0/0,::/0", //"0.0.0.0",
+							 local_port, this->gateway, remote_port,
+							 FRAGMENTATION_NO, 0);
+	 */
+	ike_cfg = ike_cfg_create(IKEV1, TRUE, TRUE, "0.0.0.0/0,::/0", //"0.0.0.0",
 							 local_port, this->gateway, remote_port,
 							 FRAGMENTATION_NO, 0);
 
