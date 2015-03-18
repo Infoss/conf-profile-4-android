@@ -120,6 +120,8 @@ struct charonservice_t {
 
 	bool (*add_route)(charonservice_t *this, host_t *net, u_int8_t prefix);
 
+	bool (*add_dns)(charonservice_t *this, host_t *dns);
+
 	char* (*get_xauth_identity)(charonservice_t *this);
 
 	char* (*get_xauth_key)(charonservice_t *this);

@@ -504,6 +504,53 @@ failed:
 	return FALSE;
 }
 
+METHOD(charonservice_t, add_dns, bool,
+	private_charonservice_t *this, host_t *dns)
+{
+	JNIEnv *env;
+	jmethodID method_id;
+	jstring str;
+	char buf[INET6_ADDRSTRLEN];
+
+	bool need_detach = androidjni_attach_thread(&env);
+
+	DBG2(DBG_LIB, "tunnel: adding DNS %H", dns);
+
+	if (snprintf(buf, sizeof(buf), "%H", dns) >= sizeof(buf))
+	{
+		goto failed;
+	}
+
+	method_id = (*env)->GetMethodID(env, android_ipsectunnel_class,
+									"addDns", "(Ljava/lang/String;)Z");
+	if (!method_id)
+	{
+		goto failed;
+	}
+	str = (*env)->NewStringUTF(env, buf);
+	if (!str)
+	{
+		goto failed;
+	}
+	if (!(*env)->CallBooleanMethod(env, this->jtunnel, method_id, str))
+	{
+		goto failed;
+	}
+
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
+	return TRUE;
+
+failed:
+	DBG1(DBG_LIB, "tunnel: failed to add dns");
+	androidjni_exception_occurred(env);
+	if(need_detach) {
+		androidjni_detach_thread();
+	}
+	return FALSE;
+}
+
 METHOD(charonservice_t, get_xauth_identity, char *,
 	private_charonservice_t *this)
 {
@@ -709,6 +756,7 @@ static void charonservice_init(JNIEnv *env, jobject tunnel, jboolean byod, ipsec
 			.get_fd = _get_fd,
 			.add_address = _add_address,
 			.add_route =_add_route,
+			.add_dns =_add_dns,
 			.get_xauth_identity = _get_xauth_identity,
 			.get_xauth_key = _get_xauth_key,
 		},
