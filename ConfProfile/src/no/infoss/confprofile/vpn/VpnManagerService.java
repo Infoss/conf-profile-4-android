@@ -1,7 +1,9 @@
 package no.infoss.confprofile.vpn;
 
+import java.net.InetAddress;
 import java.net.Socket;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedList;
@@ -12,6 +14,7 @@ import no.infoss.confprofile.profile.data.VpnDataEx;
 import no.infoss.confprofile.util.AndroidProperties;
 import no.infoss.confprofile.util.LocalNetworkConfig;
 import no.infoss.confprofile.util.MiscUtils;
+import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
 import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
@@ -229,11 +232,21 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		OcpaVpnInterface vpnService = mBindKit.lock();
 		try {
 			mCurrLocalNetConfig = LOCAL_NET_CONFIGS.get(0);
+			InetAddress[] dnsAddrs = mCurrLocalNetConfig.getDnsAddresses(null);
+			ArrayList<String> virtualDnsAddrs = new ArrayList<String>(dnsAddrs.length);
+			for(InetAddress addr : dnsAddrs) {
+				if(addr != null) {
+					virtualDnsAddrs.add(addr.getHostAddress());
+				}
+			}
+			
 			mRouterLoop = new RouterLoop(this, vpnService.createBuilderAdapter("OpenProfile"));
 			mRouterLoop.startLoop();
 			
 			mUsernatTunnel = new UsernatTunnel(getApplicationContext(), this);
 			mUsernatTunnel.establishConnection();
+			mUsernatTunnel.setVirtualDnsAddrs(virtualDnsAddrs.toArray(new String[virtualDnsAddrs.size()]));
+			mUsernatTunnel.setDnsAddrs(AndroidProperties.getInstance().getNetworkSpecificDnsAddrs(this));
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);
 			
