@@ -40,20 +40,18 @@ struct usernat_tun_ctx_private_t {
 
 static nat_link_t* link_init();
 static void link_deinit(nat_link_t* link);
-static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, bool* is_incoming);
+static nat_link_t* find_link(struct usernat_tun_ctx_private_t* instance, ocpa_ip_packet_t* packet, bool* is_incoming);
 static nat_link_t* find_link4(nat_link_t* root_link, uint8_t local_link_type, uint32_t local_addr, uint16_t local_port, uint32_t remote_addr, uint16_t remote_port, bool* is_incoming);
 static nat_link_t* create_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, uint8_t local_link_type);
-static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet);
-static nat_link_t* create_link_udp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet);
+static nat_link_t* create_link_tcp4(struct usernat_tun_ctx_private_t* instance, ocpa_ip_packet_t* packet);
+static nat_link_t* create_link_udp4(struct usernat_tun_ctx_private_t* instance, ocpa_ip_packet_t* packet);
 
-static int create_socket(usernat_tun_ctx_t* ctx, int family, int socktype, int protocol, bool protect) {
+static int create_socket(struct usernat_tun_ctx_private_t* instance, int family, int socktype, int protocol, bool protect) {
 	int sock = socket(family, socktype, protocol);
 	if(sock == -1) {
 		LOGD(LOG_TAG, "create_socket(): can't create socket");
 		return sock;
 	}
-
-	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
 
 	if(protect) {
 		LOGD(LOG_TAG, "create_socket(): protecting socket %d", sock);
@@ -111,6 +109,7 @@ static ssize_t usernat_tun_ctx_send(tun_ctx_t* ctx, uint8_t* buff, int len) {
 	ip_parse_packet(&packet);
 
 	bool is_incoming = false;
+	int i = 0;
 
 	nat_link_t* link = find_link(instance, &packet, &is_incoming);
 	if(link == NULL) {
@@ -126,6 +125,17 @@ static ssize_t usernat_tun_ctx_send(tun_ctx_t* ctx, uint8_t* buff, int len) {
 			packet.ip_header.v4->saddr = htonl(link->ip4.real_dst_addr);
 			packet.ip_header.v4->daddr = htonl(instance->local4);
 			packet.payload_header.tcp->source = htons(link->ip4.real_dst_port);
+
+			for(i = 0; i < 4; i++) {
+				int remoteDnsIp = htonl(instance->tun_ctx.dns_ip4[i]);
+				int remoteVirtualIp = htonl(instance->tun_ctx.virtual_dns_ip4[i]);
+				if(remoteDnsIp != 0 && remoteVirtualIp != 0 && remoteDnsIp == packet.ip_header.v4->saddr) {
+					packet.ip_header.v4->saddr = remoteVirtualIp;
+					LOGD(LOG_TAG, "Rewriting DNS");
+					log_dump_packet(LOG_TAG, packet.buff, packet.pkt_len);
+					break;
+				}
+			}
 		} else {
 			//outgoing usernat packet
 			packet.ip_header.v4->saddr = htonl(instance->remote4);
@@ -350,12 +360,10 @@ static void link_deinit(nat_link_t* link) {
 	free(link);
 }
 
-static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, bool* is_incoming) {
-	if(ctx == NULL || packet == NULL || packet->ip_header.raw == NULL) {
+static nat_link_t* find_link(struct usernat_tun_ctx_private_t* instance, ocpa_ip_packet_t* packet, bool* is_incoming) {
+	if(instance == NULL || packet == NULL || packet->ip_header.raw == NULL) {
 		return NULL;
 	}
-
-	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
 
 	nat_link_t* result = NULL;
 
@@ -374,6 +382,19 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 			remote_port = packet->src_port;
 		} else if(ip4_addr_eq(instance->local4, ntohl(packet->ip_header.v4->saddr))) {
 			//outgoing usernat packet
+			//handle virtual dns ip
+			int i = 0;
+			for(i = 0; i < 4; i++) {
+				int remoteDnsIp = htonl(instance->tun_ctx.dns_ip4[i]);
+				int remoteVirtualIp = htonl(instance->tun_ctx.virtual_dns_ip4[i]);
+				if(remoteDnsIp != 0 && remoteVirtualIp != 0 && remoteVirtualIp == packet->ip_header.v4->daddr) {
+					packet->ip_header.v4->daddr = remoteDnsIp;
+					LOGD(LOG_TAG, "Rewriting DNS");
+					log_dump_packet(LOG_TAG, packet->buff, packet->pkt_len);
+					break;
+				}
+			}
+
 			(*is_incoming) = false;
 			local_port = packet->src_port;
 			remote_addr = ntohl(packet->ip_header.v4->daddr);
@@ -411,7 +432,7 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 				return NULL;
 			}
 
-			result = create_link(ctx, packet, local_link_type);
+			result = create_link(instance, packet, local_link_type);
 			if(result == NULL) {
 				LOGE(LOG_TAG, "find_link(): can't create link, dropping a packet");
 				return NULL;
@@ -442,7 +463,7 @@ static nat_link_t* find_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet, b
 			if(result->common.socat_pid == -1) {
 				LOGE(LOG_TAG, "Error while creating socat tunnel");
 				close(result->common.sock_accept);
-				usernat_set_pid_for_link((intptr_t) ctx, (intptr_t) result, -1);
+				usernat_set_pid_for_link((intptr_t) instance, (intptr_t) result, -1);
 				result = NULL;
 				//we don't free result here due to setting  cycles_to_live in usernat_set_pid_for_link()
 			}
@@ -546,14 +567,12 @@ static nat_link_t* create_link(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet,
 	return result;
 }
 
-static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
+static nat_link_t* create_link_tcp4(struct usernat_tun_ctx_private_t* instance, ocpa_ip_packet_t* packet) {
 	if(packet->payload_header.tcp->syn == 0) {
 		//create a link on SYN packet only
 		LOGD(LOG_TAG, "create_link_tcp4(): not a SYN");
 		return NULL;
 	}
-
-	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
 
 	LOGD(LOG_TAG, "create_link_tcp4(): %08x:%d->%08x:%d",
 			packet->ip_header.v4->saddr,
@@ -564,8 +583,7 @@ static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 	sockaddr_uni tmp_sa;
 
 	//preparing sock_accept
-	//int sock_accept = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	int sock_accept = create_socket(ctx, AF_INET, SOCK_STREAM, IPPROTO_TCP, false);
+	int sock_accept = create_socket(instance, AF_INET, SOCK_STREAM, IPPROTO_TCP, false);
 	if(sock_accept == -1) {
 		LOGD(LOG_TAG, "create_link_tcp4(): can't create sock_accept %d: %s", errno, strerror(errno));
 		return NULL;
@@ -591,8 +609,7 @@ static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 	}
 
 	//preparing_sock_connect
-	//int sock_connect = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	int sock_connect = create_socket(ctx, AF_INET, SOCK_STREAM, IPPROTO_TCP, true);
+	int sock_connect = create_socket(instance, AF_INET, SOCK_STREAM, IPPROTO_TCP, true);
 	if(sock_connect == -1) {
 		LOGD(LOG_TAG, "create_link_tcp4(): can't create sock_connect %d: %s", errno, strerror(errno));
 		close(sock_accept);
@@ -627,19 +644,16 @@ static nat_link_t* create_link_tcp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 	return result;
 }
 
-static nat_link_t* create_link_udp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* packet) {
+static nat_link_t* create_link_udp4(struct usernat_tun_ctx_private_t* instance, ocpa_ip_packet_t* packet) {
 	sockaddr_uni tmp_sa;
 
-	struct usernat_tun_ctx_private_t* instance = (struct usernat_tun_ctx_private_t*) ctx;
-
-	LOGD(LOG_TAG, "create_link_tcp4(): %08x:%d->%08x:%d",
+	LOGD(LOG_TAG, "create_link_udp4(): %08x:%d->%08x:%d",
 			packet->ip_header.v4->saddr,
 			ntohs(packet->payload_header.udp->source),
 			packet->ip_header.v4->daddr,
 			ntohs(packet->payload_header.udp->dest));
 
-	//int sock_accept = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	int sock_accept = create_socket(ctx, AF_INET, SOCK_DGRAM, IPPROTO_UDP, false);
+	int sock_accept = create_socket(instance, AF_INET, SOCK_DGRAM, IPPROTO_UDP, false);
 	if(sock_accept == -1) {
 		LOGD(LOG_TAG, "create_link_udp4(): can't create sock_accept %d: %s", errno, strerror(errno));
 		return NULL;
@@ -649,20 +663,39 @@ static nat_link_t* create_link_udp4(usernat_tun_ctx_t* ctx, ocpa_ip_packet_t* pa
 	tmp_sa.in.sin_addr.s_addr = htonl(instance->local4);
 	if(bind(sock_accept, &tmp_sa.sa, sizeof(tmp_sa)) == -1) {
 		LOGD(LOG_TAG, "create_link_udp4(): can't bind sock_accept %d: %s", errno, strerror(errno));
+		close(sock_accept);
 		return NULL;
 	}
 
-	if(listen(sock_accept, 5) == -1) {
-		LOGD(LOG_TAG, "create_link_udp4(): can't listen() sock_accept %d: %s", errno, strerror(errno));
+	int tmp_sa_size = sizeof(tmp_sa);
+	if(getsockname(sock_accept, &tmp_sa.sa, &tmp_sa_size) == -1) {
+		LOGD(LOG_TAG, "create_link_udp4(): can't getsockname() sock_accept %d: %s", errno, strerror(errno));
+		close(sock_accept);
 		return NULL;
 	}
 
-	//int sock_connect = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
-	int sock_connect = create_socket(ctx, AF_INET, SOCK_DGRAM, IPPROTO_UDP, true);
+	int sock_connect = create_socket(instance, AF_INET, SOCK_DGRAM, IPPROTO_UDP, true);
 	if(sock_connect == -1) {
 		LOGD(LOG_TAG, "create_link_udp4(): can't create sock_connect %d: %s", errno, strerror(errno));
 		close(sock_accept);
 		return NULL;
+	}
+
+	sockaddr_uni tmp_sa2;
+	tmp_sa_size = sizeof(tmp_sa2);
+
+	tmp_sa2.in.sin_family = AF_INET;
+	tmp_sa2.in.sin_addr.s_addr = htonl(instance->remote4);
+	tmp_sa2.in.sin_port = packet->payload_header.tcp->source;
+	if(connect(sock_accept, &tmp_sa2.sa, tmp_sa_size) == -1) {
+		LOGE(LOG_TAG, "create_link_udp4(): can't connect sock_accept %d: %s", errno, strerror(errno));
+	}
+
+	tmp_sa2.in.sin_family = AF_INET;
+	tmp_sa2.in.sin_addr.s_addr = packet->ip_header.v4->daddr;
+	tmp_sa2.in.sin_port = packet->payload_header.tcp->dest;
+	if(connect(sock_connect, &tmp_sa2.sa, tmp_sa_size) == -1) {
+		LOGE(LOG_TAG, "create_link_udp4(): can't connect sock_connect %d: %s", errno, strerror(errno));
 	}
 
 	nat_link_t* result = link_init();
