@@ -560,6 +560,10 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		mRouterLoop.removeTunnel(vpnTunnel);
 	}
 	
+	public void intlAddTunnelRoute4(VpnTunnel vpnTunnel, String address, int mask) {
+		mRouterLoop.route4(vpnTunnel, address, mask);
+	}
+	
 	private Intent createBroadcastIntent() {
 		Intent intent = new Intent(BROADCAST_VPN_EVENT);
 		intent.setPackage(getPackageName());

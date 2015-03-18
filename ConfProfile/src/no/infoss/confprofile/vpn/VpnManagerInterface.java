@@ -83,6 +83,7 @@ public interface VpnManagerInterface extends IInterface {
 	
 	//methods need to be refactored/removed
 	public void intlRemoveTunnel(VpnTunnel vpnTunnel);
+	public void intlAddTunnelRoute4(VpnTunnel vpnTunnel, String address, int mask);
 	
 	//debug methods
 	public boolean isDebugPcapEnabled();
