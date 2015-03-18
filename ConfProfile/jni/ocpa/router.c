@@ -160,6 +160,8 @@ void route4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask, tun_ctx_t* tun_ctx) 
 		mask = 32;
 	}
 
+	LOGD(LOG_TAG, "route4(%08x/%d -> %p)", ip4, mask, tun_ctx);
+
 	uint8_t netmask = (uint8_t) mask;
 
 	ip4 = (ip4 >> (32 - netmask)) << (32 - netmask);
@@ -343,12 +345,19 @@ void unroute(router_ctx_t* ctx, tun_ctx_t* tun_ctx) {
 				ctx->epoll_links[i].tun_ctx,
 				ctx->epoll_links[i].fd);
 		if(ctx->epoll_links[i].tun_ctx == tun_ctx) {
+			LOGDIF(ROUTER_DEBUG, LOG_TAG, "Remove IPv4 routes");
+			LOGDIF(ROUTER_DEBUG, LOG_TAG, "tun_ctx=%p", tun_ctx);
 			//free reference to tun_ctx
 			tun_ctx->ref_put(tun_ctx);
 			//mark tunnel context as inexistent
+			LOGDIF(ROUTER_DEBUG, LOG_TAG, "ctx=%p", ctx);
+			LOGDIF(ROUTER_DEBUG, LOG_TAG, "ctx->epoll_links=%p", ctx->epoll_links);
+			LOGDIF(ROUTER_DEBUG, LOG_TAG, "ctx->epoll_links[i].tun_ctx=%p", ctx->epoll_links[i].tun_ctx);
 			ctx->epoll_links[i].tun_ctx = NULL;
 		}
 	}
+
+	LOGDIF(ROUTER_DEBUG, LOG_TAG, "Remove IPv4 routes");
 
 	//remove IPv4 routes
 	route4_link_t* curr4 = ctx->ip4_routes;
@@ -443,6 +452,8 @@ void unroute4(router_ctx_t* ctx, uint32_t ip4, uint32_t mask) {
 	if(ctx == NULL) {
 		return;
 	}
+
+	LOGD(LOG_TAG, "unroute4(%08x/%d)", ip4, mask);
 
 	pthread_rwlock_wrlock(ctx->rwlock4);
 
@@ -566,7 +577,7 @@ ssize_t ipsend(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 	if(ip_packet->ipver == 4) {
 		result = send4(ctx, ip_packet);
 	} else if(ip_packet->ipver == 6) {
-		result = send6(ctx, ip_packet);
+		//result = send6(ctx, ip_packet);
 	} else {
 
 	}
@@ -639,6 +650,7 @@ ssize_t send6(router_ctx_t* ctx, ocpa_ip_packet_t* ip_packet) {
 	if(ctx->ip6_routes != NULL) {
 		route6_link_t* curr = ctx->ip6_routes;
 		while(curr != NULL) {
+			LOGDIF(ROUTER_DEBUG, LOG_TAG, "send6: memcmp(%p->ip6, %p, 16)", curr, ip6);
 			int cmp_addrs = memcmp(curr->ip6, ip6, 16);
 			if(ip6_addr_match(curr->ip6, curr->mask, ip6)) {
 				tun_ctx = curr->tun_ctx;
