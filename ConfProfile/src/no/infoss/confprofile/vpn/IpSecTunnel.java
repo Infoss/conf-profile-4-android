@@ -33,6 +33,7 @@ public class IpSecTunnel extends VpnTunnel {
 	private String mLogFile;
 	private volatile String mCurrentCertificateAlias;
 	private volatile String mCurrentUserCertificateAlias;
+	private volatile int mDnsIdx = 0;
 	
 	/**
 	 * as defined in charonservice.h
@@ -82,37 +83,10 @@ public class IpSecTunnel extends VpnTunnel {
 		//AuthenticationMethod - Certificate or SharedSecret
 		//XAuthEnabled - 0 / 1
 		
-		mOptions.put("identifier", new String("ikev1-cert-xauth"));
-		
-		/*
-		while(true) {
-			synchronized(this) {
-				try {
-					if(!isTerminated()) {
-						startConnection();
-
-						if(initializeCharon(mLogFile, getEnableBYOD(), mVpnTunnelCtx)) {
-							Log.i(TAG, "charon started");
-							initiate(getIdentifier(), getRemoteAddress(), getUsername(),getPassword());
-						} else {
-							Log.e(TAG, "failed to start charon");
-							setError(ErrorState.GENERIC_ERROR);
-							terminateConnection();
-						}
-					} else {
-						Log.i(TAG, "ipsec stopped");
-						break;
-					}
-
-					wait();
-				} catch(InterruptedException ex) {
-					setState(ConnectionStatus.DISCONNECTING);
-					terminateConnection();
-				}
-			}
-		}*/		
+		mOptions.put("identifier", new String("ikev1-cert-xauth"));	
 		
 		synchronized(this) {
+			mDnsIdx = 0;
 			startConnection();
 			if(!initializeCharon(mLogFile, getEnableBYOD(), mVpnTunnelCtx)) {
 				Log.e(TAG, "failed to start charon, exiting");
@@ -496,6 +470,25 @@ public class IpSecTunnel extends VpnTunnel {
 		try {
 			//mBuilder.addRoute(address, prefixLength);
 		} catch (IllegalArgumentException ex) {
+			return false;
+		}
+		return true;
+	}
+	
+	private synchronized boolean addDns(String address) {
+		Log.d(TAG, "addDns(): " + address);
+		try {
+			setDnsAddress(mDnsIdx, NetUtils.ip4StrToInt(address));
+			mDnsIdx++;
+		} catch (IllegalArgumentException ex) {
+			mLogger.logException(LOG_WARN, 
+					String.format("IpSecTunnel.addDns(): Can't set dns address: %s", address), 
+					ex);
+			return false;
+		} catch (Exception e) {
+			mLogger.logException(LOG_WARN, 
+					String.format("IpSecTunnel.addDns(): Invalid dns address: %s", address), 
+					e);
 			return false;
 		}
 		return true;
