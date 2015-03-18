@@ -18,6 +18,8 @@ struct tun_ctx_private_t {
 	pthread_rwlock_t* rwlock;
 	int local_fd;  //router side
 	int remote_fd; //vpn implementation side
+	uint32_t virtual_dns_ip4[4];
+	uint32_t dns_ip4[4];
 	uint32_t masquerade4;
 	uint8_t masquerade6[16];
 	bool use_masquerade4;

@@ -38,6 +38,8 @@ union tun_ctx_t {
 		void (*masqueradeDst)(tun_ctx_t* instance, uint8_t* buff, int len);
 		int (*getLocalFd)(tun_ctx_t* instance);
 		int (*getRemoteFd)(tun_ctx_t* instance);
+		void (*setDnsIp4)(tun_ctx_t* instance, uint32_t idx, uint32_t ip);
+		void (*setVirtualDnsIp4)(tun_ctx_t* instance, uint32_t idx, uint32_t ip);
 		void (*setMasquerade4Mode)(tun_ctx_t* instance, bool mode);
 		void (*setMasquerade4Ip)(tun_ctx_t* instance, uint32_t ip);
 		void (*setMasquerade6Mode)(tun_ctx_t* instance, bool mode);

@@ -121,6 +121,7 @@ static ssize_t tun_ctx_recv(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
 		}
 		return res;
 	}
+	LOGDIF(TUN_DEBUG, LOG_TAG, "Read %d bytes into buff=%p from fd=%d", res, buff, ctx->local_fd);
 
 	ctx->bytes_in += res;
 
@@ -185,6 +186,26 @@ static int get_remote_fd(tun_ctx_t* tun_ctx) {
 
 	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
 	return ctx->remote_fd;
+}
+
+static void set_dns_ip4(tun_ctx_t* tun_ctx, uint32_t idx, uint32_t ip4) {
+	TRACEPRINT("(tun_ctx=%p, idx=%d, ip=0x%08x)", tun_ctx, idx, ip4);
+	if(tun_ctx == NULL || idx > 3) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	ctx->dns_ip4[idx] = ip4;
+}
+
+static void set_virtual_dns_ip4(tun_ctx_t* tun_ctx, uint32_t idx, uint32_t ip4) {
+	TRACEPRINT("(tun_ctx=%p, idx=%d, ip=0x%08x)", tun_ctx, idx, ip4);
+	if(tun_ctx == NULL || idx > 3) {
+		return;
+	}
+
+	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
+	ctx->virtual_dns_ip4[idx] = ip4;
 }
 
 static void set_masquerade4_mode(tun_ctx_t* tun_ctx, bool mode) {
@@ -380,6 +401,8 @@ tun_ctx_t* create_tun_ctx(tun_ctx_t* ptr, ssize_t len) {
 	instance->public.masqueradeDst = masquerade_dst;
 	instance->public.getLocalFd = get_local_fd;
 	instance->public.getRemoteFd = get_remote_fd;
+	instance->public.setDnsIp4 = set_dns_ip4;
+	instance->public.setVirtualDnsIp4 = set_virtual_dns_ip4;
 	instance->public.setMasquerade4Mode = set_masquerade4_mode;
 	instance->public.setMasquerade4Ip = set_masquerade4_ip;
 	instance->public.setMasquerade6Mode = set_masquerade6_mode;
