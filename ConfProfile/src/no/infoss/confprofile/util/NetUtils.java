@@ -1,10 +1,18 @@
 package no.infoss.confprofile.util;
 
 import java.io.IOException;
+import java.net.Inet4Address;
+import java.net.InetAddress;
 
 import android.net.LocalServerSocket;
 
 public class NetUtils {
+	/*
+	public static boolean isIpv4Addess(String addr) {
+		Inet4Address
+	}
+	*/
+	
 	public static int ip4StrToInt(String ip4) {
 		int result = 0;
 		String parts[] = ip4.split("\\.");
@@ -35,6 +43,22 @@ public class NetUtils {
 		int b2 = (ip4 >>> 8) & 0x000000ff;
 		int b3 = ip4 & 0x000000ff;
 		return String.format("%d.%d.%d.%d", b0, b1, b2, b3);
+	}
+	
+	public static byte[] ip4IntToBytes(int ip4, byte[] buff) {
+		byte[] result = null;
+		if(buff != null && buff.length != 4) {
+			result = buff;
+		} else {
+			result = new byte[4];
+		}
+		
+		result[0] = (byte) (ip4 >>> 24);
+		result[1] = (byte) ((ip4 >>> 16) & 0x000000ff);
+		result[2] = (byte) ((ip4 >>> 8) & 0x000000ff);
+		result[3] = (byte) (ip4 & 0x000000ff);
+		
+		return result;
 	}
 	
 	public static int mask4StrToInt(String mask4) {
@@ -69,7 +93,7 @@ public class NetUtils {
 	
 	public static byte[] ip6StrToBytes(String ip6, byte[] buff) {
 		byte[] result = null;
-		if(buff != null && buff.length >= 16) {
+		if(buff != null && buff.length != 16) {
 			result = buff;
 		} else {
 			result = new byte[16];

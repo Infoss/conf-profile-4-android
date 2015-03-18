@@ -1,8 +1,10 @@
 package no.infoss.confprofile.vpn;
 
+import java.net.InetAddress;
 import java.util.List;
 
 import no.infoss.confprofile.BuildConfig;
+import no.infoss.confprofile.util.LocalNetworkConfig;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.vpn.OcpaVpnService.BuilderAdapter;
@@ -53,14 +55,24 @@ import android.util.Log;
 			 * Here we set local address as 172.31.255.254.
 			 * 172.31.255.253 will be used by usernat as "remote" address.
 			 */
-			String addr = NetUtils.ip4IntToStr(mVpnMgr.getLocalAddress4());
-			int mask = mVpnMgr.getSubnetMask4();
+			LocalNetworkConfig netCfg = mVpnMgr.getLocalNetworkConfig();
+			String addr = netCfg.getLocalAddr();
+			int mask =netCfg.getSubnetMask();
 			if(!mBuilder.addAddress(addr, mask)) {
 				Log.d(TAG, "Can't add address=".concat(addr).concat("/").concat(String.valueOf(mask)));
 			}
 			
 			if(!mBuilder.addRoute("0.0.0.0", 0)) {
 				Log.d(TAG, "Can't add route=".concat("0.0.0.0/0"));
+			}
+			
+			for(InetAddress inetAddr : mVpnMgr.getLocalNetworkConfig().getDnsAddresses(null)) {
+				if(inetAddr != null) {
+					Log.d(TAG, "Add DNS=".concat(inetAddr.toString()));
+					if(!mBuilder.addDnsServer(inetAddr.getHostAddress())) {
+						Log.d(TAG, "Can't add DNS=".concat(inetAddr.getHostAddress()));
+					}
+				}
 			}
 			
 			setMasqueradeIp4(mRouterCtx, NetUtils.ip4StrToInt("172.31.255.254"));

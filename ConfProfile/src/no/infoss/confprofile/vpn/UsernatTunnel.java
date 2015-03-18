@@ -312,7 +312,7 @@ public class UsernatTunnel extends VpnTunnel {
 	 * @return
 	 */
 	protected int getLocalAddress4() {
-		return mVpnMgr.getLocalAddress4();
+		return mVpnMgr.getLocalNetworkConfig().getLocalIp();
 	}
 	
 	/**
@@ -320,7 +320,7 @@ public class UsernatTunnel extends VpnTunnel {
 	 * @return
 	 */
 	protected int getRemoteAddress4() {
-		return mVpnMgr.getRemoteAddress4();
+		return mVpnMgr.getLocalNetworkConfig().getRemoteIp();
 	}
 	
 	private String readMessage(InputStream instream) throws IOException {

@@ -1,49 +1,83 @@
 package no.infoss.confprofile.util;
 
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
+
 
 public class LocalNetworkConfig {
-	public final int subnetIp;
-	public final int subnetMask;
-	public final int localIp;
-	public final int remoteIp;
+	private int mSubnetIp;
+	private int mSubnetMask;
+	private int mLocalIp;
+	private int mRemoteIp;
 	
-	public final String subnetAddr;
-	public final String localAddr;
-	public final String remoteAddr;
-	
-	public LocalNetworkConfig(String subnet, int mask, String local, String remote) {
-		subnetAddr = subnet;
-		subnetMask = mask;
-		localAddr = local;
-		remoteAddr = remote;
-		
-		subnetIp = NetUtils.ip4StrToInt(subnet);
-		localIp = NetUtils.ip4StrToInt(local);
-		remoteIp = NetUtils.ip4StrToInt(remote);
-	}
-	
-	public LocalNetworkConfig(int subnet, int mask, int local, int remote) {
-		subnetIp = subnet;
-		subnetMask = mask;
-		localIp = local;
-		remoteIp = remote;
-		
-		subnetAddr = NetUtils.ip4IntToStr(subnet);
-		localAddr = NetUtils.ip4IntToStr(local);
-		remoteAddr = NetUtils.ip4IntToStr(remote);
-	}
+	private InetAddress[] mDns = new InetAddress[4];
 	
 	public LocalNetworkConfig(String subnet) {
-		this(applyMask(subnet, 30));
+		init(NetUtils.ip4StrToInt(subnet));
 	}
 	
-	private LocalNetworkConfig(int subnet) {
-		this(subnet, 30, subnet + 2, subnet + 1);
+	public LocalNetworkConfig(int subnet) {
+		init(subnet);
 	}
 	
-	private static int applyMask(String addr, int mask) {
-		int ip = NetUtils.ip4StrToInt(addr);
+	private void init(int subnetIp) {
+		int mask = 29;
 		int bitmask = ((int)0xffffffff >>> (32 - mask)) << (32 - mask);
-		return ip & bitmask;
+		
+		mSubnetIp = subnetIp & bitmask;
+		mSubnetMask = mask;
+		
+		int ip = mSubnetIp;
+		byte[] buff = new byte[4];
+		for(int i = 0; i < 4; i++) {
+			ip++;
+			
+			try {
+				mDns[i] = Inet4Address.getByAddress(NetUtils.ip4IntToBytes(ip, buff));
+			} catch (UnknownHostException e) {
+				mDns[i] = null;
+			}
+		}
+		
+		mRemoteIp = ip + 1;
+		mLocalIp = ip + 2;
+	}
+	
+	public int getSubnetIp() {
+		return mSubnetIp;
+	}
+
+	public int getSubnetMask() {
+		return mSubnetMask;
+	}
+
+	public int getLocalIp() {
+		return mLocalIp;
+	}
+
+	public int getRemoteIp() {
+		return mRemoteIp;
+	}
+
+	public String getSubnetAddr() {
+		return NetUtils.ip4IntToStr(mSubnetIp);
+	}
+
+	public String getLocalAddr() {
+		return NetUtils.ip4IntToStr(mLocalIp);
+	}
+
+	public String getRemoteAddr() {
+		return NetUtils.ip4IntToStr(mRemoteIp);
+	}
+
+	public InetAddress[] getDnsAddresses(InetAddress[] dst) {
+		if(dst == null || dst.length < mDns.length) {
+			dst = new InetAddress[mDns.length];
+		}
+		
+		System.arraycopy(mDns, 0, dst, 0, mDns.length);
+		return dst;
 	}
 }

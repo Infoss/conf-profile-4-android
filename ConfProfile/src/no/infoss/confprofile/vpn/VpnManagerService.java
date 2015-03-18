@@ -9,6 +9,7 @@ import java.util.List;
 
 import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.profile.data.VpnDataEx;
+import no.infoss.confprofile.util.AndroidProperties;
 import no.infoss.confprofile.util.LocalNetworkConfig;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
@@ -53,7 +54,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		Security.addProvider(new InfossJcaProvider());
 		
 		List<LocalNetworkConfig> configs = new LinkedList<LocalNetworkConfig>();
-		configs.add(new LocalNetworkConfig("172.31.255.254")); //add 172.31.255.254/30
+		configs.add(new LocalNetworkConfig("172.31.255.254")); //add 172.31.255.254/29
 		LOCAL_NET_CONFIGS = Collections.unmodifiableList(configs);
 	}
 	
@@ -426,18 +427,26 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	}
 	
 	@Override
-	public int getLocalAddress4() {
-		return mCurrLocalNetConfig.localIp;
+	public LocalNetworkConfig getLocalNetworkConfig() {
+		return mCurrLocalNetConfig;
 	}
 	
+	@Deprecated
+	@Override
+	public int getLocalAddress4() {
+		return mCurrLocalNetConfig.getLocalIp();
+	}
+	
+	@Deprecated
 	@Override
 	public int getRemoteAddress4() {
-		return mCurrLocalNetConfig.remoteIp;
+		return mCurrLocalNetConfig.getRemoteIp();
 	}
 	
+	@Deprecated
 	@Override
 	public int getSubnetMask4() {
-		return mCurrLocalNetConfig.subnetMask;
+		return mCurrLocalNetConfig.getSubnetMask();
 	}
 
 	public RouterLoop getRouterLoop() {
@@ -509,7 +518,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 				mDebugDelegate.debugStartTunnelPcap(mRouterLoop.getMtu(), tun);
 			}
 			
-			mRouterLoop.defaultRoute4(tun);
+			//mRouterLoop.defaultRoute4(tun);
 			
 			if(oldTun != null) {
 				oldTun.terminateConnection();
@@ -595,6 +604,9 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 	}
 
 	public void onCurrentConfigChanged(String uuid) {
+		AndroidProperties props = AndroidProperties.getInstance();
+		String netDns[] = props.getNetworkSpecificDnsAddrs(this);
+		
 		if(uuid == null) {
 			Log.w(TAG, "onCurrentConfigChanged(null)");
 			return;

@@ -2,6 +2,7 @@ package no.infoss.confprofile.vpn;
 
 import java.net.Socket;
 
+import no.infoss.confprofile.util.LocalNetworkConfig;
 import no.infoss.confprofile.vpn.VpnTunnel.TunnelInfo;
 import android.os.IInterface;
 
@@ -68,8 +69,12 @@ public interface VpnManagerInterface extends IInterface {
 	public TunnelInfo getVpnTunnelInfo();
 	public String getSelectedVpnTunnelUuid();
 	
+	public LocalNetworkConfig getLocalNetworkConfig();
+	@Deprecated
 	public int getLocalAddress4();
+	@Deprecated
 	public int getRemoteAddress4();
+	@Deprecated
 	public int getSubnetMask4();
 	
 	//proxy methods to OcpaVpnService
