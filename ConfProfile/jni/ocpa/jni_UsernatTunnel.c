@@ -11,6 +11,11 @@
 JNI_METHOD(UsernatTunnel, initUsernatTun, jlong) {
 	TRACEPRINT("");
 	tun_ctx_t* ctx = create_usernat_tun_ctx(NULL, 0, this);
+
+	if(ctx != NULL) {
+		ctx->setJavaVpnTunnel(ctx, this);
+	}
+
 	return (jlong) (intptr_t) ctx;
 }
 
