@@ -14,7 +14,6 @@ import no.infoss.confprofile.profile.data.VpnDataEx;
 import no.infoss.confprofile.util.AndroidProperties;
 import no.infoss.confprofile.util.LocalNetworkConfig;
 import no.infoss.confprofile.util.MiscUtils;
-import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.SimpleServiceBindKit;
 import no.infoss.confprofile.vpn.RouterLoop.Route4;
 import no.infoss.confprofile.vpn.VpnTunnel.ConnectionStatus;
@@ -249,6 +248,8 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			mUsernatTunnel.setDnsAddrs(AndroidProperties.getInstance().getNetworkSpecificDnsAddrs(this));
 			mRouterLoop.defaultRoute4(mUsernatTunnel);
 			mRouterLoop.defaultRoute6(mUsernatTunnel);
+			Log.d(TAG, "mRouterLoop.route4(): " + mCurrLocalNetConfig.getSubnetAddr() + "/" + mCurrLocalNetConfig.getSubnetMask());
+			//mRouterLoop.route4(mUsernatTunnel, mCurrLocalNetConfig.getSubnetAddr(), mCurrLocalNetConfig.getSubnetMask());
 			
 			if(mDebugDelegate.isDebugPcapEnabled()) {
 				debugStartPcap();
@@ -525,6 +526,16 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			
 			VpnTunnel oldTun = mCurrentTunnel;
 			mCurrentTunnel = tun;
+			
+			InetAddress[] dnsAddrs = mCurrLocalNetConfig.getDnsAddresses(null);
+			ArrayList<String> virtualDnsAddrs = new ArrayList<String>(dnsAddrs.length);
+			for(InetAddress addr : dnsAddrs) {
+				if(addr != null) {
+					virtualDnsAddrs.add(addr.getHostAddress());
+				}
+			}
+			
+			tun.setVirtualDnsAddrs(virtualDnsAddrs.toArray(new String[virtualDnsAddrs.size()]));
 			tun.establishConnection();
 			
 			if(mDebugDelegate.isDebugPcapEnabled()) {
