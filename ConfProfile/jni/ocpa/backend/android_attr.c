@@ -39,8 +39,6 @@ METHOD(attribute_handler_t, handle, bool,
 	private_android_attr_t *this, identification_t *server,
 	configuration_attribute_type_t type, chunk_t data)
 {
-/*
-	vpnservice_builder_t *builder;
 	host_t *dns;
 
 	switch (type)
@@ -61,10 +59,9 @@ METHOD(attribute_handler_t, handle, bool,
 		return FALSE;
 	}
 
-	builder = charonservice->get_vpnservice_builder(charonservice);
-	builder->add_dns(builder, dns);
+	charonservice->add_dns(charonservice, dns);
 	dns->destroy(dns);
-*/
+
 	return TRUE;
 }
 
