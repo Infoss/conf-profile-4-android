@@ -79,6 +79,8 @@ public class IpSecTunnel extends VpnTunnel {
 			mOptions = (Map<String, Object>) mGlobalOptions.get(VpnPayload.KEY_IPSEC);
 		}
 		
+		setServerName(getRemoteAddress());
+		
 		//TODO: implement the following
 		//AuthenticationMethod - Certificate or SharedSecret
 		//XAuthEnabled - 0 / 1
