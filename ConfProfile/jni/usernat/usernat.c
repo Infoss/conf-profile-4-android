@@ -203,6 +203,27 @@ static void process_connect_fd() {
 	send_cmd(control, buff, strlen(buff));
 }
 
+inline void log_dump_packet2(uint8_t* buff, int len) {
+	log_android(ANDROID_LOG_ERROR, LOG_TAG, "Packet buffer dump (%d byte(s) at %p):", len, buff);
+	uint8_t local[49];
+	int i;
+	int pos = 0;
+	while(pos < len) {
+		memset(&local, 0, sizeof(local));
+		int cnt = 16;
+		if(pos + 16 > len) {
+			cnt = len - pos;
+		}
+
+		for(i = 0; i < cnt; i++) {
+			sprintf((uint8_t*)(&local) + (i * 3), "%02x ", buff[pos]);
+			pos++;
+		}
+
+		log_android(ANDROID_LOG_ERROR, LOG_TAG, "%s", (char*) &local);
+	}
+}
+
 static void process_socat(char* cmd, int len) {
 	char buff[18];
 	memset(buff, 0, sizeof(buff));
@@ -240,8 +261,6 @@ static void process_socat(char* cmd, int len) {
 	char buff_to[64];
 	memset(buff_from, 0, sizeof(buff_from));
 	memset(buff_to, 0, sizeof(buff_to));
-	//"-d", "-d", "-d", "-d",
-	char* params[] = {"socat", buff_from, buff_to};
 
 	snprintf(buff_from, sizeof(buff_from), "SOCKET-FD-ACCEPT:%d", accept_fd);
 	snprintf(buff_to, sizeof(buff_to), "SOCKET-FD-CONNECT:%d:%s", connect_fd, cmd);
@@ -249,15 +268,31 @@ static void process_socat(char* cmd, int len) {
 
 	struct sockaddr_in sa;
 	int sa_len = sizeof(sa);
-	int accepted_sock = accept(accept_fd, (struct sockaddr*) &sa, &sa_len);
-	if(accepted_sock == -1) {
-		log_android(ANDROID_LOG_ERROR, LOG_TAG, "can't accept() %d: %s", errno, strerror(errno));
-		shutdown(accept_fd, SHUT_RDWR);
-		shutdown(connect_fd, SHUT_RDWR);
-		exit(EXIT_EXEC_FAILED);
+	int accepted_sock = accept_fd;
+
+	int sock_type = 0;
+	socklen_t sock_type_length = sizeof(sock_type);
+	if(getsockopt(accept_fd, SOL_SOCKET, SO_TYPE, &sock_type, &sock_type_length) < 0) {
+		log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while getsockopt(%d, SOL_SOCKET, SO_TYPE) %d: %s",
+									accept_fd, errno, strerror(errno));
 	}
-	log_android(ANDROID_LOG_DEBUG, LOG_TAG, "accept() returned %d", accepted_sock);
-	close(accept_fd);
+
+	log_android(ANDROID_LOG_DEBUG, LOG_TAG, "getsockopt(SO_TYPE) returned %d", sock_type);
+	if(sock_type != SOCK_STREAM) {
+		log_android(ANDROID_LOG_DEBUG, LOG_TAG, "UDP mode: %s %s", buff_from, buff_to);
+	} else {
+		//accept if acceptable
+		log_android(ANDROID_LOG_DEBUG, LOG_TAG, "TCP mode: %s %s", buff_from, buff_to);
+		accepted_sock = accept(accept_fd, (struct sockaddr*) &sa, &sa_len);;
+		if(accepted_sock == -1) {
+			log_android(ANDROID_LOG_ERROR, LOG_TAG, "can't accept() %d: %s", errno, strerror(errno));
+			shutdown(accept_fd, SHUT_RDWR);
+			shutdown(connect_fd, SHUT_RDWR);
+			exit(EXIT_EXEC_FAILED);
+		}
+		log_android(ANDROID_LOG_DEBUG, LOG_TAG, "accept() returned %d", accepted_sock);
+		close(accept_fd);
+	}
 
 	struct pollfd* pollfds = malloc(sizeof(struct pollfd) * 2);
 	if(pollfds == NULL) {
@@ -291,6 +326,7 @@ static void process_socat(char* cmd, int len) {
 					exit(EXIT_EXEC_FAILED);
 				} else if(size > 0) {
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[0].fd, size);
+					log_dump_packet2(bytebuff, size);
 					size = write(pollfds[1].fd, bytebuff, size);
 					if(size < 0) {
 						log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while write(%d) %d: %s",
@@ -313,6 +349,7 @@ static void process_socat(char* cmd, int len) {
 					exit(EXIT_EXEC_FAILED);
 				} else if(size > 0) {
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[1].fd, size);
+					log_dump_packet2(bytebuff, size);
 					size = write(pollfds[0].fd, bytebuff, size);
 					if(size < 0) {
 						log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while write(%d) %d: %s",
