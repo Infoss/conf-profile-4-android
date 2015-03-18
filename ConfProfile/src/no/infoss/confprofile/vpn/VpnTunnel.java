@@ -18,6 +18,7 @@ import com.google.gson.GsonBuilder;
 import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.format.json.BuiltinTypeAdapterFactory;
 import no.infoss.confprofile.util.MiscUtils;
+import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.PcapOutputStream;
 import no.infoss.confprofile.vpn.interfaces.Debuggable;
 import android.content.Context;
@@ -176,15 +177,19 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 	}
 	
 	protected void setServerName(String serverName) {
-		
+		mServerName = serverName;
 	}
 	
 	protected void setLocalAddress(String localAddress) {
-		
+		mLocalAddress = localAddress;
 	}
 	
 	protected void setRemoteAddress(String remoteAddress) {
-		
+		mRemoteAddress = remoteAddress;
+	}
+	
+	protected void setDnsAddress(int idx, int addr) {
+		setDnsIp4(mVpnTunnelCtx, idx, addr);
 	}
 	
 	protected void setMasqueradeIp4Mode(boolean isOn) {
@@ -204,6 +209,46 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 			return;
 		}
 		setMasqueradeIp6(mVpnTunnelCtx, ip6);
+	}
+	
+	public void setDnsAddrs(String[] addrs) {
+		int i = 0;
+		
+		for(; i < 4; i++) {
+			setDnsIp4(mVpnTunnelCtx, i, 0);
+		}
+		
+		i = 0;
+		for(String addr : addrs) {
+			if(addr != null && !addr.isEmpty()) {
+				try {
+					setDnsIp4(mVpnTunnelCtx, i, NetUtils.ip4StrToInt(addr));
+				} catch(Exception e) {
+					//suppress this
+				}
+			}
+			i++;
+		}
+	}
+	
+	public void setVirtualDnsAddrs(String[] addrs) {
+		int i = 0;
+		
+		for(; i < 4; i++) {
+			setVirtualDnsIp4(mVpnTunnelCtx, i, 0);
+		}
+		
+		i = 0;
+		for(String addr : addrs) {
+			if(addr != null && !addr.isEmpty()) {
+				try {
+					setVirtualDnsIp4(mVpnTunnelCtx, i, NetUtils.ip4StrToInt(addr));
+				} catch(Exception e) {
+					//suppress this
+				}
+			}
+			i++;
+		}
 	}
 	
 	/**
@@ -268,6 +313,8 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 		return null;
 	}
 	
+	private native void setDnsIp4(long vpnTunnelCtx, int idx, int ip4);
+	private native void setVirtualDnsIp4(long vpnTunnelCtx, int idx, int ip4);
 	private native void setMasqueradeIp4Mode(long vpnTunnelCtx, boolean isOn);
 	private native void setMasqueradeIp4(long vpnTunnelCtx, int ip4);
 	private native void setMasqueradeIp6Mode(long vpnTunnelCtx, boolean isOn);

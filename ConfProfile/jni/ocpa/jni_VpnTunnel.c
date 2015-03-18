@@ -8,6 +8,26 @@
 #include "tun.h"
 #include "util.h"
 
+JNI_METHOD(VpnTunnel, setDnsIp4, void, jlong jtunctx, jint idx, jint ip4) {
+	TRACEPRINT("(tun_ctx=%p, idx=%d, ip=0x%08x)", jtunctx, idx, ip4);
+	tun_ctx_t* ctx = ((tun_ctx_t*) (intptr_t) jtunctx);
+	if(ctx == NULL) {
+		return;
+	}
+
+	ctx->setDnsIp4(ctx, idx, ip4);
+}
+
+JNI_METHOD(VpnTunnel, setVirtualDnsIp4, void, jlong jtunctx, jint idx, jint ip4) {
+	TRACEPRINT("(tun_ctx=%p, idx=%d, ip=0x%08x)", jtunctx, idx, ip4);
+	tun_ctx_t* ctx = ((tun_ctx_t*) (intptr_t) jtunctx);
+	if(ctx == NULL) {
+		return;
+	}
+
+	ctx->setVirtualDnsIp4(ctx, idx, ip4);
+}
+
 JNI_METHOD(VpnTunnel, setMasqueradeIp4Mode, void, jlong jtunctx, jboolean jison) {
 	TRACEPRINT("(tun_ctx=%p, mode=%s)", jtunctx, jison == JNI_TRUE ? "on" : "off");
 	tun_ctx_t* ctx = ((tun_ctx_t*) (intptr_t) jtunctx);
