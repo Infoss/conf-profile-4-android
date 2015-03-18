@@ -26,6 +26,14 @@ static ssize_t dev_tun_send(tun_ctx_t* ctx, uint8_t* buff, int len) {
 	//end capture
 
 	int size = write(instance->local_fd, buff, len);
+	LOGEIF(TUN_DEBUG && (size < 0),
+			LOG_TAG,
+			"write() returned %d (error %d) while writing into fd=%d (buff=%p, len=%d)",
+			size,
+			errno,
+			instance->local_fd,
+			buff,
+			len);
 
 	return size;
 }
@@ -39,9 +47,18 @@ static ssize_t dev_tun_recv(tun_ctx_t* ctx, uint8_t* buff, int len) {
 	struct tun_ctx_private_t* instance = (struct tun_ctx_private_t*) ctx;
 
 	//TODO: use internal buffer
-	ocpa_ip_packet_t* ip_packet = &(instance->router_ctx->ip_pkt);
+	//ocpa_ip_packet_t* ip_packet = &(instance->router_ctx->ip_pkt);
+	//LOGDIF(TUN_DEBUG, LOG_TAG, "ip_packet=%p, buff=%p", ip_packet, ip_packet->buff);
+	ocpa_ip_packet_t packet;
+	memset(&packet, 0, sizeof(packet));
+	packet.buff = buff;
+	packet.buff_len = len;
+	packet.pkt_len = len;
+	ip_parse_packet(&packet);
 
-	int res = read_ip_packet(ctx->getLocalFd(ctx), ip_packet->buff, ip_packet->buff_len);
+
+	//int res = read_ip_packet(ctx->getLocalFd(ctx), ip_packet->buff, ip_packet->buff_len);
+	int res = read_ip_packet(ctx->getLocalFd(ctx), packet.buff, packet.buff_len);
 	if(res < 0) {
 		if(errno == EAGAIN || errno == EWOULDBLOCK) {
 			//we'll try next time
@@ -52,13 +69,16 @@ static ssize_t dev_tun_recv(tun_ctx_t* ctx, uint8_t* buff, int len) {
 		return res;
 	}
 
-	ip_packet->pkt_len = res;
+	//ip_packet->pkt_len = res;
+	packet.pkt_len = res;
 
 	//start capture
-	pcap_output_write(instance->pcap_output, ip_packet->buff, 0, ip_packet->pkt_len);
+	//pcap_output_write(instance->pcap_output, ip_packet->buff, 0, ip_packet->pkt_len);
+	pcap_output_write(instance->pcap_output, packet.buff, 0, packet.pkt_len);
 	//end capture
 
-	res = ipsend(instance->router_ctx, ip_packet);
+	//res = ipsend(instance->router_ctx, ip_packet);
+	res = ipsend(instance->router_ctx, &packet);
 
 	return res;
 }
