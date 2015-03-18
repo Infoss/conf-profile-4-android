@@ -114,7 +114,10 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 					epoll_events[i].events,
 					epoll_events[i].data.fd);
 			if((epoll_events[i].events & EPOLLIN) != 0) {
-				LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Read from fd=%d (events=%08x)", epoll_events[i].data.fd, epoll_events[i].events);
+				LOGDIF(ROUTER_EPOLL_DEBUG, LOG_TAG, "Read from fd=%d (events=%08x) buff=%p",
+						epoll_events[i].data.fd,
+						epoll_events[i].events,
+						ip_pkt_buff);
 
 				res = 0;
 				tun_ctx_t* tmp_tun_ctx = NULL;
