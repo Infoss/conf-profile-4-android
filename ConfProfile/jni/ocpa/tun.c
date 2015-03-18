@@ -91,6 +91,43 @@ static ssize_t tun_ctx_send(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
 	}
 	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) tun_ctx;
 
+	ocpa_ip_packet_t packet;
+	memset(&packet, 0, sizeof(packet));
+	packet.buff = buff;
+	packet.buff_len = len;
+	packet.pkt_len = len;
+	ip_parse_packet(&packet);
+
+	//handle virtual dns ip
+	int i = 0;
+	for(i = 0; i < 4; i++) {
+		int remoteDnsIp = htonl(ctx->dns_ip4[i]);
+		int remoteVirtualIp = htonl(ctx->virtual_dns_ip4[i]);
+		if(remoteDnsIp != 0 && remoteVirtualIp != 0 && remoteVirtualIp == packet.ip_header.v4->daddr) {
+			packet.ip_header.v4->daddr = remoteDnsIp;
+			ip4_calc_ip_checksum(buff, len);
+
+			switch(packet.payload_proto) {
+			case IPPROTO_TCP: {
+				ip4_calc_tcp_checksum(buff, len);
+				break;
+			}
+			case IPPROTO_UDP: {
+				ip4_calc_udp_checksum(buff, len);
+				break;
+			}
+			default: {
+				LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", packet.payload_proto);
+				break;
+			}
+			}
+
+			LOGD(LOG_TAG, "Rewriting DNS");
+			log_dump_packet(LOG_TAG, packet.buff, packet.pkt_len);
+			break;
+		}
+	}
+
 	//start capture
 	pcap_output_write(ctx->pcap_output, buff, 0, len);
 	//end capture
@@ -130,6 +167,44 @@ static ssize_t tun_ctx_recv(tun_ctx_t* tun_ctx, uint8_t* buff, int len) {
 	//end capture
 
 	pthread_rwlock_rdlock(ctx->router_ctx->rwlock4);
+
+	ocpa_ip_packet_t packet;
+	memset(&packet, 0, sizeof(packet));
+	packet.buff = buff;
+	packet.buff_len = len;
+	packet.pkt_len = res;
+	ip_parse_packet(&packet);
+
+	int i = 0;
+	for(i = 0; i < 4; i++) {
+		int remoteDnsIp = htonl(ctx->dns_ip4[i]);
+		int remoteVirtualIp = htonl(ctx->virtual_dns_ip4[i]);
+		if(remoteDnsIp != 0 && remoteVirtualIp != 0 && remoteDnsIp == packet.ip_header.v4->saddr) {
+			packet.ip_header.v4->saddr = remoteVirtualIp;
+
+			ip4_calc_ip_checksum(buff, res);
+
+			switch(packet.payload_proto) {
+			case IPPROTO_TCP: {
+				ip4_calc_tcp_checksum(buff, res);
+				break;
+			}
+			case IPPROTO_UDP: {
+				ip4_calc_udp_checksum(buff, res);
+				break;
+			}
+			default: {
+				LOGE(LOG_TAG, "Can't calculate checksum for protocol %d", packet.payload_proto);
+				break;
+			}
+			}
+
+			LOGD(LOG_TAG, "Rewriting DNS");
+			log_dump_packet(LOG_TAG, packet.buff, packet.pkt_len);
+			break;
+		}
+	}
+
 	tun_ctx_t* dev_tun_ctx = ctx->router_ctx->dev_tun_ctx;
 	dev_tun_ctx->masqueradeDst(dev_tun_ctx, buff, res);
 
