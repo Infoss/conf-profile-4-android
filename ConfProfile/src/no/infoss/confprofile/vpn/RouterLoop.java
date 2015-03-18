@@ -75,7 +75,7 @@ import android.util.Log;
 				}
 			}
 			
-			setMasqueradeIp4(mRouterCtx, NetUtils.ip4StrToInt("172.31.255.254"));
+			setMasqueradeIp4(mRouterCtx, netCfg.getLocalIp());
 			setMasqueradeIp4Mode(mRouterCtx, true);
 			
 			int result = routerLoop(mRouterCtx, mBuilder);
