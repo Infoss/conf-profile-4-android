@@ -470,7 +470,7 @@ public class IpSecTunnel extends VpnTunnel {
 		Log.d(TAG, "addRoute(): " + address + "/" + prefixLength);
 		//TODO
 		try {
-			//mBuilder.addRoute(address, prefixLength);
+			mVpnMgr.intlAddTunnelRoute4(this, address, prefixLength);
 		} catch (IllegalArgumentException ex) {
 			return false;
 		}
