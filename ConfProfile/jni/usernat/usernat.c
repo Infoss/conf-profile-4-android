@@ -326,7 +326,7 @@ static void process_socat(char* cmd, int len) {
 					exit(EXIT_EXEC_FAILED);
 				} else if(size > 0) {
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[0].fd, size);
-					log_dump_packet2(bytebuff, size);
+					//log_dump_packet2(bytebuff, size);
 					size = write(pollfds[1].fd, bytebuff, size);
 					if(size < 0) {
 						log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while write(%d) %d: %s",
@@ -349,7 +349,7 @@ static void process_socat(char* cmd, int len) {
 					exit(EXIT_EXEC_FAILED);
 				} else if(size > 0) {
 					log_android(ANDROID_LOG_DEBUG, LOG_TAG, "read(%d) returned %d", pollfds[1].fd, size);
-					log_dump_packet2(bytebuff, size);
+					//log_dump_packet2(bytebuff, size);
 					size = write(pollfds[0].fd, bytebuff, size);
 					if(size < 0) {
 						log_android(ANDROID_LOG_ERROR, LOG_TAG, "error while write(%d) %d: %s",

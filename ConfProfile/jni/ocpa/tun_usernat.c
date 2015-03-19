@@ -131,8 +131,6 @@ static ssize_t usernat_tun_ctx_send(tun_ctx_t* ctx, uint8_t* buff, int len) {
 				int remoteVirtualIp = htonl(instance->tun_ctx.virtual_dns_ip4[i]);
 				if(remoteDnsIp != 0 && remoteVirtualIp != 0 && remoteDnsIp == packet.ip_header.v4->saddr) {
 					packet.ip_header.v4->saddr = remoteVirtualIp;
-					LOGD(LOG_TAG, "Rewriting DNS");
-					log_dump_packet(LOG_TAG, packet.buff, packet.pkt_len);
 					break;
 				}
 			}
@@ -389,8 +387,6 @@ static nat_link_t* find_link(struct usernat_tun_ctx_private_t* instance, ocpa_ip
 				int remoteVirtualIp = htonl(instance->tun_ctx.virtual_dns_ip4[i]);
 				if(remoteDnsIp != 0 && remoteVirtualIp != 0 && remoteVirtualIp == packet->ip_header.v4->daddr) {
 					packet->ip_header.v4->daddr = remoteDnsIp;
-					LOGD(LOG_TAG, "Rewriting DNS");
-					log_dump_packet(LOG_TAG, packet->buff, packet->pkt_len);
 					break;
 				}
 			}
