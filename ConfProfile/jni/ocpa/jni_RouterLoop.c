@@ -145,7 +145,6 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 					}
 				} else {
 					LOGE(LOG_TAG, "Tunnel is not ready, dropping a packet");
-					log_dump_packet(LOG_TAG, ip_pkt_buff, ip_pkt_buff_size);
 				}
 
 				if(res < 0) {
@@ -155,8 +154,7 @@ JNI_METHOD(RouterLoop, routerLoop, jint, jlong jrouterctx, jobject jbuilder) {
 							errno,
 							res,
 							strerror(errno));
-					log_dump_packet(LOG_TAG, ip_pkt_buff, ip_pkt_buff_size);
-					goto failed;
+					continue;
 				}
 
 			}
