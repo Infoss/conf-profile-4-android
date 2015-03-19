@@ -526,6 +526,7 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			
 			VpnTunnel oldTun = mCurrentTunnel;
 			mCurrentTunnel = tun;
+			tun.establishConnection();
 			
 			InetAddress[] dnsAddrs = mCurrLocalNetConfig.getDnsAddresses(null);
 			ArrayList<String> virtualDnsAddrs = new ArrayList<String>(dnsAddrs.length);
@@ -536,7 +537,6 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 			}
 			
 			tun.setVirtualDnsAddrs(virtualDnsAddrs.toArray(new String[virtualDnsAddrs.size()]));
-			tun.establishConnection();
 			
 			if(mDebugDelegate.isDebugPcapEnabled()) {
 				mDebugDelegate.debugStartTunnelPcap(mRouterLoop.getMtu(), tun);
