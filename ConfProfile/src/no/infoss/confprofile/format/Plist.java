@@ -63,6 +63,7 @@ public class Plist implements XmlSerializable {
 	
 	public static final String TYPE_BOOLEAN = "boolean";
 	public static final String TYPE_INTEGER = "integer";
+	public static final String TYPE_REAL = "real";
 	public static final String TYPE_STRING = "string";
 	public static final String TYPE_DATA = "data";
 	public static final String TYPE_ARRAY = "array";
@@ -175,6 +176,14 @@ public class Plist implements XmlSerializable {
 		return asArray().getInteger(index, defValue);
 	}
 	
+	public Double getReal(int index) {
+		return asArray().getReal(index);
+	}
+	
+	public double getReal(int index, double defValue) {
+		return asArray().getReal(index, defValue);
+	}
+	
 	public String getString(int index) {
 		return asArray().getString(index);
 	}
@@ -216,6 +225,10 @@ public class Plist implements XmlSerializable {
 	
 	public int getInteger(String key, int defValue) {
 		return asDictionary().getInteger(key, defValue);
+	}
+	
+	public double getReal(String key, double defValue) {
+		return asDictionary().getReal(key, defValue);
 	}
 	
 	public String getString(String key, String defValue) {
@@ -308,6 +321,8 @@ public class Plist implements XmlSerializable {
 			return TYPE_BOOLEAN;
 		} else if(object instanceof Integer) {
 			return TYPE_INTEGER;
+		} else if(object instanceof Double) {
+			return TYPE_REAL;
 		} else if(object instanceof String) {
 			return TYPE_STRING;
 		} else if(object instanceof byte[]) { 
@@ -353,6 +368,8 @@ public class Plist implements XmlSerializable {
 				parser.next();
 			} else if(TYPE_INTEGER.equalsIgnoreCase(objectType)) {
 				object = Integer.valueOf(XmlUtils.readText(parser));
+			} else if(TYPE_REAL.equalsIgnoreCase(objectType)) {
+				object = Double.valueOf(XmlUtils.readText(parser));
 			} else if(TYPE_STRING.equalsIgnoreCase(objectType)) {
 				object = XmlUtils.readText(parser);
 			} else if(TYPE_DATA.equalsIgnoreCase(objectType)) {
@@ -385,6 +402,10 @@ public class Plist implements XmlSerializable {
 			serializer.startTag(null, TYPE_INTEGER);
 			serializer.text(object.toString());
 			serializer.endTag(null, TYPE_INTEGER);
+		} else if(TYPE_REAL.equalsIgnoreCase(objectType)) {
+			serializer.startTag(null, TYPE_REAL);
+			serializer.text(object.toString());
+			serializer.endTag(null, TYPE_REAL);
 		} else if(TYPE_STRING.equalsIgnoreCase(objectType)) {
 			serializer.startTag(null, TYPE_STRING);
 			serializer.text(object.toString());
@@ -438,6 +459,19 @@ public class Plist implements XmlSerializable {
 		
 		public int getInteger(int index, int defValue) {
 			Integer object = getInteger(index);
+			return object == null ? defValue : object;
+		}
+		
+		public Double getReal(int index) {
+			Object object = get(index);
+			if(!TYPE_REAL.equalsIgnoreCase(Plist.getType(object))) {
+				return null;
+			}
+			return (Double) object;
+		}
+		
+		public double getReal(int index, double defValue) {
+			Double object = getReal(index);
 			return object == null ? defValue : object;
 		}
 		
@@ -570,6 +604,19 @@ public class Plist implements XmlSerializable {
 		
 		public int getInteger(String key, int defValue) {
 			Integer object = getInteger(key);
+			return object == null ? defValue : object;
+		}
+		
+		public Double getReal(String key) {
+			Object object = get(key);
+			if(!TYPE_REAL.equalsIgnoreCase(Plist.getType(object))) {
+				return null;
+			}
+			return (Double) object;
+		}
+		
+		public double getReal(String key, double defValue) {
+			Double object = getReal(key);
 			return object == null ? defValue : object;
 		}
 		

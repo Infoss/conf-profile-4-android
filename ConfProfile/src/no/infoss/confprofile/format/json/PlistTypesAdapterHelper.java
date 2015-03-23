@@ -31,6 +31,8 @@ public class PlistTypesAdapterHelper {
 				result = Base64.decode(reader.nextString(), Base64.DEFAULT);
 			} else if(Plist.TYPE_STRING.equals(plistType)) {
 				result = reader.nextString();
+			} else if(Plist.TYPE_REAL.equals(plistType)) {
+				result = Double.valueOf(reader.nextDouble());
 			} else if(Plist.TYPE_INTEGER.equals(plistType)) {
 				result = Integer.valueOf(reader.nextInt());
 			} else if(Plist.TYPE_BOOLEAN.equals(plistType)) {
@@ -59,6 +61,8 @@ public class PlistTypesAdapterHelper {
 			writer.value(String.valueOf(obj));
 		} else if(Plist.TYPE_INTEGER.equals(type)) {
 			writer.value((Integer) obj);
+		} else if(Plist.TYPE_REAL.equals(type)) {
+			writer.value((Double) obj);
 		} else if(Plist.TYPE_STRING.equals(type)) {
 			writer.value((String) obj);
 		} else if(Plist.TYPE_DATA.equals(type)) {
