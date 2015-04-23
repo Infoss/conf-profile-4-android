@@ -175,6 +175,8 @@ extern "C" {
 #define BIO_CTRL_DGRAM_SET_NEXT_TIMEOUT   45 /* Next DTLS handshake timeout to
                                               * adjust socket timeouts */
 
+#define BIO_CTRL_DGRAM_GET_MTU_OVERHEAD   49
+
 #ifndef OPENSSL_NO_SCTP
 /* SCTP stuff */
 #define BIO_CTRL_DGRAM_SCTP_SET_IN_HANDSHAKE	50
@@ -266,6 +268,9 @@ void BIO_clear_flags(BIO *b, int flags);
 #define BIO_RR_CONNECT			0x02
 /* Returned from the accept BIO when an accept would have blocked */
 #define BIO_RR_ACCEPT			0x03
+/* Returned from the SSL bio when the channel id retrieval code cannot find the
+ * private key. */
+#define BIO_RR_SSL_CHANNEL_ID_LOOKUP	0x04
 
 /* These are passed by the BIO callback */
 #define BIO_CB_FREE	0x01
@@ -607,6 +612,8 @@ int BIO_ctrl_reset_read_request(BIO *b);
          (int)BIO_ctrl(b, BIO_CTRL_DGRAM_GET_PEER, 0, (char *)peer)
 #define BIO_dgram_set_peer(b,peer) \
          (int)BIO_ctrl(b, BIO_CTRL_DGRAM_SET_PEER, 0, (char *)peer)
+#define BIO_dgram_get_mtu_overhead(b) \
+         (unsigned int)BIO_ctrl((b), BIO_CTRL_DGRAM_GET_MTU_OVERHEAD, 0, NULL)
 
 /* These two aren't currently implemented */
 /* int BIO_get_ex_num(BIO *bio); */

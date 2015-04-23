@@ -13,6 +13,10 @@ LOCAL_SHARED_LIBRARIES = $(log_shared_libraries)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= libssl_static
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/android-config.mk $(LOCAL_PATH)/OcpaSsl.mk
+
+LOCAL_SRC_FILES_$(TARGET_ARCH) :=
+LOCAL_CFLAGS_$(TARGET_ARCH) :=
+LOCAL_CLANG_ASFLAGS_$(TARGET_ARCH) :=
 include $(LOCAL_PATH)/OcpaSsl-config-target.mk
 include $(LOCAL_PATH)/android-config.mk
 LOCAL_SRC_FILES += $(LOCAL_SRC_FILES_$(TARGET_ARCH))
@@ -36,6 +40,10 @@ LOCAL_SHARED_LIBRARIES += libcrypto $(log_shared_libraries)
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= libssl
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/android-config.mk $(LOCAL_PATH)/OcpaSsl.mk
+
+LOCAL_SRC_FILES_$(TARGET_ARCH) :=
+LOCAL_CFLAGS_$(TARGET_ARCH) :=
+LOCAL_CLANG_ASFLAGS_$(TARGET_ARCH) :=
 include $(LOCAL_PATH)/OcpaSsl-config-target.mk
 include $(LOCAL_PATH)/android-config.mk
 LOCAL_SRC_FILES += $(LOCAL_SRC_FILES_$(TARGET_ARCH))

@@ -128,8 +128,13 @@
 extern "C" {
 #endif
 
-/* Signalling cipher suite value: from draft-ietf-tls-renegotiation-03.txt */
+/* Signalling cipher suite value from RFC 5746
+ * (TLS_EMPTY_RENEGOTIATION_INFO_SCSV) */
 #define SSL3_CK_SCSV				0x030000FF
+
+/* Signalling cipher suite value from draft-ietf-tls-downgrade-scsv-00
+ * (TLS_FALLBACK_SCSV) */
+#define SSL3_CK_FALLBACK_SCSV			0x03005600
 
 #define SSL3_CK_RSA_NULL_MD5			0x03000001
 #define SSL3_CK_RSA_NULL_SHA			0x03000002
@@ -388,11 +393,12 @@ typedef struct ssl3_buffer_st
 #define TLS1_FLAGS_TLS_PADDING_BUG		0x0008
 #define TLS1_FLAGS_SKIP_CERT_VERIFY		0x0010
 #define TLS1_FLAGS_KEEP_HANDSHAKE		0x0020
-/* SSL3_FLAGS_CCS_OK indicates that a ChangeCipherSpec record is acceptable at
- * this point in the handshake. If this flag is not set then received CCS
- * records will cause a fatal error for the connection. */
+/*
+ * Set when the handshake is ready to process peer's ChangeCipherSpec message.
+ * Cleared after the message has been processed.
+ */
 #define SSL3_FLAGS_CCS_OK			0x0080
- 
+
 /* SSL3_FLAGS_SGC_RESTART_DONE is set when we
  * restart a handshake because of MS SGC and so prevents us
  * from restarting the handshake in a loop. It's reset on a
@@ -454,8 +460,11 @@ typedef struct ssl3_state_st
 	 * and freed and MD_CTX-es for all required digests are stored in
 	 * this array */
 	EVP_MD_CTX **handshake_dgst;
-	/* this is set whenerver we see a change_cipher_spec message
-	 * come in when we are not looking for one */
+	/*
+	 * Set whenever an expected ChangeCipherSpec message is processed.
+	 * Unset when the peer's Finished message is received.
+	 * Unexpected ChangeCipherSpec messages trigger a fatal alert.
+	 */
 	int change_cipher_spec;
 
 	int warn_alert;
@@ -558,6 +567,11 @@ typedef struct ssl3_state_st
 	 * for Channel IDs and that tlsext_channel_id will be valid after the
 	 * handshake. */
 	char tlsext_channel_id_valid;
+	/* tlsext_channel_id_new means that the updated Channel ID extension
+	 * was negotiated. This is a temporary hack in the code to support both
+	 * forms of Channel ID extension while we transition to the new format,
+	 * which fixed a security issue. */
+	char tlsext_channel_id_new;
 	/* For a server:
 	 *     If |tlsext_channel_id_valid| is true, then this contains the
 	 *     verified Channel ID from the client: a P256 point, (x,y), where
@@ -678,11 +692,11 @@ typedef struct ssl3_state_st
 #define SSL3_ST_SR_CERT_VRFY_B		(0x1A1|SSL_ST_ACCEPT)
 #define SSL3_ST_SR_CHANGE_A		(0x1B0|SSL_ST_ACCEPT)
 #define SSL3_ST_SR_CHANGE_B		(0x1B1|SSL_ST_ACCEPT)
-#define SSL3_ST_SR_POST_CLIENT_CERT	(0x1BF|SSL_ST_ACCEPT)
 #ifndef OPENSSL_NO_NEXTPROTONEG
 #define SSL3_ST_SR_NEXT_PROTO_A		(0x210|SSL_ST_ACCEPT)
 #define SSL3_ST_SR_NEXT_PROTO_B		(0x211|SSL_ST_ACCEPT)
 #endif
+#define SSL3_ST_SR_POST_CLIENT_CERT	(0x1BF|SSL_ST_ACCEPT)
 #define SSL3_ST_SR_CHANNEL_ID_A		(0x220|SSL_ST_ACCEPT)
 #define SSL3_ST_SR_CHANNEL_ID_B		(0x221|SSL_ST_ACCEPT)
 #define SSL3_ST_SR_FINISHED_A		(0x1C0|SSL_ST_ACCEPT)

@@ -2,7 +2,9 @@ include $(LOCAL_PATH)/OcpaCrypto-_main.mk
 include $(LOCAL_PATH)/OcpaCrypto-aes.mk
 include $(LOCAL_PATH)/OcpaCrypto-asn1.mk
 include $(LOCAL_PATH)/OcpaCrypto-evp.mk
+include $(LOCAL_PATH)/OcpaCrypto-pkcs.mk
 include $(LOCAL_PATH)/OcpaCrypto-x509.mk
+include $(LOCAL_PATH)/OcpaCrypto-x509v3.mk
 
 #######################################
 # target static library
@@ -16,7 +18,7 @@ LOCAL_SDK_VERSION := 9
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= libcrypto_static
-LOCAL_WHOLE_STATIC_LIBRARIES := libcrypto_part__main libcrypto_part_aes libcrypto_part_asn1 libcrypto_part_evp libcrypto_part_x509
+LOCAL_WHOLE_STATIC_LIBRARIES := libcrypto_part__main libcrypto_part_aes libcrypto_part_asn1 libcrypto_part_evp libcrypto_part_pkcs libcrypto_part_x509 libcrypto_part_x509v3
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/android-config.mk $(LOCAL_PATH)/OcpaCrypto.mk
 
 LOCAL_SRC_FILES := ocpa_dummy.c
@@ -48,7 +50,7 @@ LOCAL_LDFLAGS += -ldl
 
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE:= libcrypto
-LOCAL_WHOLE_STATIC_LIBRARIES := libcrypto_part__main libcrypto_part_aes libcrypto_part_asn1 libcrypto_part_evp libcrypto_part_x509
+LOCAL_WHOLE_STATIC_LIBRARIES := libcrypto_part__main libcrypto_part_aes libcrypto_part_asn1 libcrypto_part_evp libcrypto_part_pkcs libcrypto_part_x509 libcrypto_part_x509v3
 LOCAL_ADDITIONAL_DEPENDENCIES := $(LOCAL_PATH)/android-config.mk $(LOCAL_PATH)/OcpaCrypto.mk
 
 LOCAL_SRC_FILES := ocpa_dummy.c

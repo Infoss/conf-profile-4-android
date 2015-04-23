@@ -1,6 +1,9 @@
 /* opensslconf.h */
 /* WARNING: Generated automatically from opensslconf.h.in by Configure. */
 
+#ifdef  __cplusplus
+extern "C" {
+#endif
 /* OpenSSL was configured with the following options: */
 #ifndef OPENSSL_DOING_MAKEDEPEND
 
@@ -53,6 +56,9 @@
 #ifndef OPENSSL_NO_RFC3779
 # define OPENSSL_NO_RFC3779
 #endif
+#ifndef OPENSSL_NO_RIPEMD
+# define OPENSSL_NO_RIPEMD
+#endif
 #ifndef OPENSSL_NO_RSAX
 # define OPENSSL_NO_RSAX
 #endif
@@ -70,6 +76,9 @@
 #endif
 #ifndef OPENSSL_NO_STORE
 # define OPENSSL_NO_STORE
+#endif
+#ifndef OPENSSL_NO_UNIT_TEST
+# define OPENSSL_NO_UNIT_TEST
 #endif
 #ifndef OPENSSL_NO_WHIRLPOOL
 # define OPENSSL_NO_WHIRLPOOL
@@ -137,6 +146,9 @@
 # if defined(OPENSSL_NO_RFC3779) && !defined(NO_RFC3779)
 #  define NO_RFC3779
 # endif
+# if defined(OPENSSL_NO_RIPEMD) && !defined(NO_RIPEMD)
+#  define NO_RIPEMD
+# endif
 # if defined(OPENSSL_NO_RSAX) && !defined(NO_RSAX)
 #  define NO_RSAX
 # endif
@@ -154,6 +166,9 @@
 # endif
 # if defined(OPENSSL_NO_STORE) && !defined(NO_STORE)
 #  define NO_STORE
+# endif
+# if defined(OPENSSL_NO_UNIT_TEST) && !defined(NO_UNIT_TEST)
+#  define NO_UNIT_TEST
 # endif
 # if defined(OPENSSL_NO_WHIRLPOOL) && !defined(NO_WHIRLPOOL)
 #  define NO_WHIRLPOOL
@@ -314,3 +329,6 @@ YOU SHOULD NOT HAVE BOTH DES_RISC1 AND DES_RISC2 DEFINED!!!!!
 
 #endif /* DES_DEFAULT_OPTIONS */
 #endif /* HEADER_DES_LOCL_H */
+#ifdef  __cplusplus
+}
+#endif

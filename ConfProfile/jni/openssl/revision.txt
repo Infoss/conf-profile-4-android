@@ -1,0 +1,2 @@
+https://android.googlesource.com/platform/external/openssl.git
+Based on revision f35165a9fe623290659a755598925a833b284e22
