@@ -619,11 +619,15 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 
 	@Override
 	public boolean debugStartPcap() {
-		return mDebugDelegate.debugStartPcap(
-				mRouterLoop.getMtu(), 
-				mRouterLoop, 
-				mUsernatTunnel, 
-				mCurrentTunnel);
+		if(mRouterLoop != null) {
+			return mDebugDelegate.debugStartPcap(
+					mRouterLoop.getMtu(), 
+					mRouterLoop, 
+					mUsernatTunnel, 
+					mCurrentTunnel);
+		}
+		
+		return false;
 	}
 
 	@Override
