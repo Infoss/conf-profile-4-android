@@ -427,6 +427,7 @@ public abstract class VpnTunnel implements Runnable, Debuggable {
 				synchronized(mFmt) {
 					String logMsg = String.format(LOG_FMT, mFmt.format(new Date()), level, data);
 					mOs.write(logMsg.getBytes("UTF-8"));
+					mOs.flush();
 				}
 			} catch(Exception e) {
 				Log.e(mInstanceLogTag, "Can't log a message, closing a logger", e);

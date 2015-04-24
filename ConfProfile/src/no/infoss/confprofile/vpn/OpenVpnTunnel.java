@@ -701,7 +701,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 		builder.append("machine-readable-output\n");
 		
 		if(BuildConfig.DEBUG) {
-			builder.append("verb 5\n");
+			builder.append("verb 6\n");
 		} else {
 			builder.append("verb 4\n");
 		}
