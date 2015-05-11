@@ -25,6 +25,7 @@ import java.security.cert.Certificate;
 import no.infoss.confprofile.BuildConfig;
 import no.infoss.confprofile.crypto.CertificateManager;
 import no.infoss.confprofile.format.VpnPayload;
+import no.infoss.confprofile.util.CryptoUtils;
 import no.infoss.confprofile.util.MiscUtils;
 import no.infoss.confprofile.util.NetUtils;
 import no.infoss.confprofile.util.StringUtils;
@@ -714,7 +715,7 @@ public class OpenVpnTunnel extends VpnTunnel {
 				builder.append(key);
 				builder.append(">\n");
 				String value = (String) entry.getValue();
-				builder.append(StringUtils.join(value.split("\\\\n"), "\n", true));
+				builder.append(CryptoUtils.validateRfc7468Chain(value));
 				builder.append("\n</");
 				builder.append(key);
 				builder.append(">");

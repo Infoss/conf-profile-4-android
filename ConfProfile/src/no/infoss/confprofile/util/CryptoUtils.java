@@ -75,6 +75,10 @@ public class CryptoUtils {
 		}
 	};
 	
+	private static final String DASHES = "-----";
+	private static final String BEGIN = "-----BEGIN";
+	private static final String END = "-----END";
+	
 	public static final String formatFingerprint(byte[] rawFingerprint) {
 		if(rawFingerprint == null || rawFingerprint.length == 0) {
 			return "";
@@ -274,5 +278,63 @@ public class CryptoUtils {
 		}
 
 		return builder.toString();
+	}
+	
+	public static String validateRfc7468Chain(String chain) {
+		if(chain == null) {
+			return null;
+		}
+		
+		StringBuilder builder = new StringBuilder();
+		
+		int pos = 0;
+		int tmpPos = 0;
+		while(pos < chain.length()) {
+			pos = chain.indexOf(BEGIN, pos);
+			if(pos < 0) {
+				builder.setLength(0);
+				builder.trimToSize();
+				return chain;
+			}
+			
+			tmpPos = chain.indexOf(DASHES, pos + BEGIN.length());
+			if(tmpPos < 0) {
+				builder.setLength(0);
+				builder.trimToSize();
+				return chain;
+			}
+			
+			String name = chain.substring(pos + BEGIN.length(), tmpPos);
+			
+			pos = tmpPos + DASHES.length();
+			tmpPos = chain.indexOf(END + name + DASHES, pos);
+			if(tmpPos < 0) {
+				builder.setLength(0);
+				builder.trimToSize();
+				return chain;
+			}
+			
+			builder.append(BEGIN);
+			builder.append(name);
+			builder.append(DASHES);
+			builder.append("\n");
+			
+			builder.append(validateBase64(chain.substring(pos, tmpPos), 64));
+			builder.append("\n");
+			
+			builder.append(END);
+			builder.append(name);
+			builder.append(DASHES);
+			builder.append("\n");
+		
+			pos = tmpPos + END.length() + name.length() + DASHES.length();
+		}
+		
+		return builder.toString();
+	}
+	
+	public static String validateBase64(String base64, int strLen) {
+		//TODO: improve this
+		return StringUtils.join(base64.trim().split("\\\\n"), "\n", true);
 	}
 }
