@@ -57,6 +57,8 @@ public class OpenVpnTunnel extends VpnTunnel {
 	private long mLastHoldRelease = 0;
 
     private LocalSocket mServerSocketLocal;
+    
+    private volatile int mDnsIdx = 0;
 
     enum PauseReason {
         noNetwork,
@@ -658,14 +660,32 @@ public class OpenVpnTunnel extends VpnTunnel {
 	private void addRoute4(String ip, String mask, String gateway, String device) {
 		String devName = (device == null) ? "" : device;
 		Log.d(TAG, "addRoute4 ip=" + ip + " mask=" + mask + " gw=" + gateway + " device=" + devName);
+		try {
+			mVpnMgr.intlAddTunnelRoute4(this, ip, NetUtils.mask4StrToInt(mask));
+		} catch (IllegalArgumentException ex) {
+		}
 	}
 	
 	private void addRoute6(String network, String device) {
 		Log.d(TAG, "addRoute6 network=" + network + " device=" + device);
 	}
 	
-	private void addDns(String dns) {
-		Log.d(TAG, "addDns " + dns);
+	private void addDns(String address) {
+		Log.d(TAG, "addDns " + address);
+		try {
+			setDnsAddress(mDnsIdx, NetUtils.ip4StrToInt(address));
+			mDnsIdx++;
+		} catch (IllegalArgumentException ex) {
+			mLogger.logException(LOG_WARN, 
+					String.format("IpSecTunnel.addDns(): Can't set dns address: %s", address), 
+					ex);
+			return;
+		} catch (Exception e) {
+			mLogger.logException(LOG_WARN, 
+					String.format("IpSecTunnel.addDns(): Invalid dns address: %s", address), 
+					e);
+			return;
+		}
 	}
 	
 	private void setDomain(String domain) {
