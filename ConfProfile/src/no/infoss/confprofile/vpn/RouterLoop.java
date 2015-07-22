@@ -22,7 +22,7 @@ import android.util.Log;
 	private Thread mThread;
 	
 	public RouterLoop(VpnManagerInterface vpnMgr, BuilderAdapter builder) {
-		mMtu = 1500;
+		mMtu = 1400;
 		mVpnMgr = vpnMgr;
 		mBuilder = builder;
 		mThread = new Thread(this, TAG);
@@ -48,7 +48,7 @@ import android.util.Log;
 		
 		synchronized (this) {
 			if(!mBuilder.setMtu(mMtu)) {
-				Log.d(TAG, "Can't set MTU=".concat(String.valueOf(1500)));
+				Log.d(TAG, "Can't set MTU=".concat(String.valueOf(mMtu)));
 			}
 			
 			/*
