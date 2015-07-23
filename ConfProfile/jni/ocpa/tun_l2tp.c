@@ -19,7 +19,7 @@ l2tp_tun_ctx_t* create_l2tp_tun_ctx(l2tp_tun_ctx_t* ptr, ssize_t len) {
 	struct tun_ctx_private_t* ctx = (struct tun_ctx_private_t*) result;
 
 	int fds[2];
-	if(socketpair(AF_UNIX, SOCK_STREAM, PF_UNSPEC, fds) != 0) {
+	if(socketpair(AF_UNIX, SOCK_DGRAM, PF_UNSPEC, fds) != 0) {
 		return ctx->public.ref_put(&ctx->public);
 	}
 
