@@ -10,7 +10,9 @@ public class Application extends android.app.Application {
 		super.onCreate();
 		
 		Crashlytics crashlytics = new Crashlytics();
-		Fabric.Builder b = new Fabric.Builder(this);
-		b.debuggable(!BuildConfig.DEBUG).kits(crashlytics).build();
+		Fabric.with(new Fabric.Builder(this).
+				debuggable(!BuildConfig.DEBUG).
+				kits(crashlytics).
+				build());
 	}
 }
