@@ -4,6 +4,8 @@
         Updates binary files in the assets/ folder
     </description>
 
+    <import file="crashlytics-ant/crashlytics_build.xml"/>
+
     <condition property="build.is.windows">
         <os family="windows" />
     </condition>
