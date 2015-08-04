@@ -9,6 +9,8 @@ import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
+import com.crashlytics.android.Crashlytics;
+
 import no.infoss.confprofile.StartVpn;
 import no.infoss.confprofile.profile.data.VpnDataEx;
 import no.infoss.confprofile.util.AndroidProperties;
@@ -511,11 +513,22 @@ public class VpnManagerService extends Service implements VpnManagerInterface {
 		//find appropriate tunnel and start connection
 		VpnDataEx vpnData = mCfgDelegate.getTunnelData(uuid);
 		
-		VpnTunnel tun = VpnTunnelFactory.getTunnel(getApplicationContext(), 
-				this, 
-				vpnData.getVpnType(),
-				vpnData.getPayloadUuid(),
-				vpnData.getOnDemandCredentials());
+		VpnTunnel tun = null;
+		
+		try {
+			tun = VpnTunnelFactory.getTunnel(getApplicationContext(), 
+					this, 
+					vpnData.getVpnType(),
+					vpnData.getPayloadUuid(),
+					vpnData.getOnDemandCredentials());
+		} catch(Exception e) {
+			Crashlytics.log("uuid is " + 
+					(uuid == null ? "" : "not") + 
+					" null, vpnData is " + 
+					(vpnData == null ? "" : "not") +
+					" null.");
+			Crashlytics.logException(e);
+		}
 		
 		if(tun == null) {
 			Log.d(TAG, "Can't create tun " + vpnData.getVpnType() + " with id=" + vpnData.getPayloadUuid());
