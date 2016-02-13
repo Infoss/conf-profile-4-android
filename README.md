@@ -1,3 +1,4 @@
+[![Stories in Ready](https://badge.waffle.io/Infoss/conf-profile-4-android.png?label=ready&title=Ready)](https://waffle.io/Infoss/conf-profile-4-android)
 
 Open Configuration Profiles for Android
 ======================
