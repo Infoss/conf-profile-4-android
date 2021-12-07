@@ -1,0 +1,2 @@
+https://android.googlesource.com/platform/external/ppp.git
+Based on revision ffcbb026045655bdf88593bdad333a69ed60cd8c

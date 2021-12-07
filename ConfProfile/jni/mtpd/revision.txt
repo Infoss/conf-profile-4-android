@@ -1,0 +1,2 @@
+https://android.googlesource.com/platform/external/mtpd.git
+Based on revision 5ea8006691664b7e6d46d6a6dc889eac91b7fe37

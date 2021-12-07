@@ -1,0 +1,5 @@
+pki.load =
+	Plugins to load in ipsec pki tool.
+
+scepclient.load =
+	Plugins to load in ipsec scepclient tool.

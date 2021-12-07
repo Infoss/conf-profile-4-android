@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <description>
+        Updates binary files in the assets/ folder
+    </description>
+
+    <import file="crashlytics-ant/crashlytics_build.xml"/>
+
+    <condition property="build.is.windows">
+        <os family="windows" />
+    </condition>
+
+    <condition property="ndk.build" value="ndk-build.cmd" else="ndk-build">
+        <istrue value="${build.is.windows}" />
+    </condition>
+
+    <condition property="build.ndk.rebuild" value="-B" else="">
+        <isset property="ndk.build.rebuild" />
+    </condition>
+
+    <condition property="build.ndk.verbose" value="V=1" else="">
+        <isset property="ndk.build.verbose" />
+    </condition>
+
+    <condition property="build.ndk.jobs" value="--jobs=${ndk.build.jobs.count}" else="">
+        <isset property="ndk.build.jobs.count" />
+    </condition>
+
+    <condition property="build.ndk.debug" value="" else="NDK_DEBUG=1">
+        <isset property="build.is.mode.release" />
+    </condition>
+    
+    <patternset id="ocpa.assets.exe">
+        <include name="*.armeabi" />
+        <include name="*.armeabi-v7a" />
+        <include name="*.mips" />
+        <include name="*.x86" />
+    </patternset>
+    
+    <patternset id="ocpa.libs.exe">
+        <include name="*/*" />
+        <exclude name="*/lib*.so" />
+        <exclude name="*/gdbserver" />
+        <exclude name="*/gdb.setup" />
+    </patternset>
+
+    <target name="-pre-build" depends="-ndk-build" />
+
+    <target name="-post-compile" depends="-copy-binaries-to-assets" />
+
+    <target name="-ndk-build">
+        <echo message="ant.project.name=${ant.project.name}"/>
+        <echo message="basedir=${basedir}"/>
+        <exec dir="${basedir}" executable="${ndk.dir}${file.separator}${ndk.build}" failonerror="true">
+            <arg value="${build.ndk.rebuild}" />
+            <arg value="${build.ndk.jobs}" />
+            <arg value="${build.ndk.verbose}" />
+            <arg value="${build.ndk.debug}" />
+        </exec>
+    </target>
+
+    <target name="-ndk-clean" depends="android_rules.clean">
+        <exec executable="${ndk.dir}${file.separator}${ndk.build}" failonerror="true">
+            <arg value="clean" />
+        </exec>
+    </target>     
+    
+    <target name="-copy-binaries-to-assets" depends="-clean-binaries-in-assets">	
+        <sequential>
+	        <copy todir="assets" enablemultiplemappings="true" verbose="true">
+		        <fileset dir="libs">
+		            <patternset refid="ocpa.libs.exe" />
+		        </fileset>
+		        <regexpmapper from="^(.*)\/(.*)$$" to="\2.\1" handledirsep="true" />
+		    </copy>
+ 
+		    <delete>
+		        <fileset dir="libs">
+	                <patternset refid="ocpa.libs.exe" />
+	            </fileset>
+		    </delete>
+	     </sequential>
+    </target>
+    
+    <target name="-clean-binaries-in-assets">
+        <delete>
+            <fileset dir="assets">
+                <patternset refid="ocpa.assets.exe" />
+            </fileset>
+        </delete>
+    </target>
+</project>

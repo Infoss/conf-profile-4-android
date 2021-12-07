@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project>
+    <description>
+        Updates binary files in the assets/ folder
+    </description>
+    
+    <patternset id="ocpa.assets.exe">
+        <include name="*.armeabi" />
+        <include name="*.armeabi-v7a" />
+        <include name="*.mips" />
+        <include name="*.x86" />
+    </patternset>
+    
+    <patternset id="ocpa.libs.exe">
+        <include name="*/*" />
+        <exclude name="*/lib*.so" />
+        <exclude name="*/gdbserver" />
+        <exclude name="*/gdb.setup" />
+    </patternset>
+    
+    <target name="build" depends="clean">	
+        <sequential>
+	        <copy todir="assets" enablemultiplemappings="true" verbose="true">
+		        <fileset dir="libs">
+		            <patternset refid="ocpa.libs.exe" />
+		        </fileset>
+		        <regexpmapper from="^(.*)\/(.*)$$" to="\2.\1" handledirsep="true" />
+		    </copy>
+ 
+		    <delete>
+		        <fileset dir="libs">
+	                <patternset refid="ocpa.libs.exe" />
+	            </fileset>
+		    </delete>
+	     </sequential>
+    </target>
+    
+    <target name="clean">
+        <delete>
+            <fileset dir="assets">
+                <patternset refid="ocpa.assets.exe" />
+            </fileset>
+        </delete>
+    </target>
+</project>

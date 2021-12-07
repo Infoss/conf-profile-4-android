@@ -1,0 +1,97 @@
+<resources>
+
+    <string name="app_name">OpenProfile</string>
+	<string name="idevice_ua">Mozilla/5.0 (iPhone; U; CPU iPhone OS 4_0 like Mac OS X; en-us) AppleWebKit/532.9 (KHTML, like Gecko) Version/4.0.5 Mobile/8A293 Safari/6531.22.7</string>
+	
+	<string name="main_no_profiles_msg">There are no installed profiles yet</string>
+	<string name="main_loading_profiles_msg">Loading installed profiles</string>
+	<string name="main_choose_config_label">choose a configuration&#8230;</string>
+	<string name="main_item_vpn_label">VPN</string>
+	<string name="main_item_vpn_disabled_label">Disabled</string>
+	<string name="main_item_vpn_enabled_label"></string>
+	<string name="main_item_vpn_unsupported_label">Unsupported firmware version</string>
+    <string name="main_item_vpn_locked_label">VPN is locked by system</string>
+	<string name="main_item_status_label">Status</string>
+	<string name="main_item_status_disconnected_label">Disconnected</string>
+	<string name="main_item_status_connecting_label">Connecting</string>
+	<string name="main_item_status_connected_label">Connected</string>
+	<string name="main_item_status_disconnecting_label">Disconnecting</string>
+	<string name="main_status_item_server_label">Server</string>
+	<string name="main_status_item_connect_time_label">Connect Time</string>
+	<string name="main_status_item_connected_to_label">Connected to</string>
+	<string name="main_status_item_ip_address_label">IP Address</string>
+	<string name="main_vpn_item_on_demand_label">Connect On Demand</string>
+	
+	<string name="menu_vpn">VPN</string>
+	<string name="menu_profiles">Profiles</string>
+	<string name="menu_info">Info</string>
+	<string name="menu_delete">Delete</string>
+	<string name="menu_apply">Apply</string>
+	<string name="main_menu_backup">Backup</string>
+	<string name="main_menu_start_capture">Start packet capture</string>
+	<string name="main_menu_stop_capture">Stop packet capture</string>
+	<string name="main_menu_exit">Exit</string>
+	
+	<string name="fragment_add_profile_btn_ok">Add profile</string>
+	<string name="fragment_add_profile_btn_cancel">Cancel</string>
+	<string name="fragment_add_profile_parsing_title">Please wait</string>
+	<string name="fragment_add_profile_parsing_label">Processing profile information</string>
+	<string name="fragment_add_profile_info_title">Installing profile</string>
+	<string name="fragment_add_profile_info_name_label">Profile name:</string>
+	<string name="fragment_add_profile_info_org_label">Organization:</string>
+	<string name="fragment_add_profile_info_desc_label">Description:</string>
+	
+	<string name="fragment_profile_details_desc_label">Description</string>
+	<string name="fragment_profile_details_signed_label">Signed</string>
+	<string name="fragment_profile_details_received_label">Received</string>
+	<string name="fragment_profile_details_contains_label">Contains</string>
+	<string name="fragment_profile_details_more_label">More details</string>
+	<string name="fragment_profile_details_date_label_fmt">dd MMM yyyy</string>
+	
+	<string name="fragment_vpn_payload_l2tp_tab">L2TP</string>
+	<string name="fragment_vpn_payload_pptp_tab">PPTP</string>
+	<string name="fragment_vpn_payload_ipsec_tab">IPSec</string>
+	<string name="fragment_vpn_payload_openvpn_tab">OpenVPN</string>
+	
+	<string name="fragment_vpn_payload_server_label">Server</string>
+	<string name="fragment_vpn_payload_login_label">Login</string>
+	<string name="fragment_vpn_payload_password_label">Password</string>
+	<string name="fragment_vpn_payload_certificate_label">Certificate</string>
+	<string name="fragment_vpn_payload_ipsec_group_label">Group name</string>
+	<string name="fragment_vpn_payload_psk_label">Secret</string>
+	<string name="fragment_vpn_payload_rsa_securid_label">RSA SecurID</string>
+	<string name="fragment_vpn_payload_encryption_label">Encryption</string>
+	<string name="fragment_vpn_payload_override_label">Override primary</string>
+	
+	<string name="dialog_confirm_profile_removal_label">Profile removal</string>
+	<string name="dialog_confirm_profile_removal_text">A you sure want to remove this profile?</string>
+	<string name="dialog_confirm_profile_removal_btn_ok">Remove</string>
+	<string name="dialog_confirm_profile_removal_btn_cancel">Cancel</string>
+	<string name="toast_profile_removal_success">Profile was successfully removed</string>
+	<string name="toast_profile_removal_error">Can\'t remove profile. Try again later.</string>
+	
+	<string name="error_add_profile_generic">Internal error. \nTry to reinstall profile later.</string>
+	<string name="error_add_profile_http_failed">Server doesn\'t respond. \nCheck your internet connectivity and try to reinstall profile.</string>
+	<string name="error_add_profile_scep_failed">Can\'t enroll certificate by SCEP. \nTry to reinstall profile later.</string>
+	<string name="error_add_profile_missing_scep">SCEP payload is missed. \nContact your profile provider to retrieve additional information.</string>
+	
+	<string name="notification_title_preparing">Preparing VPN</string>
+	<string name="notification_text_preparing">Please wait</string>
+	<string name="notification_title_connecting">Connecting</string>
+    <string name="notification_text_connecting">Please wait</string>
+    <string name="notification_title_connected">Connected</string>
+    <string name="notification_text_connected">Connected to VPN server</string>
+    <string name="notification_title_disconnected">Disconnected</string>
+    <string name="notification_text_disconnected">VPN is off.</string>
+    <string name="notification_title_error_unsupported">Feature unsupported</string>
+    <string name="notification_text_error_unsupported">This device doesn\'t support VPN API</string>
+    <string name="notification_title_error_always_on">Feature locked by system</string>
+    <string name="notification_text_error_always_on">Please turn off VPN Always On</string>
+	<string name="notification_title_error_revoked">Access revoked by another app</string>
+    <string name="notification_text_error_revoked">Please tap here to protect your traffic with VPN</string>
+    
+    <string name="payload_type_unknown">Unknown</string>
+    <string name="payload_type_scep">SCEP Enrollment Request</string>
+    <string name="payload_type_cert">Certificate</string>
+    <string name="payload_type_vpn">VPN Settings</string>
+</resources>
